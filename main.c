@@ -22,7 +22,7 @@ union {
 uint8_t gb_memory[64 * 1024];
 
 uint16_t get_word(uint16_t address) {
-	return ((uint16_t)gb_memory[address+1] << 8) | gb_memory[address];
+	return ((uint16_t)gb_memory[address+1] << 8) | (uint16_t)gb_memory[address];
 }
 
 void load_rom(char* rom_name, size_t rom_bytes) {
@@ -46,7 +46,39 @@ int main() {
 
 	while (true) {
 		uint8_t op_byte = gb_memory[gb_register.pc];
+		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
+
+		case 0x20: // JR NZ R8
+			fprintf(stderr, "Op Code not implemented: 0x%02X\n", op_byte);
+			exit(EXIT_FAILURE);
+			break;
+
+		case 0x1C: // INC E
+			gb_register.e++;
+			gb_register.pc++;
+			break;
+
+		case 0x12: // LD (DE) A
+			gb_memory[gb_register.de] = gb_register.a;
+			gb_register.pc++;
+			break;
+
+		case 0x2A: // LD A (HL+)
+			gb_register.a = gb_memory[gb_register.hl];
+			gb_register.hl++;
+			gb_register.pc++;
+			break;
+
+		case 0x0E: // LD C 8: load 8-bit immediate into C
+			gb_register.c = gb_memory[gb_register.pc+1];
+			gb_register.pc += 2;
+			break;
+
+		case 0x11: // LD DE d16: load 16-bit immediate into DE
+			gb_register.de = get_word(gb_register.pc+1);
+			gb_register.pc += 3;
+			break;
 
 		case 0x47: // LD B A: load A into B
 			gb_register.b = gb_register.a;
