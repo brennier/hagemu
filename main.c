@@ -13,7 +13,7 @@ union {
 		uint16_t sp, pc;
 	};
 	struct {
-		uint8_t af, bc, de, hl;
+		uint16_t af, bc, de, hl;
 	};
 	uint8_t raw_bytes[12];
 } gb_register;
