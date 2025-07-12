@@ -21,6 +21,10 @@ union {
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024];
 
+uint16_t get_word(uint16_t address) {
+	return ((uint16_t)gb_memory[address+1] << 8) | gb_memory[address];
+}
+
 void load_rom(char* rom_name, size_t rom_bytes) {
 	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
 	if (rom_file == NULL) {
@@ -43,6 +47,24 @@ int main() {
 	while (true) {
 		uint8_t op_byte = gb_memory[gb_register.pc];
 		switch (op_byte) {
+
+		case 0x47: // LD B A: load A into B
+			gb_register.b = gb_register.a;
+			gb_register.pc++;
+			break;
+
+		case 0x21: // LD HL d16: load 16-bit immediate into HL
+			gb_register.hl = get_word(gb_register.pc+1);
+			gb_register.pc += 3;
+			break;
+
+		case 0xC3: // JP a16: jump to following 16-bit address
+			gb_register.pc = get_word(gb_register.pc+1);
+			break;
+
+		case 0x00: // NOP: do nothing
+			gb_register.pc++;
+			break;
 
 		default:
 			fprintf(stderr, "Op Code not implemented: 0x%02X\n", op_byte);
