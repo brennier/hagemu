@@ -21,8 +21,14 @@ union {
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024];
 
-uint16_t get_word(uint16_t address) {
-	return ((uint16_t)gb_memory[address+1] << 8) | (uint16_t)gb_memory[address];
+uint8_t read_byte() {
+	return gb_memory[gb_register.pc++];
+}
+
+uint16_t read_word() {
+	uint8_t first_byte = read_byte();
+	uint8_t second_byte = read_byte();
+	return ((uint16_t)second_byte << 8) | (uint16_t)first_byte;
 }
 
 void load_rom(char* rom_name, size_t rom_bytes) {
@@ -67,13 +73,11 @@ int main() {
 			break;
 
 		case 0x0E: // LD C 8: load 8-bit immediate into C
-			gb_register.c = gb_memory[gb_register.pc];
-			gb_register.pc++;
+			gb_register.c = read_byte();
 			break;
 
 		case 0x11: // LD DE d16: load 16-bit immediate into DE
-			gb_register.de = get_word(gb_register.pc);
-			gb_register.pc += 2;
+			gb_register.de = read_word();
 			break;
 
 		case 0x47: // LD B A: load A into B
@@ -81,12 +85,11 @@ int main() {
 			break;
 
 		case 0x21: // LD HL d16: load 16-bit immediate into HL
-			gb_register.hl = get_word(gb_register.pc);
-			gb_register.pc += 2;
+			gb_register.hl = read_word();
 			break;
 
 		case 0xC3: // JP a16: jump to following 16-bit address
-			gb_register.pc = get_word(gb_register.pc);
+			gb_register.pc = read_word();
 			break;
 
 		case 0x00: // NOP: do nothing
