@@ -46,6 +46,33 @@ void load_rom(char* rom_name, size_t rom_bytes) {
 	fclose(rom_file);
 }
 
+enum flag {
+	CARRY_FLAG = 4,
+	HALF_CARRY_FLAG = 5,
+	SUBTRACT_FLAG = 6,
+	ZERO_FLAG = 7,
+};
+
+void set_flag(enum flag flag) {
+	// The flag enum represents which bit to set
+	gb_register.f |= (1 << flag);
+}
+
+void unset_flag(enum flag flag) {
+	// The flag enum represents which bit to set
+	gb_register.f &= ~(1 << flag);
+}
+
+bool read_flag(enum flag flag) {
+	// The flag enum represents which bit to set
+	// This is zero if the flag-th bit is not set
+	return gb_register.f & (1 << flag);
+}
+
+void clear_flags() {
+	gb_register.f = 0;
+}
+
 int main() {
 	load_rom("test.gb", 32 * 1024);
 	gb_register.pc = 0x100;
@@ -56,12 +83,17 @@ int main() {
 		switch (op_byte) {
 
 		case 0x20: // JR NZ R8
-			fprintf(stderr, "Op Code not implemented: 0x%02X\n", op_byte);
-			exit(EXIT_FAILURE);
+			if (!read_flag(ZERO_FLAG))
+				gb_register.pc += (int8_t)read_byte();
 			break;
 
 		case 0x1C: // INC E
 			gb_register.e++;
+			if (gb_register.e == 0)
+				set_flag(ZERO_FLAG);
+			if (gb_register.e & 0xF == 0)
+				set_flag(HALF_CARRY_FLAG);
+			unset_flag(SUBTRACT_FLAG);
 			break;
 
 		case 0x12: // LD (DE) A
