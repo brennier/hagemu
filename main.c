@@ -70,12 +70,8 @@ int main() {
 
 		case 0x1C: // INC E
 			gb_register.e++;
-			if (gb_register.e == 0)
-				gb_register.flags.zero = 1;
-			if ((gb_register.e & 0x0F) == 0)
-				gb_register.flags.half_carry = 1;
-			else
-				gb_register.flags.half_carry = 0;
+			gb_register.flags.zero = !gb_register.e;
+			gb_register.flags.half_carry = !(gb_register.e & 0x0F);
 			gb_register.flags.subtract = 0;
 			break;
 
