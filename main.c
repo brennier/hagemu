@@ -63,6 +63,25 @@ int main() {
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
 
+		case 0x14: // INC D
+			gb_register.d++;
+			gb_register.flags.zero = !gb_register.d;
+			gb_register.flags.half_carry = !(gb_register.d & 0x0F);
+			gb_register.flags.subtract = 0;
+			break;
+
+		case 0x0D: // DEC C
+			gb_register.c--;
+			gb_register.flags.zero = !gb_register.c;
+			// TODO: Check if the next line is correct
+			gb_register.flags.half_carry = !(gb_register.c & 0x0F);
+			gb_register.flags.subtract = 1;
+			break;
+
+		case 0xFB: // EI Enable interrupts
+			// TODO
+			break;
+
 		case 0x20: // JR NZ R8
 			if (!gb_register.flags.zero)
 				gb_register.pc += (int8_t)read_byte();
