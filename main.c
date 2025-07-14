@@ -65,6 +65,56 @@ int main() {
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
 
+                case 0x0C: // INC C
+			gb_register.c++;
+			gb_register.flags.zero = !gb_register.c;
+			gb_register.flags.half_carry = !(gb_register.c & 0x0F);
+			gb_register.flags.subtract = 0;
+                        break;
+
+                case 0xE2: // LD (FF00+C) A
+                        gb_memory[0xFF00 + gb_register.c] = gb_register.a;
+                        break;
+
+                case 0x31: // LD SP u16
+                        gb_register.sp = read_word();
+                        break;
+
+                case 0xEA: // LD (u16) A
+                        gb_memory[read_word()] = gb_register.a;
+                        break;
+
+                case 0x36: // LD (HL) u8
+                        gb_memory[gb_register.hl] = read_byte();
+                        break;
+
+                case 0xFA: // LD A (u16)
+                        gb_register.a = gb_memory[read_word()];
+                        break;
+
+                case 0xFE: // CP A u8
+                        uint8_t next = read_byte();
+                        gb_register.flags.zero = !(gb_register.a - next);
+                        gb_register.flags.subtract = 0;
+                        gb_register.flags.half_carry = ((gb_register.a & 0x0F) - (next & 0x0F)) & 0x10;
+                        gb_register.flags.carry = next > gb_register.a;
+
+                case 0xF0: // LD A (FF00 + u8)
+                        gb_register.a = gb_memory[0xFF00 + read_byte()];
+                        break;
+
+                case 0xE0: // LD (FF00 + u8) A
+                        gb_memory[0xFF00 + read_byte()] = gb_register.a;
+                        break;
+
+                case 0xF3: // DI Disable interrupts
+                        interrupt_flag = false;
+                        break;
+
+                case 0x3E: // LD A u8
+                        gb_register.a = read_byte();
+                        break;
+
                 case 0x05: // DEC B
 			gb_register.b--;
 			gb_register.flags.zero = !gb_register.b;
