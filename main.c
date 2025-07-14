@@ -43,6 +43,21 @@ uint16_t read_word() {
 	return ((uint16_t)second_byte << 8) | (uint16_t)first_byte;
 }
 
+uint16_t pop_stack() {
+        uint8_t lower = gb_memory[gb_register.sp++];
+        uint8_t upper = gb_memory[gb_register.sp++];
+        return (upper << 8) | lower;
+}
+
+void push_stack(uint16_t reg16) {
+        uint8_t lower = (reg16 & 0x00FF);
+        uint8_t upper = (reg16 & 0xFF00) >> 8;
+        gb_register.sp--;
+        gb_memory[gb_register.sp] = upper;
+        gb_register.sp--;
+        gb_memory[gb_register.sp] = lower;
+}
+
 void load_rom(char* rom_name, size_t rom_bytes) {
 	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
 	if (rom_file == NULL) {
@@ -87,6 +102,18 @@ int main() {
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
+
+                case 0xE1: // POP HL
+                        gb_register.hl = pop_stack();
+                        break;
+
+                case 0x87: // ADD A A
+                        gb_register.flags.half_carry = ((gb_register.a & 0x0F) + (gb_register.a & 0x0F)) & 0x10;
+                        gb_register.flags.carry = (0xFF - gb_register.a) < gb_register.a;
+                        gb_register.a += gb_register.a;
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        break;
 
                 case 0xEF: // RST 0x28
                         gb_register.sp--;
@@ -172,15 +199,9 @@ int main() {
                         break;
 
                 case 0xCD: // CALL u16
-                        ; // Empty statement as I can't write a declaration after a label
-                        // It's important to read the destination first so that the pc that
-                        // gets saved points to the next instruction
-                        uint16_t dest = read_word();
-                        gb_register.sp--;
-                        gb_memory[gb_register.sp] = gb_register.pc_msb;
-                        gb_register.sp--;
-                        gb_memory[gb_register.sp] = gb_register.pc_lsb;
-                        gb_register.pc = dest;
+                        // I need to add 2 so that the saved program counter points after the jump destination
+                        push_stack(gb_register.pc+2);
+                        gb_register.pc = read_word();
                         break;
 
                 case 0x0C: // INC C
