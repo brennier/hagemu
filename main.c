@@ -65,6 +65,27 @@ int main() {
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
 
+                case 0x05: // DEC B
+			gb_register.b--;
+			gb_register.flags.zero = !gb_register.b;
+			// TODO: Check if the next line is correct
+			gb_register.flags.half_carry = !(gb_register.b & 0x0F);
+			gb_register.flags.subtract = 1;
+			break;
+
+                case 0x32: // LD (HL-) A
+                        gb_memory[gb_register.hl--] = gb_register.a;
+                        break;
+
+                case 0x06: // LD B u8
+                        gb_register.b = read_byte();
+                        break;
+
+                case 0xAF: // XOR A A
+                        gb_register.a ^= gb_register.a;
+                        gb_register.flags.zero = !gb_register.a;
+                        break;
+
 		case 0x14: // INC D
 			gb_register.d++;
 			gb_register.flags.zero = !gb_register.d;
@@ -87,6 +108,8 @@ int main() {
 		case 0x20: // JR NZ R8
 			if (!gb_register.flags.zero)
 				gb_register.pc += (int8_t)read_byte();
+                        else
+                                gb_register.pc++;
 			break;
 
 		case 0x1C: // INC E
