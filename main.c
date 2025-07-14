@@ -430,8 +430,7 @@ int main() {
                 case 0x05: // DEC B
 			gb_register.b--;
 			gb_register.flags.zero = !gb_register.b;
-			// TODO: Check if the next line is correct
-			gb_register.flags.half_carry = !(gb_register.b & 0x0F);
+			gb_register.flags.half_carry = (gb_register.b & 0x0F) == 0x0F;
 			gb_register.flags.subtract = 1;
 			break;
 
@@ -457,9 +456,8 @@ int main() {
 
 		case 0x0D: // DEC C
 			gb_register.c--;
+			gb_register.flags.half_carry = (gb_register.c & 0x0F) == 0x0F;
 			gb_register.flags.zero = !gb_register.c;
-			// TODO: Check if the next line is correct
-			gb_register.flags.half_carry = !(gb_register.c & 0x0F);
 			gb_register.flags.subtract = 1;
 			break;
 
