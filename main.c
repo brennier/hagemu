@@ -20,10 +20,10 @@ union {
 	};
 	struct {
 		uint8_t padding : 4;
-		uint8_t zero : 1;
 		uint8_t carry : 1;
 		uint8_t half_carry : 1;
 		uint8_t subtract : 1;
+		uint8_t zero : 1;
 	} flags;
 	uint8_t raw_bytes[12];
 } gb_register = { 0 };
