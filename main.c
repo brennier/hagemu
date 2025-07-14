@@ -88,6 +88,46 @@ int main() {
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
 
+                case 0xEF: // RST 0x28
+                        gb_register.sp--;
+                        gb_memory[gb_register.sp] = gb_register.pc_msb;
+                        gb_register.sp--;
+                        gb_memory[gb_register.sp] = gb_register.pc_lsb;
+                        gb_register.pc = 0x28;
+                        break;
+
+                case 0x79: // LD A C
+                        gb_register.a = gb_register.c;
+                        break;
+
+                case 0xA1: // AND A C
+                        gb_register.a &= gb_register.c;
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        gb_register.flags.half_carry = 1;
+                        gb_register.flags.carry = 0;
+                        break;
+
+                case 0xA9: // XOR A C
+                        gb_register.a ^= gb_register.c;
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        gb_register.flags.half_carry = 0;
+                        gb_register.flags.carry = 0;
+                        break;
+
+                case 0x4F: // LD C A
+                        gb_register.c = gb_register.a;
+                        break;
+
+                case 0xB0: // OR A B
+                        gb_register.a |= gb_register.b;
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        gb_register.flags.half_carry = 0;
+                        gb_register.flags.carry = 0;
+                        break;
+
                 case 0xCB: // Rotate, shift, and bit operations
                         process_extra_opcodes(read_byte());
                         break;
