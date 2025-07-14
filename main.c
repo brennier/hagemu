@@ -11,10 +11,12 @@
 union {
 	struct {
 		uint8_t f, a, c, b, e, d, l, h;
-		uint16_t sp, pc;
+                // the least and most significant bytes of sp and pc
+                uint8_t sp_lsb, sp_msb, pc_lsb, pc_msb;
 	};
 	struct {
 		uint16_t af, bc, de, hl;
+		uint16_t sp, pc;
 	};
 	struct {
 		uint8_t padding : 4;
@@ -65,6 +67,18 @@ int main() {
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
 
+                case 0xCD: // CALL u16
+                        ; // Empty statement as I can't write a declaration after a label
+                        // It's important to read the destination first so that the pc that
+                        // gets saved points to the next instruction
+                        uint16_t dest = read_word();
+                        gb_register.sp--;
+                        gb_memory[gb_register.sp] = gb_register.pc_msb;
+                        gb_register.sp--;
+                        gb_memory[gb_register.sp] = gb_register.pc_lsb;
+                        gb_register.pc = dest;
+                        break;
+
                 case 0x0C: // INC C
 			gb_register.c++;
 			gb_register.flags.zero = !gb_register.c;
@@ -93,6 +107,7 @@ int main() {
                         break;
 
                 case 0xFE: // CP A u8
+                        ; // Empty statement as I can't write a declaration after a label
                         uint8_t next = read_byte();
                         gb_register.flags.zero = !(gb_register.a - next);
                         gb_register.flags.subtract = 0;
