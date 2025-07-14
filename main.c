@@ -58,6 +58,27 @@ void load_rom(char* rom_name, size_t rom_bytes) {
 	fclose(rom_file);
 }
 
+void process_extra_opcodes(uint8_t opcode) {
+        switch (opcode) {
+        
+        case 0x37: // SWAP A
+                ;
+                uint8_t lower = (gb_register.a & 0x0F);
+                uint8_t upper = (gb_register.a & 0xF0);
+                gb_register.a = (lower << 4) | (upper >> 4);
+                gb_register.flags.zero = !gb_register.a;
+                gb_register.flags.subtract = 0;
+                gb_register.flags.half_carry = 0;
+                gb_register.flags.carry = 0;
+                break;
+
+        default:
+		fprintf(stderr, "Extra Op Code not implemented: 0x%02X\n", opcode);
+		exit(EXIT_FAILURE);
+		break;
+        }
+}
+
 int main() {
 	load_rom("test.gb", 32 * 1024);
 	gb_register.pc = 0x100;
@@ -66,6 +87,18 @@ int main() {
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
+
+                case 0xCB: // Rotate, shift, and bit operations
+                        process_extra_opcodes(read_byte());
+                        break;
+
+                case 0xE6: // AND A u8
+                        gb_register.a &= read_byte();
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        gb_register.flags.half_carry = 1;
+                        gb_register.flags.carry = 0;
+                        break;
 
                 case 0x2F: // CPL
                         gb_register.a = ~gb_register.a;
