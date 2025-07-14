@@ -86,7 +86,15 @@ void process_extra_opcodes(uint8_t opcode) {
                 gb_register.flags.half_carry = 0;
                 gb_register.flags.carry = 0;
                 break;
-        
+
+	case 0x38: // SRL B
+		gb_register.b >>= 1;
+		gb_register.flags.carry = gb_register.b % 2;
+		gb_register.flags.subtract = 0;
+		gb_register.flags.half_carry = 0;
+		gb_register.flags.zero = !gb_register.b;
+		break;
+
         case 0x87: // RES 0 A
                 gb_register.a = gb_register.a & (~0x01);
                 break;
@@ -134,6 +142,48 @@ int main(int argc, char *argv[]) {
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		//printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
+
+		case 0x38: // JR C i8
+			if (gb_register.flags.carry)
+				gb_register.pc = (int8_t)read_byte();
+			else
+				gb_register.pc++;
+			break;
+
+		case 0x26: // LD H u8
+			gb_register.h = read_byte();
+			break;
+
+		case 0xAE: // XOR A (HL)
+                        gb_register.a ^= gb_memory[gb_register.hl];
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        gb_register.flags.half_carry = 0;
+                        gb_register.flags.carry = 0;
+			break;
+
+		case 0x4E: // LD C (HL)
+			gb_register.c = gb_memory[gb_register.hl];
+			break;
+
+		case 0x2D: // DEC L
+			gb_register.l--;
+			gb_register.flags.zero = !gb_register.l;
+			gb_register.flags.half_carry = (gb_register.l & 0x0F) == 0x0F;
+			gb_register.flags.subtract = 1;
+			break;
+
+		case 0x46: // LD B (HL)
+			gb_register.b = gb_memory[gb_register.hl];
+			break;
+
+		case 0xB7: // OR A A
+                        gb_register.a |= gb_register.a;
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        gb_register.flags.half_carry = 0;
+                        gb_register.flags.carry = 0;
+			break;
 
 		case 0xD6: // SUB A,u8
 		{
