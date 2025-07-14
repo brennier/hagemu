@@ -86,6 +86,10 @@ void process_extra_opcodes(uint8_t opcode) {
                 gb_register.flags.half_carry = 0;
                 gb_register.flags.carry = 0;
                 break;
+        
+        case 0x87: // RES 0 A
+                gb_register.a = gb_register.a & (~0x01);
+                break;
 
         default:
 		fprintf(stderr, "Extra Op Code not implemented: 0x%02X\n", opcode);
@@ -102,6 +106,75 @@ int main() {
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
+
+                case 0xF8: // LD HL SP+i8
+                        gb_register.hl = gb_memory[gb_register.sp + (int8_t)read_byte()];
+                        gb_register.flags.zero = 0;
+                        gb_register.flags.subtract = 0;
+                        // TODO: Figure out the carries
+                        //gb_register.flags.carry = ;
+                        //gb_register.flags.half_carry = ;
+                        printf("Program Counter: %d", gb_register.pc);
+                        break;
+                
+                case 0x7C: // LD A H
+                        gb_register.a = gb_register.h;
+                        break;
+                
+                case 0xD1: // POP DE
+                        gb_register.de = pop_stack();
+                        break;
+                
+                case 0x22: // LD (HL+) A
+                        gb_memory[gb_register.hl++] = gb_register.a;
+                        break;
+                
+                case 0x1A: // LD A (DE)
+                        gb_register.a = gb_memory[gb_register.de];
+                        break;
+                
+                case 0xE5: // PUSH HL
+                        push_stack(gb_register.hl);
+                        break;
+                
+                case 0x13: // INC DE
+                        gb_register.de++;
+                        break;
+                
+                case 0xE9: // JP HL
+                        gb_register.pc = gb_register.hl;
+                        break;
+                
+                case 0xD5: // PUSH DE
+                        push_stack(gb_register.de);
+                        break;
+                
+                case 0x56: // LD D (HL)
+                        gb_register.d = gb_memory[gb_register.hl];
+                        break;
+                
+                case 0x23: // INC HL
+                        gb_register.hl++;
+                        break;
+
+                case 0x5E: // LD E (HL)
+                        gb_register.e = gb_memory[gb_register.hl];
+                        break;
+
+                case 0x19: // ADD HL DE
+                        gb_register.flags.half_carry = ((gb_register.hl & 0x0FFF) + (gb_register.de & 0x0FFF)) & 0x1000;
+                        gb_register.flags.carry = (0xFFFF - gb_register.hl) < gb_register.de;
+                        gb_register.hl += gb_register.de;
+                        gb_register.flags.subtract = 0;
+                        break;
+                        
+                case 0x16: // LD D u8
+                        gb_register.d = read_byte();
+                        break;
+
+                case 0x5F: // LD E A
+                        gb_register.e = gb_register.a;
+                        break;
 
                 case 0xE1: // POP HL
                         gb_register.hl = pop_stack();
