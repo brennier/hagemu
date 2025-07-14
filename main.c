@@ -134,7 +134,18 @@ int main(int argc, char *argv[]) {
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		//printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
-                
+
+		case 0xD6: // SUB A,u8
+		{
+			uint8_t next = read_byte();
+			gb_register.flags.zero = !(gb_register.a - next);
+			gb_register.flags.subtract = 1;
+			gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (next & 0x0F)) & 0x10) == 0x10;
+			gb_register.flags.carry = next > gb_register.a;
+			gb_register.a -= next;
+		}
+		break;
+
                 case 0xC6: // Add A u8
                         ;
                         uint8_t operand = read_byte();
@@ -415,13 +426,14 @@ int main(int argc, char *argv[]) {
                         break;
 
                 case 0xFE: // CP A u8
-                        ; // Empty statement as I can't write a declaration after a label
+		{
                         uint8_t next = read_byte();
                         gb_register.flags.zero = !(gb_register.a - next);
                         gb_register.flags.subtract = 1;
-                        gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (next & 0x0F)) & 0x10) != 0;
+                        gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (next & 0x0F)) & 0x10) == 0x10;
                         gb_register.flags.carry = next > gb_register.a;
 			break;
+		}
 
                 case 0xF0: // LD A (FF00 + u8)
                         gb_register.a = gb_memory[0xFF00 | read_byte()];
