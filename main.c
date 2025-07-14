@@ -127,6 +127,8 @@ int main(int argc, char *argv[]) {
         gb_register.sp = 0xFFFE;
 	gb_register.pc = 0x0100;
 
+	gb_memory[0xFF44] = 0x90;
+
 	while (true) {
                 print_debug();
 		uint8_t op_byte = gb_memory[gb_register.pc++];
@@ -421,11 +423,11 @@ int main(int argc, char *argv[]) {
                         gb_register.flags.carry = next > gb_register.a;
 
                 case 0xF0: // LD A (FF00 + u8)
-                        gb_register.a = gb_memory[0xFF00 + read_byte()];
+                        gb_register.a = gb_memory[0xFF00 | read_byte()];
                         break;
 
                 case 0xE0: // LD (FF00 + u8) A
-                        gb_memory[0xFF00 + read_byte()] = gb_register.a;
+                        gb_memory[0xFF00 | read_byte()] = gb_register.a;
                         break;
 
                 case 0xF3: // DI Disable interrupts
