@@ -98,14 +98,113 @@ void process_extra_opcodes(uint8_t opcode) {
         }
 }
 
+void print_debug() {
+        printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
+        gb_register.a, gb_register.f, gb_register.b, gb_register.c, gb_register.d, gb_register.e, gb_register.h, gb_register.l, gb_register.sp, gb_register.pc, gb_memory[gb_register.pc], gb_memory[gb_register.pc+1], gb_memory[gb_register.pc+2], gb_memory[gb_register.pc+3]);
+}
+
 int main() {
 	load_rom("test.gb", 32 * 1024);
-	gb_register.pc = 0x100;
+
+        // Inital state of registers
+        gb_register.a = 0x01;
+        gb_register.f = 0xB0;
+        gb_register.b = 0x00;
+        gb_register.c = 0x13;
+        gb_register.d = 0x00;
+        gb_register.e = 0xD8;
+        gb_register.h = 0x01;
+        gb_register.l = 0x4D;
+        gb_register.sp = 0xFFFE;
+	gb_register.pc = 0x0100;
 
 	while (true) {
+                print_debug();
 		uint8_t op_byte = gb_memory[gb_register.pc++];
-		printf("Processing opcode %02X...\n", op_byte);
+		//printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
+                
+                case 0xC6: // Add A u8
+                        ;
+                        uint8_t operand = read_byte();
+                        gb_register.flags.half_carry = ((gb_register.a & 0x0F) + (operand & 0x0F)) & 0x10;
+                        gb_register.flags.carry = (0xFF - gb_register.a) < operand;
+                        gb_register.a += operand;
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        break;
+
+                case 0x24: // INC H
+			gb_register.h++;
+			gb_register.flags.zero = !gb_register.h;
+			gb_register.flags.half_carry = !(gb_register.h & 0x0F);
+			gb_register.flags.subtract = 0;
+                        break;
+                        
+                
+                case 0x2C: // INC L
+			gb_register.l++;
+			gb_register.flags.zero = !gb_register.l;
+			gb_register.flags.half_carry = !(gb_register.l & 0x0F);
+			gb_register.flags.subtract = 0;
+                        break;
+                
+                case 0x77: // LD (HL) A
+                        gb_memory[gb_register.hl] = gb_register.a;
+                        break;
+                        
+                case 0xC4: // CALL NZ u16
+                        if (!gb_register.flags.zero) {
+                                // I need to add 2 so that the saved program counter points after the jump destination
+                                push_stack(gb_register.pc+2);
+                                gb_register.pc = read_word();
+                        }
+                        else {
+                                gb_register.pc += 2;
+                        }
+                        break;
+
+                case 0x3C: // INC A
+			gb_register.a++;
+			gb_register.flags.zero = !gb_register.a;
+			gb_register.flags.half_carry = !(gb_register.a & 0x0F);
+			gb_register.flags.subtract = 0;
+                        break;
+
+                case 0xC1: // POP BC
+                        gb_register.bc = pop_stack();
+                        break;
+                
+                case 0x28: // JR Z i8
+			if (gb_register.flags.zero)
+				gb_register.pc += (int8_t)read_byte();
+                        else
+                                gb_register.pc++;
+			break;
+                
+                case 0x03: // INC BC
+                        gb_register.bc++;
+                        break;
+                
+                case 0xC5: // PUSH BC
+                        push_stack(gb_register.bc);
+                        break;
+                
+                case 0xF1: // POP AF
+                        gb_register.af = pop_stack();
+                        break;
+                
+                case 0xF5: // PUSH AF
+                        push_stack(gb_register.af);
+                        break;
+
+		case 0x18: // JR i8
+			gb_register.pc += (int8_t)read_byte();
+                        break;
+
+                case 0x7D: // LD A L
+                        gb_register.a = gb_register.l;
+                        break;
 
                 case 0xF8: // LD HL SP+i8
                         gb_register.hl = gb_memory[gb_register.sp + (int8_t)read_byte()];
@@ -162,7 +261,7 @@ int main() {
                         break;
 
                 case 0x19: // ADD HL DE
-                        gb_register.flags.half_carry = ((gb_register.hl & 0x0FFF) + (gb_register.de & 0x0FFF)) & 0x1000;
+                        gb_register.flags.half_carry = (((gb_register.hl & 0x0FFF) + (gb_register.de & 0x0FFF)) & 0x1000) != 0;
                         gb_register.flags.carry = (0xFFFF - gb_register.hl) < gb_register.de;
                         gb_register.hl += gb_register.de;
                         gb_register.flags.subtract = 0;
@@ -181,7 +280,7 @@ int main() {
                         break;
 
                 case 0x87: // ADD A A
-                        gb_register.flags.half_carry = ((gb_register.a & 0x0F) + (gb_register.a & 0x0F)) & 0x10;
+                        gb_register.flags.half_carry = (((gb_register.a & 0x0F) + (gb_register.a & 0x0F)) & 0x10) != 0;
                         gb_register.flags.carry = (0xFF - gb_register.a) < gb_register.a;
                         gb_register.a += gb_register.a;
                         gb_register.flags.zero = !gb_register.a;
@@ -309,7 +408,7 @@ int main() {
                         uint8_t next = read_byte();
                         gb_register.flags.zero = !(gb_register.a - next);
                         gb_register.flags.subtract = 0;
-                        gb_register.flags.half_carry = ((gb_register.a & 0x0F) - (next & 0x0F)) & 0x10;
+                        gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (next & 0x0F)) & 0x10) != 0;
                         gb_register.flags.carry = next > gb_register.a;
 
                 case 0xF0: // LD A (FF00 + u8)
