@@ -61,13 +61,13 @@ void push_stack(uint16_t reg16) {
 void load_rom(char* rom_name, size_t rom_bytes) {
 	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
 	if (rom_file == NULL) {
-		fprintf(stderr, "Error opening the rom file. Exiting...\n");
+		fprintf(stderr, "Error: Failed to find the rom file `%s'\n", rom_name);
 		exit(EXIT_FAILURE);
 	}
 
 	size_t bytes_read = fread(gb_memory, 1, rom_bytes, rom_file);
 	if (bytes_read != rom_bytes) {
-		fprintf(stderr, "Error reading from the rom file. Exiting...\n");
+		fprintf(stderr, "Error: Failed reading from the rom file\n");
 		exit(EXIT_FAILURE);
 	}
 	fclose(rom_file);
@@ -92,7 +92,7 @@ void process_extra_opcodes(uint8_t opcode) {
                 break;
 
         default:
-		fprintf(stderr, "Extra Op Code not implemented: 0x%02X\n", opcode);
+		fprintf(stderr, "Error: Extra Op Code 0x%02X is not implemented\n", opcode);
 		exit(EXIT_FAILURE);
 		break;
         }
@@ -103,8 +103,17 @@ void print_debug() {
         gb_register.a, gb_register.f, gb_register.b, gb_register.c, gb_register.d, gb_register.e, gb_register.h, gb_register.l, gb_register.sp, gb_register.pc, gb_memory[gb_register.pc], gb_memory[gb_register.pc+1], gb_memory[gb_register.pc+2], gb_memory[gb_register.pc+3]);
 }
 
-int main() {
-	load_rom("cpu_instrs_01.gb", 32 * 1024);
+int main(int argc, char *argv[]) {
+	if (argc == 1) {
+		fprintf(stderr, "Error: No rom file specified\n");
+		exit(EXIT_FAILURE);
+	}
+	else if (argc > 2) {
+		fprintf(stderr, "Error: Too many arguments\n");
+		exit(EXIT_FAILURE);
+	}
+
+	load_rom(argv[1], 32 * 1024);
 
         // Inital state of registers
         gb_register.a = 0x01;
@@ -511,7 +520,7 @@ int main() {
 			break;
 
 		default:
-			fprintf(stderr, "Op Code not implemented: 0x%02X\n", op_byte);
+			fprintf(stderr, "Error: Op Code 0x%02X is not implemented\n", op_byte);
 			exit(EXIT_FAILURE);
 			break;
 		}
