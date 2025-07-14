@@ -29,3 +29,6 @@ clean:
 run: ${OUTPUT}
 	./${OUTPUT}
 	rm *.o ${OUTPUT}
+
+test: ${OUTPUT}
+	./${OUTPUT} | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 01

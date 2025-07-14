@@ -104,7 +104,7 @@ void print_debug() {
 }
 
 int main() {
-	load_rom("test.gb", 32 * 1024);
+	load_rom("cpu_instrs_01.gb", 32 * 1024);
 
         // Inital state of registers
         gb_register.a = 0x01;
