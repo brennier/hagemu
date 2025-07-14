@@ -26,6 +26,8 @@ union {
 	uint8_t raw_bytes[12];
 } gb_register = { 0 };
 
+bool interrupt_flag = false;
+
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024];
 
@@ -79,7 +81,7 @@ int main() {
 			break;
 
 		case 0xFB: // EI Enable interrupts
-			// TODO
+			interrupt_flag = true;
 			break;
 
 		case 0x20: // JR NZ R8
