@@ -67,6 +67,37 @@ int main() {
 		printf("Processing opcode %02X...\n", op_byte);
 		switch (op_byte) {
 
+                case 0x2F: // CPL
+                        gb_register.a = ~gb_register.a;
+                        gb_register.flags.subtract = 1;
+                        gb_register.flags.half_carry = 1;
+                        break;
+
+                case 0xC9: // RET
+                        gb_register.pc_lsb = gb_memory[gb_register.sp++];
+                        gb_register.pc_msb = gb_memory[gb_register.sp++];
+                        break;
+
+                case 0xB1: // OR A C
+                        gb_register.a |= gb_register.c;
+                        gb_register.flags.zero = !gb_register.a;
+                        gb_register.flags.subtract = 0;
+                        gb_register.flags.half_carry = 0;
+                        gb_register.flags.carry = 0;
+                        break;
+
+                case 0x78: // LD A B
+                        gb_register.a = gb_register.b;
+                        break;
+
+                case 0x0B: // DEC BC
+                        gb_register.bc--;
+                        break;
+
+                case 0x01: // LD BC, u16
+                        gb_register.bc = read_word();
+                        break;
+
                 case 0xCD: // CALL u16
                         ; // Empty statement as I can't write a declaration after a label
                         // It's important to read the destination first so that the pc that
