@@ -76,6 +76,42 @@ void load_rom(char* rom_name, size_t rom_bytes) {
 void process_extra_opcodes(uint8_t opcode) {
 	switch (opcode) {
 
+	case 0x1B: // RR E
+	{
+		int oldcarry = gb_register.flags.carry;
+		gb_register.flags.carry = gb_register.e % 2;
+		gb_register.e >>= 1;
+		gb_register.e += (oldcarry << 7);
+		gb_register.flags.zero = !(gb_register.e);
+		gb_register.flags.subtract = 0;
+		gb_register.flags.half_carry = 0;
+		break;
+	}
+
+	case 0x1A: // RR D
+	{
+		int oldcarry = gb_register.flags.carry;
+		gb_register.flags.carry = gb_register.d % 2;
+		gb_register.d >>= 1;
+		gb_register.d += (oldcarry << 7);
+		gb_register.flags.zero = !(gb_register.d);
+		gb_register.flags.subtract = 0;
+		gb_register.flags.half_carry = 0;
+		break;
+	}
+
+	case 0x19: // RR C
+	{
+		int oldcarry = gb_register.flags.carry;
+		gb_register.flags.carry = gb_register.c % 2;
+		gb_register.c >>= 1;
+		gb_register.c += (oldcarry << 7);
+		gb_register.flags.zero = !(gb_register.c);
+		gb_register.flags.subtract = 0;
+		gb_register.flags.half_carry = 0;
+		break;
+	}
+
 	case 0x37: // SWAP A
 	{
 		uint8_t lower = (gb_register.a & 0x0F);
@@ -89,8 +125,8 @@ void process_extra_opcodes(uint8_t opcode) {
 	}
 
 	case 0x38: // SRL B
-		gb_register.b >>= 1;
 		gb_register.flags.carry = gb_register.b % 2;
+		gb_register.b >>= 1;
 		gb_register.flags.subtract = 0;
 		gb_register.flags.half_carry = 0;
 		gb_register.flags.zero = !gb_register.b;
@@ -145,9 +181,180 @@ int main(int argc, char *argv[]) {
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		switch (op_byte) {
 
+		case 0xAD: // XOR A L
+			gb_register.a ^= gb_register.l;
+			gb_register.f = 0;
+			gb_register.flags.zero = !gb_register.a;
+			break;
+
+		case 0x40: // LD B B
+			gb_register.b = gb_register.b;
+			break;
+
+		case 0x73: // LD (HL) E
+			gb_memory[gb_register.hl] = gb_register.e;
+			break;
+
+		case 0x5D: // LD E L
+			gb_register.e = gb_register.l;
+			break;
+
+		case 0x2E: // LD L u8
+			gb_register.l = read_byte();
+			break;
+
+		case 0x04: // INC B
+			gb_register.b++;
+			gb_register.flags.zero = !gb_register.b;
+			gb_register.flags.half_carry = !(gb_register.b & 0x0F);
+			gb_register.flags.subtract = 0;
+			break;
+
+		case 0xBB: // CP A E
+		{
+			uint8_t next = gb_register.e;
+			gb_register.flags.zero = !(gb_register.a - next);
+			gb_register.flags.subtract = 1;
+			gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (next & 0x0F)) & 0x10) == 0x10;
+			gb_register.flags.carry = next > gb_register.a;
+			break;
+		}
+
+		case 0xC2: // JP NZ,u16
+			if (!gb_register.flags.zero)
+				gb_register.pc = read_word();
+			else
+				gb_register.pc += 2;
+			break;
+
+		case 0x1D: // DEC E
+			gb_register.e--;
+			gb_register.flags.zero = !gb_register.e;
+			gb_register.flags.half_carry = (gb_register.e & 0x0F) == 0x0F;
+			gb_register.flags.subtract = 1;
+			break;
+
+		case 0x1B: // DEC DE
+			gb_register.de--;
+			break;
+
+		case 0x29: // ADD HL HL
+			gb_register.flags.half_carry = (((gb_register.hl & 0x0FFF) + (gb_register.hl & 0x0FFF)) & 0x1000) == 0x1000;
+			gb_register.flags.carry = (0xFFFF - gb_register.hl) < gb_register.hl;
+			gb_register.hl += gb_register.hl;
+			gb_register.flags.subtract = 0;
+			break;
+
+		case 0x6F: // LD L A
+			gb_register.l = gb_register.a;
+			break;
+
+		case 0x6E: // LD L (HL)
+			gb_register.l = gb_memory[gb_register.hl];
+			break;
+
+		case 0x35: // DEC (HL)
+		{
+			uint8_t num = gb_memory[gb_register.hl];
+			num--;
+			gb_register.flags.zero = !num;
+			gb_register.flags.half_carry = (num & 0x0F) == 0x0F;
+			gb_register.flags.subtract = 1;
+			gb_memory[gb_register.hl] = num;
+			break;
+		}
+
+		case 0xB6: // OR A (HL)
+			gb_register.a |= gb_memory[gb_register.hl];
+			gb_register.f = 0;
+			gb_register.flags.zero = !gb_register.a;
+			break;
+
+		case 0x3D: // DEC A
+			gb_register.a--;
+			gb_register.flags.zero = !gb_register.a;
+			gb_register.flags.half_carry = (gb_register.a & 0x0F) == 0x0F;
+			gb_register.flags.subtract = 1;
+			break;
+
+		case 0xC8: // RET Z
+			if (gb_register.flags.zero)
+				gb_register.pc = pop_stack();
+			break;
+
+		case 0xD0: // RET NC
+			if (!gb_register.flags.carry)
+				gb_register.pc = pop_stack();
+			break;
+
+		case 0xCE: // ADC A u8
+		{
+			uint8_t next = read_byte();
+			int oldcarry = gb_register.flags.carry;
+			gb_register.flags.half_carry = (((gb_register.a & 0x0F) + (next & 0x0F) + oldcarry) & 0x10) == 0x10;
+			gb_register.flags.carry = (next == 0xFF) || ((0xFF - gb_register.a) < next + oldcarry);
+			gb_register.a += next + oldcarry;
+			gb_register.flags.zero = !gb_register.a;
+			break;
+		}
+
+		case 0x70: // LD (HL) B
+			gb_memory[gb_register.hl] = gb_register.b;
+			break;
+
+		case 0x71: // LD (HL) C
+			gb_memory[gb_register.hl] = gb_register.c;
+			break;
+
+		case 0x72: // LD (HL) D
+			gb_memory[gb_register.hl] = gb_register.d;
+			break;
+
+		case 0x25: // DEC H
+			gb_register.h--;
+			gb_register.flags.zero = !gb_register.h;
+			gb_register.flags.half_carry = (gb_register.h & 0x0F) == 0x0F;
+			gb_register.flags.subtract = 1;
+			break;
+
+		case 0x7B: // LD A E
+			gb_register.a = gb_register.e;
+			break;
+
+		case 0x57: // LD D A
+			gb_register.d = gb_register.a;
+			break;
+
+		case 0x7A: // LD A D
+			gb_register.a = gb_register.d;
+			break;
+
+		case 0xEE: // XOR A u8
+			gb_register.a ^= read_byte();
+			gb_register.f = 0;
+			gb_register.flags.zero = !gb_register.a;
+			break;
+
+		case 0x30: // JR NC i8
+			if (!gb_register.flags.carry)
+				gb_register.pc += (int8_t)read_byte();
+			else
+				gb_register.pc++;
+			break;
+
+		case 0x1F: // RRA
+		{
+			int oldcarry = gb_register.flags.carry;
+			gb_register.f = 0;
+			gb_register.flags.carry = gb_register.a % 2;
+			gb_register.a >>= 1;
+			gb_register.a += (oldcarry << 7);
+			break;
+		}
+
 		case 0x38: // JR C i8
 			if (gb_register.flags.carry)
-				gb_register.pc = (int8_t)read_byte();
+				gb_register.pc += (int8_t)read_byte();
 			else
 				gb_register.pc++;
 			break;
@@ -158,10 +365,8 @@ int main(int argc, char *argv[]) {
 
 		case 0xAE: // XOR A (HL)
 			gb_register.a ^= gb_memory[gb_register.hl];
+			gb_register.f = 0;
 			gb_register.flags.zero = !gb_register.a;
-			gb_register.flags.subtract = 0;
-			gb_register.flags.half_carry = 0;
-			gb_register.flags.carry = 0;
 			break;
 
 		case 0x4E: // LD C (HL)
@@ -386,10 +591,8 @@ int main(int argc, char *argv[]) {
 
 		case 0xA9: // XOR A C
 			gb_register.a ^= gb_register.c;
+			gb_register.f = 0;
 			gb_register.flags.zero = !gb_register.a;
-			gb_register.flags.subtract = 0;
-			gb_register.flags.half_carry = 0;
-			gb_register.flags.carry = 0;
 			break;
 
 		case 0x4F: // LD C A
@@ -523,6 +726,7 @@ int main(int argc, char *argv[]) {
 
 		case 0xAF: // XOR A A
 			gb_register.a ^= gb_register.a;
+			gb_register.f = 0;
 			gb_register.flags.zero = !gb_register.a;
 			break;
 
