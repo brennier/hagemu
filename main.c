@@ -73,107 +73,203 @@ void load_rom(char* rom_name, size_t rom_bytes) {
 	fclose(rom_file);
 }
 
+void op_rlc(uint8_t* reg) {
+	int highest_bit = ((*reg) & 0x80) >> 7;
+	(*reg) <<= 1;
+	(*reg) += highest_bit;
+	gb_register.f = 0;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.carry = highest_bit;
+}
+
+void op_rrc(uint8_t* reg) {
+	int lowest_bit = (*reg) % 2;
+	(*reg) >>= 1;
+	(*reg) += (lowest_bit << 7);
+	gb_register.f = 0;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.carry = lowest_bit;
+}
+
+void op_rr(uint8_t* reg) {
+	int lowest_bit = (*reg) % 2;
+	(*reg) >>= 1;
+	(*reg) += (gb_register.flags.carry << 7);
+	gb_register.f = 0;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.carry = lowest_bit;
+}
+
+void op_rl(uint8_t* reg) {
+	int highest_bit = ((*reg) & 0x80) >> 7;
+	(*reg) <<= 1;
+	(*reg) += gb_register.flags.carry;
+	gb_register.f = 0;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.carry = highest_bit;
+}
+
+void op_sla(uint8_t* reg) {
+	int highest_bit = ((*reg) & 0x80) >> 7;
+	(*reg) <<= 1;
+	gb_register.f = 0;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.carry = highest_bit;
+}
+
+void op_sra(uint8_t* reg) {
+	int lowest_bit = (*reg) % 2;
+	int highest_bit = ((*reg) & 0x80) >> 7;
+	(*reg) >>= 1;
+	(*reg) += (highest_bit << 7);
+	gb_register.f = 0;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.carry = lowest_bit;
+}
+
+void op_srl(uint8_t* reg) {
+	gb_register.flags.carry = (*reg) % 2;
+	(*reg) >>= 1;
+	gb_register.flags.subtract = 0;
+	gb_register.flags.half_carry = 0;
+	gb_register.flags.zero = !(*reg);
+}
+
+void op_swap(uint8_t* reg) {
+	uint8_t lower = ((*reg) & 0x0F);
+	uint8_t upper = ((*reg) & 0xF0);
+	(*reg) = (lower << 4) | (upper >> 4);
+	gb_register.f = 0;
+	gb_register.flags.zero = !(*reg);
+}
+
+void op_bit(int bit_num, uint8_t value) {
+	gb_register.flags.subtract = 0;
+	gb_register.flags.half_carry = 1;
+	gb_register.flags.zero = !(value & (1 << bit_num));
+}
+
+void op_res(int bit_num, uint8_t* reg) {
+	(*reg) &= ~((uint8_t)0x01 << bit_num);
+}
+
+void op_set(int bit_num, uint8_t* reg) {
+	(*reg) |= (1 << bit_num);
+}
+
 void process_extra_opcodes(uint8_t opcode) {
 	switch (opcode) {
 
-	case 0x00: // RLC B
-	{
-		uint8_t value = gb_register.b;
-		int highest_bit = (value & 0x80) >> 7;
-		value <<= 1;
-		value += highest_bit;
-		gb_register.f = 0;
-		gb_register.flags.zero = !value;
-		gb_register.flags.carry = highest_bit;
-		gb_register.b = value;
-		break;
-	}
+	// ROTATE LEFT CIRCULAR
+	case 0x00: op_rlc(&gb_register.b); break;
+	case 0x01: op_rlc(&gb_register.c); break;
+	case 0x02: op_rlc(&gb_register.d); break;
+	case 0x03: op_rlc(&gb_register.e); break;
+	case 0x04: op_rlc(&gb_register.h); break;
+	case 0x05: op_rlc(&gb_register.l); break;
+	case 0x06: op_rlc(&gb_memory[gb_register.hl]); break;
+	case 0x07: op_rlc(&gb_register.a); break;
 
-	case 0x06: // RLC (HL)
-	{
-		uint8_t value = gb_memory[gb_register.hl];
-		int highest_bit = (value & 0x80) >> 7;
-		value <<= 1;
-		value += highest_bit;
-		gb_register.f = 0;
-		gb_register.flags.zero = !value;
-		gb_register.flags.carry = highest_bit;
-		gb_memory[gb_register.hl] = value;
-		break;
-	}
+	// ROTATE RIGHT CIRCULAR
+	case 0x08: op_rrc(&gb_register.b); break;
+	case 0x09: op_rrc(&gb_register.c); break;
+	case 0x0A: op_rrc(&gb_register.d); break;
+	case 0x0B: op_rrc(&gb_register.e); break;
+	case 0x0C: op_rrc(&gb_register.h); break;
+	case 0x0D: op_rrc(&gb_register.l); break;
+	case 0x0E: op_rrc(&gb_memory[gb_register.hl]); break;
+	case 0x0F: op_rrc(&gb_register.a); break;
 
-	case 0x0E: // RRC (HL)
-	{
-		uint8_t value = gb_memory[gb_register.hl];
-		int lowest_bit = value % 2;
-		value >>= 1;
-		value += (lowest_bit << 7);
-		gb_register.f = 0;
-		gb_register.flags.zero = !value;
-		gb_register.flags.carry = lowest_bit;
-		gb_memory[gb_register.hl] = value;
-		break;
-	}
+	// ROTATE LEFT OPERATIONS
+	case 0x10: op_rl(&gb_register.b); break;
+	case 0x11: op_rl(&gb_register.c); break;
+	case 0x12: op_rl(&gb_register.d); break;
+	case 0x13: op_rl(&gb_register.e); break;
+	case 0x14: op_rl(&gb_register.h); break;
+	case 0x15: op_rl(&gb_register.l); break;
+	case 0x16: op_rl(&gb_memory[gb_register.hl]); break;
+	case 0x17: op_rl(&gb_register.a); break;
 
-	case 0x1B: // RR E
-	{
-		int oldcarry = gb_register.flags.carry;
-		gb_register.flags.carry = gb_register.e % 2;
-		gb_register.e >>= 1;
-		gb_register.e += (oldcarry << 7);
-		gb_register.flags.zero = !(gb_register.e);
-		gb_register.flags.subtract = 0;
-		gb_register.flags.half_carry = 0;
-		break;
-	}
+	// ROTATE RIGHT OPERATIONS
+	case 0x18: op_rr(&gb_register.b); break;
+	case 0x19: op_rr(&gb_register.c); break;
+	case 0x1A: op_rr(&gb_register.d); break;
+	case 0x1B: op_rr(&gb_register.e); break;
+	case 0x1C: op_rr(&gb_register.h); break;
+	case 0x1D: op_rr(&gb_register.l); break;
+	case 0x1E: op_rr(&gb_memory[gb_register.hl]); break;
+	case 0x1F: op_rr(&gb_register.a); break;
 
-	case 0x1A: // RR D
-	{
-		int oldcarry = gb_register.flags.carry;
-		gb_register.flags.carry = gb_register.d % 2;
-		gb_register.d >>= 1;
-		gb_register.d += (oldcarry << 7);
-		gb_register.flags.zero = !(gb_register.d);
-		gb_register.flags.subtract = 0;
-		gb_register.flags.half_carry = 0;
-		break;
-	}
+	// SHIFT LEFT ARITHMETIC
+	case 0x20: op_sla(&gb_register.b); break;
+	case 0x21: op_sla(&gb_register.c); break;
+	case 0x22: op_sla(&gb_register.d); break;
+	case 0x23: op_sla(&gb_register.e); break;
+	case 0x24: op_sla(&gb_register.h); break;
+	case 0x25: op_sla(&gb_register.l); break;
+	case 0x26: op_sla(&gb_memory[gb_register.hl]); break;
+	case 0x27: op_sla(&gb_register.a); break;
 
-	case 0x19: // RR C
-	{
-		int oldcarry = gb_register.flags.carry;
-		gb_register.flags.carry = gb_register.c % 2;
-		gb_register.c >>= 1;
-		gb_register.c += (oldcarry << 7);
-		gb_register.flags.zero = !(gb_register.c);
-		gb_register.flags.subtract = 0;
-		gb_register.flags.half_carry = 0;
-		break;
-	}
+	// SHIFT RIGHT ARITHEMTIC
+	case 0x28: op_sra(&gb_register.b); break;
+	case 0x29: op_sra(&gb_register.c); break;
+	case 0x2A: op_sra(&gb_register.d); break;
+	case 0x2B: op_sra(&gb_register.e); break;
+	case 0x2C: op_sra(&gb_register.h); break;
+	case 0x2D: op_sra(&gb_register.l); break;
+	case 0x2E: op_sra(&gb_memory[gb_register.hl]); break;
+	case 0x2F: op_sra(&gb_register.a); break;
 
-	case 0x37: // SWAP A
-	{
-		uint8_t lower = (gb_register.a & 0x0F);
-		uint8_t upper = (gb_register.a & 0xF0);
-		gb_register.a = (lower << 4) | (upper >> 4);
-		gb_register.flags.zero = !gb_register.a;
-		gb_register.flags.subtract = 0;
-		gb_register.flags.half_carry = 0;
-		gb_register.flags.carry = 0;
-		break;
-	}
+	// SWAP OPERATIONS
+	case 0x30: op_swap(&gb_register.b); break;
+	case 0x31: op_swap(&gb_register.c); break;
+	case 0x32: op_swap(&gb_register.d); break;
+	case 0x33: op_swap(&gb_register.e); break;
+	case 0x34: op_swap(&gb_register.h); break;
+	case 0x35: op_swap(&gb_register.l); break;
+	case 0x36: op_swap(&gb_memory[gb_register.hl]); break;
+	case 0x37: op_swap(&gb_register.a); break;
 
-	case 0x38: // SRL B
-		gb_register.flags.carry = gb_register.b % 2;
-		gb_register.b >>= 1;
-		gb_register.flags.subtract = 0;
-		gb_register.flags.half_carry = 0;
-		gb_register.flags.zero = !gb_register.b;
-		break;
+	// SHIFT RIGHT LOGICAL
+	case 0x38: op_srl(&gb_register.b); break;
+	case 0x39: op_srl(&gb_register.c); break;
+	case 0x3A: op_srl(&gb_register.d); break;
+	case 0x3B: op_srl(&gb_register.e); break;
+	case 0x3C: op_srl(&gb_register.h); break;
+	case 0x3D: op_srl(&gb_register.l); break;
+	case 0x3E: op_srl(&gb_memory[gb_register.hl]); break;
+	case 0x3F: op_srl(&gb_register.a); break;
 
-	case 0x87: // RES 0 A
-		gb_register.a = gb_register.a & (~0x01);
-		break;
+	// TEST BIT OPERATIONS
+	case 0x40: op_bit(0, gb_register.b); break;
+	case 0x41: op_bit(0, gb_register.c); break;
+	case 0x42: op_bit(0, gb_register.d); break;
+	case 0x43: op_bit(0, gb_register.e); break;
+	case 0x44: op_bit(0, gb_register.h); break;
+	case 0x45: op_bit(0, gb_register.l); break;
+	case 0x46: op_bit(0, gb_memory[gb_register.hl]); break;
+	case 0x47: op_bit(0, gb_register.a); break;
+	case 0x48: op_bit(1, gb_register.b); break;
+	case 0x49: op_bit(1, gb_register.c); break;
+	case 0x4A: op_bit(1, gb_register.d); break;
+	case 0x4B: op_bit(1, gb_register.e); break;
+	case 0x4C: op_bit(1, gb_register.h); break;
+	case 0x4D: op_bit(1, gb_register.l); break;
+	case 0x4E: op_bit(1, gb_memory[gb_register.hl]); break;
+	case 0x4F: op_bit(1, gb_register.a); break;
+
+	// RESET BIT OPERATIONS
+	case 0x87: op_res(0, &gb_register.a); break;
+
+	// SET BIT OPERATIONS
+	case 0xC0: op_set(0, &gb_register.b); break;
+	case 0xC1: op_set(0, &gb_register.c); break;
+	case 0xC2: op_set(0, &gb_register.d); break;
+	case 0xC3: op_set(0, &gb_register.e); break;
+	case 0xC4: op_set(0, &gb_register.h); break;
+	case 0xC5: op_set(0, &gb_register.l); break;
+	case 0xC6: op_set(0, &gb_memory[gb_register.hl]); break;
+	case 0xC7: op_set(0, &gb_register.a); break;
 
 	default:
 		printf("Error: Extra Op Code 0x%02X is not implemented\n", opcode);
