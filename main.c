@@ -284,40 +284,15 @@ int main(int argc, char *argv[]) {
 		case 0x7E: gb_register.a = gb_memory[gb_register.hl]; break;
 		case 0x7F: gb_register.a = gb_register.a; break;
 
-		case 0xFF: // RST 0x38
-			push_stack(gb_register.pc);
-			gb_register.pc = 0x38;
-			break;
-
-		case 0xF7: // RST 0x30
-			push_stack(gb_register.pc);
-			gb_register.pc = 0x30;
-			break;
-
-		case 0xE7: // RST 0x20
-			push_stack(gb_register.pc);
-			gb_register.pc = 0x20;
-			break;
-
-		case 0xDF: // RST 0x18
-			push_stack(gb_register.pc);
-			gb_register.pc = 0x18;
-			break;
-
-		case 0xD7: // RST 0x10
-			push_stack(gb_register.pc);
-			gb_register.pc = 0x10;
-			break;
-
-		case 0xCF: // RST 0x08
-			push_stack(gb_register.pc);
-			gb_register.pc = 0x08;
-			break;
-
-		case 0xC7: // RST 0x00
-			push_stack(gb_register.pc);
-			gb_register.pc = 0x00;
-			break;
+		// RST OPERATIONS
+		case 0xC7: push_stack(gb_register.pc); gb_register.pc = 0x00; break;
+		case 0xCF: push_stack(gb_register.pc); gb_register.pc = 0x08; break;
+		case 0xD7: push_stack(gb_register.pc); gb_register.pc = 0x10; break;
+		case 0xDF: push_stack(gb_register.pc); gb_register.pc = 0x18; break;
+		case 0xE7: push_stack(gb_register.pc); gb_register.pc = 0x20; break;
+		case 0xEF: push_stack(gb_register.pc); gb_register.pc = 0x28; break;
+		case 0xF7: push_stack(gb_register.pc); gb_register.pc = 0x30; break;
+		case 0xFF: push_stack(gb_register.pc); gb_register.pc = 0x38; break;
 
 		case 0xD9: // RETI
 			gb_register.pc = pop_stack();
@@ -665,14 +640,6 @@ int main(int argc, char *argv[]) {
 
 		case 0x87: // ADD A A
 			op_add_reg8(&gb_register.a, gb_register.a);
-			break;
-
-		case 0xEF: // RST 0x28
-			gb_register.sp--;
-			gb_memory[gb_register.sp] = gb_register.pc_msb;
-			gb_register.sp--;
-			gb_memory[gb_register.sp] = gb_register.pc_lsb;
-			gb_register.pc = 0x28;
 			break;
 
 		case 0xA1: // AND A C
