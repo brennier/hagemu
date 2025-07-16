@@ -179,12 +179,17 @@ void op_dec_reg8(uint8_t *reg) {
 	gb_register.flags.subtract = 1;
 }
 
-void op_jump(bool condition, uint16_t location) {
-	if (condition) gb_register.pc = location;
+void op_jump(bool condition, uint16_t address) {
+	if (condition) gb_register.pc = address;
 }
 
 void op_ret(bool condition) {
 	if (condition) gb_register.pc = pop_stack();
+}
+
+void op_jr(bool condition) {
+	int8_t relative_address = (int8_t)read_byte();
+	if (condition) gb_register.pc += relative_address;
 }
 
 void op_call(bool condition) {
@@ -317,6 +322,13 @@ int main(int argc, char *argv[]) {
 		case 0xDA: op_jump(gb_register.flags.carry,  read_word()); break;
 		case 0xE9: op_jump(true,                     gb_register.hl); break;
 
+		// JR OPERATIONS
+		case 0x18: op_jr(true); break;
+		case 0x20: op_jr(!gb_register.flags.zero); break;
+		case 0x28: op_jr(gb_register.flags.zero); break;
+		case 0x30: op_jr(!gb_register.flags.carry); break;
+		case 0x38: op_jr(gb_register.flags.carry); break;
+
 		// RET OPERATIONS
 		case 0xC0: op_ret(!gb_register.flags.zero); break;
 		case 0xC8: op_ret(gb_register.flags.zero); break;
@@ -425,13 +437,6 @@ int main(int argc, char *argv[]) {
 			gb_register.flags.zero = !gb_register.a;
 			break;
 
-		case 0x30: // JR NC i8
-			if (!gb_register.flags.carry)
-				gb_register.pc += (int8_t)read_byte();
-			else
-				gb_register.pc++;
-			break;
-
 		case 0x1F: // RRA
 		{
 			int oldcarry = gb_register.flags.carry;
@@ -441,13 +446,6 @@ int main(int argc, char *argv[]) {
 			gb_register.a += (oldcarry << 7);
 			break;
 		}
-
-		case 0x38: // JR C i8
-			if (gb_register.flags.carry)
-				gb_register.pc += (int8_t)read_byte();
-			else
-				gb_register.pc++;
-			break;
 
 		case 0x26: // LD H u8
 			gb_register.h = read_byte();
@@ -495,13 +493,6 @@ int main(int argc, char *argv[]) {
 			gb_register.bc = pop_stack();
 			break;
 
-		case 0x28: // JR Z i8
-			if (gb_register.flags.zero)
-				gb_register.pc += (int8_t)read_byte();
-			else
-				gb_register.pc++;
-			break;
-
 		case 0x03: // INC BC
 			gb_register.bc++;
 			break;
@@ -516,10 +507,6 @@ int main(int argc, char *argv[]) {
 
 		case 0xF5: // PUSH AF
 			push_stack(gb_register.af);
-			break;
-
-		case 0x18: // JR i8
-			gb_register.pc += (int8_t)read_byte();
 			break;
 
 		case 0xF8: // LD HL SP+i8
@@ -715,13 +702,6 @@ int main(int argc, char *argv[]) {
 
 		case 0xFB: // EI Enable interrupts
 			interrupt_flag = true;
-			break;
-
-		case 0x20: // JR NZ R8
-			if (!gb_register.flags.zero)
-				gb_register.pc += (int8_t)read_byte();
-			else
-				gb_register.pc++;
 			break;
 
 		case 0x1C: // INC E
