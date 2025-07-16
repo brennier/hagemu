@@ -211,6 +211,166 @@ int main(int argc, char *argv[]) {
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		switch (op_byte) {
 
+		case 0x7F: // LD A A
+			gb_register.a = gb_register.a;
+			break;
+
+		case 0x75: // LD (HL) L
+			gb_memory[gb_register.hl] = gb_register.l;
+			break;
+
+		case 0x74: // LD (HL) H
+			gb_memory[gb_register.hl] = gb_register.h;
+			break;
+
+		case 0x6D: // LD L L
+			gb_register.l = gb_register.l;
+			break;
+
+		case 0x6C: // LD L H
+			gb_register.l = gb_register.h;
+			break;
+
+		case 0x6B: // LD L E
+			gb_register.l = gb_register.e;
+			break;
+
+		case 0x6A: // LD L D
+			gb_register.l = gb_register.d;
+			break;
+
+		case 0x69: // LD L C
+			gb_register.l = gb_register.c;
+			break;
+
+		case 0x68: // LD L B
+			gb_register.l = gb_register.b;
+			break;
+
+		case 0x66: // LD H (HL)
+			gb_register.h = gb_memory[gb_register.hl];
+			break;
+
+		case 0x65: // LD H L
+			gb_register.h = gb_register.l;
+			break;
+
+		case 0x64: // LD H H
+			gb_register.h = gb_register.h;
+			break;
+
+		case 0x63: // LD H E
+			gb_register.h = gb_register.e;
+			break;
+
+		case 0x62: // LD H D
+			gb_register.h = gb_register.d;
+			break;
+
+		case 0x61: // LD H C
+			gb_register.h = gb_register.c;
+			break;
+
+		case 0x60: // LD H B
+			gb_register.h = gb_register.b;
+			break;
+
+		case 0x5C: // LD E H
+			gb_register.e = gb_register.h;
+			break;
+
+		case 0x5B: // LD E E
+			gb_register.e = gb_register.e;
+			break;
+
+		case 0x5A: // LD E D
+			gb_register.e = gb_register.d;
+			break;
+
+		case 0x59: // LD E C
+			gb_register.e = gb_register.c;
+			break;
+
+		case 0x58: // LD E B
+			gb_register.e = gb_register.b;
+			break;
+
+		case 0x55: // LD D L
+			gb_register.d = gb_register.l;
+			break;
+
+		case 0x54: // LD D H
+			gb_register.d = gb_register.h;
+			break;
+
+		case 0x53: // LD D E
+			gb_register.d = gb_register.e;
+			break;
+
+		case 0x52: // LD D D
+			gb_register.d = gb_register.d;
+			break;
+
+		case 0x51: // LD D C
+			gb_register.d = gb_register.c;
+			break;
+
+		case 0x50: // LD D B
+			gb_register.d = gb_register.b;
+			break;
+
+		case 0x4D: // LD C L
+			gb_register.c = gb_register.l;
+			break;
+
+		case 0x4C: // LD C H
+			gb_register.c = gb_register.h;
+			break;
+
+		case 0x4B: // LD C E
+			gb_register.c = gb_register.e;
+			break;
+
+		case 0x4A: // LD C D
+			gb_register.c = gb_register.d;
+			break;
+
+		case 0x49: // LD C C
+			gb_register.c = gb_register.c;
+			break;
+
+		case 0x48: // LD C B
+			gb_register.c = gb_register.b;
+			break;
+
+		case 0x45: // LD B L
+			gb_register.b = gb_register.l;
+			break;
+
+		case 0x44: // LD B H
+			gb_register.b = gb_register.h;
+			break;
+
+		case 0x43: // LD B E
+			gb_register.b = gb_register.e;
+			break;
+
+		case 0x42: // LD B D
+			gb_register.b = gb_register.d;
+			break;
+
+		case 0x41: // LD B C
+			gb_register.b = gb_register.c;
+			break;
+
+		case 0x67: // LD H A
+			gb_register.h = gb_register.a;
+			break;
+
+		case 0x7E: // LD A (HL)
+			gb_register.a = gb_memory[gb_register.hl];
+			break;
+
 		case 0xAD: // XOR A L
 			gb_register.a ^= gb_register.l;
 			gb_register.f = 0;
