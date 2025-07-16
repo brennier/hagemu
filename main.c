@@ -19,7 +19,7 @@ union {
 		uint16_t sp, pc;
 	};
 	struct {
-		uint8_t padding : 4;
+		uint8_t unused : 4;
 		uint8_t carry : 1;
 		uint8_t half_carry : 1;
 		uint8_t subtract : 1;
@@ -344,6 +344,10 @@ int main(int argc, char *argv[]) {
 		case 0xD4: op_call(!gb_register.flags.carry); break;
 		case 0xDC: op_call(gb_register.flags.carry); break;
 
+		case 0xF2: // LD A (FF00 + C)
+			gb_register.a = gb_memory[0xFF00 + gb_register.c];
+			break;
+
 		case 0xDE: // SBC A u8
 		{
 			uint8_t next = read_byte();
@@ -526,6 +530,7 @@ int main(int argc, char *argv[]) {
 
 		case 0xF1: // POP AF
 			gb_register.af = pop_stack();
+			gb_register.flags.unused = 0;
 			break;
 
 		case 0xF5: // PUSH AF
