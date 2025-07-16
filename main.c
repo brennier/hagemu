@@ -344,6 +344,28 @@ int main(int argc, char *argv[]) {
 		case 0xD4: op_call(!gb_register.flags.carry); break;
 		case 0xDC: op_call(gb_register.flags.carry); break;
 
+		case 0xDE: // SBC A u8
+		{
+			uint8_t next = read_byte();
+			int oldcarry = gb_register.flags.carry;
+			gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (next & 0x0F) - oldcarry) & 0x10) == 0x10;
+			gb_register.flags.carry = (next == 0xFF && oldcarry == 1) || (gb_register.a < next + oldcarry);
+			gb_register.flags.subtract = 1;
+			gb_register.a -= next + oldcarry;
+			gb_register.flags.zero = !gb_register.a;
+			break;
+		}
+
+		case 0x1E: // LD E u8
+			gb_register.e = read_byte();
+			break;
+
+		case 0xF6: // OR A u8
+			gb_register.a |= read_byte();
+			gb_register.f = 0;
+			gb_register.flags.zero = !(gb_register.a);
+			break;
+
 		case 0xF9: // LD SP,HL
 			gb_register.sp = gb_register.hl;
 			break;
@@ -421,7 +443,8 @@ int main(int argc, char *argv[]) {
 			uint8_t next = read_byte();
 			int oldcarry = gb_register.flags.carry;
 			gb_register.flags.half_carry = (((gb_register.a & 0x0F) + (next & 0x0F) + oldcarry) & 0x10) == 0x10;
-			gb_register.flags.carry = (next == 0xFF) || ((0xFF - gb_register.a) < next + oldcarry);
+			gb_register.flags.carry = (next == 0xFF && oldcarry == 1) || ((0xFF - gb_register.a) < next + oldcarry);
+			gb_register.flags.subtract = 0;
 			gb_register.a += next + oldcarry;
 			gb_register.flags.zero = !gb_register.a;
 			break;
