@@ -344,6 +344,42 @@ int main(int argc, char *argv[]) {
 		case 0xD4: op_call(!gb_register.flags.carry); break;
 		case 0xDC: op_call(gb_register.flags.carry); break;
 
+		case 0xE8: // ADD SP i8
+		{
+			uint8_t next = read_byte();
+			gb_register.f = 0;
+			gb_register.flags.half_carry = (((gb_register.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
+			gb_register.flags.carry = (gb_register.sp & 0x00FF) + next > 0x00FF;
+			gb_register.sp += (int8_t)next;
+			break;
+		}
+
+		case 0x33: // INC SP
+			gb_register.sp++;
+			break;
+
+		case 0x3B: // DEC SP
+			gb_register.sp--;
+			break;
+
+		case 0x39: // ADD HL SP
+			gb_register.flags.half_carry = (((gb_register.hl & 0x0FFF) + (gb_register.sp & 0x0FFF)) & 0x1000) != 0;
+			gb_register.flags.carry = (0xFFFF - gb_register.hl) < gb_register.sp;
+			gb_register.hl += gb_register.sp;
+			gb_register.flags.subtract = 0;
+			break;
+
+		case 0x09: // ADD HL BC
+			gb_register.flags.half_carry = (((gb_register.hl & 0x0FFF) + (gb_register.bc & 0x0FFF)) & 0x1000) != 0;
+			gb_register.flags.carry = (0xFFFF - gb_register.hl) < gb_register.bc;
+			gb_register.hl += gb_register.bc;
+			gb_register.flags.subtract = 0;
+			break;
+
+		case 0x2B: // DEC HL
+			gb_register.hl--;
+			break;
+
 		case 0xF2: // LD A (FF00 + C)
 			gb_register.a = gb_memory[0xFF00 + gb_register.c];
 			break;
@@ -539,13 +575,11 @@ int main(int argc, char *argv[]) {
 
 		case 0xF8: // LD HL SP+i8
 		{
-			int8_t next = (int8_t)read_byte();
-			gb_register.hl = gb_memory[gb_register.sp + next];
-			gb_register.flags.zero = 0;
-			gb_register.flags.subtract = 0;
-			// TODO: Figure out the carries
-			//gb_register.flags.carry = ;
-			//gb_register.flags.half_carry = ;
+			uint8_t next = read_byte();
+			gb_register.f = 0;
+			gb_register.flags.half_carry = (((gb_register.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
+			gb_register.flags.carry = (gb_register.sp & 0x00FF) + next > 0x00FF;
+			gb_register.hl = gb_register.sp + (int8_t)next;
 			break;
 		}
 
