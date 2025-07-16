@@ -211,182 +211,83 @@ int main(int argc, char *argv[]) {
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		switch (op_byte) {
 
-		case 0x7F: // LD A A
-			gb_register.a = gb_register.a;
-			break;
+		// LOAD OPERATIONS (These are in sequential order)
+		case 0x40: gb_register.b = gb_register.b; break;
+		case 0x41: gb_register.b = gb_register.c; break;
+		case 0x42: gb_register.b = gb_register.d; break;
+		case 0x43: gb_register.b = gb_register.e; break;
+		case 0x44: gb_register.b = gb_register.h; break;
+		case 0x45: gb_register.b = gb_register.l; break;
+		case 0x46: gb_register.b = gb_memory[gb_register.hl]; break;
+		case 0x47: gb_register.b = gb_register.a; break;
+	
+		case 0x48: gb_register.c = gb_register.b; break;
+		case 0x49: gb_register.c = gb_register.c; break;
+		case 0x4A: gb_register.c = gb_register.d; break;
+		case 0x4B: gb_register.c = gb_register.e; break;
+		case 0x4C: gb_register.c = gb_register.h; break;
+		case 0x4D: gb_register.c = gb_register.l; break;
+		case 0x4E: gb_register.c = gb_memory[gb_register.hl]; break;
+		case 0x4F: gb_register.c = gb_register.a; break;
 
-		case 0x75: // LD (HL) L
-			gb_memory[gb_register.hl] = gb_register.l;
-			break;
+		case 0x50: gb_register.d = gb_register.b; break;
+		case 0x51: gb_register.d = gb_register.c; break;
+		case 0x52: gb_register.d = gb_register.d; break;
+		case 0x53: gb_register.d = gb_register.e; break;
+		case 0x54: gb_register.d = gb_register.h; break;
+		case 0x55: gb_register.d = gb_register.l; break;
+		case 0x56: gb_register.d = gb_memory[gb_register.hl]; break;
+		case 0x57: gb_register.d = gb_register.a; break;
 
-		case 0x74: // LD (HL) H
-			gb_memory[gb_register.hl] = gb_register.h;
-			break;
+		case 0x58: gb_register.e = gb_register.b; break;
+		case 0x59: gb_register.e = gb_register.c; break;
+		case 0x5A: gb_register.e = gb_register.d; break;
+		case 0x5B: gb_register.e = gb_register.e; break;
+		case 0x5C: gb_register.e = gb_register.h; break;
+		case 0x5D: gb_register.e = gb_register.l; break;
+		case 0x5E: gb_register.e = gb_memory[gb_register.hl]; break;
+		case 0x5F: gb_register.e = gb_register.a; break;
 
-		case 0x6D: // LD L L
-			gb_register.l = gb_register.l;
-			break;
+		case 0x60: gb_register.h = gb_register.b; break;
+		case 0x61: gb_register.h = gb_register.c; break;
+		case 0x62: gb_register.h = gb_register.d; break;
+		case 0x63: gb_register.h = gb_register.e; break;
+		case 0x64: gb_register.h = gb_register.h; break;
+		case 0x65: gb_register.h = gb_register.l; break;
+		case 0x66: gb_register.h = gb_memory[gb_register.hl]; break;
+		case 0x67: gb_register.h = gb_register.a; break;
+			
+		case 0x68: gb_register.l = gb_register.b; break;
+		case 0x69: gb_register.l = gb_register.c; break;
+		case 0x6A: gb_register.l = gb_register.d; break;
+		case 0x6B: gb_register.l = gb_register.e; break;
+		case 0x6C: gb_register.l = gb_register.h; break;
+		case 0x6D: gb_register.l = gb_register.l; break;
+		case 0x6E: gb_register.l = gb_memory[gb_register.hl]; break;
+		case 0x6F: gb_register.l = gb_register.a; break;
+			
+		case 0x70: gb_memory[gb_register.hl] = gb_register.b; break;
+		case 0x71: gb_memory[gb_register.hl] = gb_register.c; break;
+		case 0x72: gb_memory[gb_register.hl] = gb_register.d; break;
+		case 0x73: gb_memory[gb_register.hl] = gb_register.e; break;
+		case 0x74: gb_memory[gb_register.hl] = gb_register.h; break;
+		case 0x75: gb_memory[gb_register.hl] = gb_register.l; break;
+		// case 0x76: TODO: HALT opcode
 
-		case 0x6C: // LD L H
-			gb_register.l = gb_register.h;
-			break;
-
-		case 0x6B: // LD L E
-			gb_register.l = gb_register.e;
-			break;
-
-		case 0x6A: // LD L D
-			gb_register.l = gb_register.d;
-			break;
-
-		case 0x69: // LD L C
-			gb_register.l = gb_register.c;
-			break;
-
-		case 0x68: // LD L B
-			gb_register.l = gb_register.b;
-			break;
-
-		case 0x66: // LD H (HL)
-			gb_register.h = gb_memory[gb_register.hl];
-			break;
-
-		case 0x65: // LD H L
-			gb_register.h = gb_register.l;
-			break;
-
-		case 0x64: // LD H H
-			gb_register.h = gb_register.h;
-			break;
-
-		case 0x63: // LD H E
-			gb_register.h = gb_register.e;
-			break;
-
-		case 0x62: // LD H D
-			gb_register.h = gb_register.d;
-			break;
-
-		case 0x61: // LD H C
-			gb_register.h = gb_register.c;
-			break;
-
-		case 0x60: // LD H B
-			gb_register.h = gb_register.b;
-			break;
-
-		case 0x5C: // LD E H
-			gb_register.e = gb_register.h;
-			break;
-
-		case 0x5B: // LD E E
-			gb_register.e = gb_register.e;
-			break;
-
-		case 0x5A: // LD E D
-			gb_register.e = gb_register.d;
-			break;
-
-		case 0x59: // LD E C
-			gb_register.e = gb_register.c;
-			break;
-
-		case 0x58: // LD E B
-			gb_register.e = gb_register.b;
-			break;
-
-		case 0x55: // LD D L
-			gb_register.d = gb_register.l;
-			break;
-
-		case 0x54: // LD D H
-			gb_register.d = gb_register.h;
-			break;
-
-		case 0x53: // LD D E
-			gb_register.d = gb_register.e;
-			break;
-
-		case 0x52: // LD D D
-			gb_register.d = gb_register.d;
-			break;
-
-		case 0x51: // LD D C
-			gb_register.d = gb_register.c;
-			break;
-
-		case 0x50: // LD D B
-			gb_register.d = gb_register.b;
-			break;
-
-		case 0x4D: // LD C L
-			gb_register.c = gb_register.l;
-			break;
-
-		case 0x4C: // LD C H
-			gb_register.c = gb_register.h;
-			break;
-
-		case 0x4B: // LD C E
-			gb_register.c = gb_register.e;
-			break;
-
-		case 0x4A: // LD C D
-			gb_register.c = gb_register.d;
-			break;
-
-		case 0x49: // LD C C
-			gb_register.c = gb_register.c;
-			break;
-
-		case 0x48: // LD C B
-			gb_register.c = gb_register.b;
-			break;
-
-		case 0x45: // LD B L
-			gb_register.b = gb_register.l;
-			break;
-
-		case 0x44: // LD B H
-			gb_register.b = gb_register.h;
-			break;
-
-		case 0x43: // LD B E
-			gb_register.b = gb_register.e;
-			break;
-
-		case 0x42: // LD B D
-			gb_register.b = gb_register.d;
-			break;
-
-		case 0x41: // LD B C
-			gb_register.b = gb_register.c;
-			break;
-
-		case 0x67: // LD H A
-			gb_register.h = gb_register.a;
-			break;
-
-		case 0x7E: // LD A (HL)
-			gb_register.a = gb_memory[gb_register.hl];
-			break;
+		case 0x77: gb_memory[gb_register.hl] = gb_register.a; break;
+		case 0x78: gb_register.a = gb_register.b; break;
+		case 0x79: gb_register.a = gb_register.c; break;
+		case 0x7A: gb_register.a = gb_register.d; break;
+		case 0x7B: gb_register.a = gb_register.e; break;
+		case 0x7C: gb_register.a = gb_register.h; break;
+		case 0x7D: gb_register.a = gb_register.l; break;
+		case 0x7E: gb_register.a = gb_memory[gb_register.hl]; break;
+		case 0x7F: gb_register.a = gb_register.a; break;
 
 		case 0xAD: // XOR A L
 			gb_register.a ^= gb_register.l;
 			gb_register.f = 0;
 			gb_register.flags.zero = !gb_register.a;
-			break;
-
-		case 0x40: // LD B B
-			gb_register.b = gb_register.b;
-			break;
-
-		case 0x73: // LD (HL) E
-			gb_memory[gb_register.hl] = gb_register.e;
-			break;
-
-		case 0x5D: // LD E L
-			gb_register.e = gb_register.l;
 			break;
 
 		case 0x2E: // LD L u8
@@ -427,14 +328,6 @@ int main(int argc, char *argv[]) {
 			gb_register.flags.carry = (0xFFFF - gb_register.hl) < gb_register.hl;
 			gb_register.hl += gb_register.hl;
 			gb_register.flags.subtract = 0;
-			break;
-
-		case 0x6F: // LD L A
-			gb_register.l = gb_register.a;
-			break;
-
-		case 0x6E: // LD L (HL)
-			gb_register.l = gb_memory[gb_register.hl];
 			break;
 
 		case 0x35: // DEC (HL)
@@ -479,32 +372,8 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 
-		case 0x70: // LD (HL) B
-			gb_memory[gb_register.hl] = gb_register.b;
-			break;
-
-		case 0x71: // LD (HL) C
-			gb_memory[gb_register.hl] = gb_register.c;
-			break;
-
-		case 0x72: // LD (HL) D
-			gb_memory[gb_register.hl] = gb_register.d;
-			break;
-
 		case 0x25: // DEC H
 			op_dec_reg8(&gb_register.h);
-			break;
-
-		case 0x7B: // LD A E
-			gb_register.a = gb_register.e;
-			break;
-
-		case 0x57: // LD D A
-			gb_register.d = gb_register.a;
-			break;
-
-		case 0x7A: // LD A D
-			gb_register.a = gb_register.d;
 			break;
 
 		case 0xEE: // XOR A u8
@@ -547,16 +416,8 @@ int main(int argc, char *argv[]) {
 			gb_register.flags.zero = !gb_register.a;
 			break;
 
-		case 0x4E: // LD C (HL)
-			gb_register.c = gb_memory[gb_register.hl];
-			break;
-
 		case 0x2D: // DEC L
 			op_dec_reg8(&gb_register.l);
-			break;
-
-		case 0x46: // LD B (HL)
-			gb_register.b = gb_memory[gb_register.hl];
 			break;
 
 		case 0xB7: // OR A A
@@ -581,10 +442,6 @@ int main(int argc, char *argv[]) {
 
 		case 0x2C: // INC L
 			op_inc_reg8(&gb_register.l);
-			break;
-
-		case 0x77: // LD (HL) A
-			gb_memory[gb_register.hl] = gb_register.a;
 			break;
 
 		case 0xC4: // CALL NZ u16
@@ -633,10 +490,6 @@ int main(int argc, char *argv[]) {
 			gb_register.pc += (int8_t)read_byte();
 			break;
 
-		case 0x7D: // LD A L
-			gb_register.a = gb_register.l;
-			break;
-
 		case 0xF8: // LD HL SP+i8
 		{
 			int8_t next = (int8_t)read_byte();
@@ -648,10 +501,6 @@ int main(int argc, char *argv[]) {
 			//gb_register.flags.half_carry = ;
 			break;
 		}
-
-		case 0x7C: // LD A H
-			gb_register.a = gb_register.h;
-			break;
 
 		case 0xD1: // POP DE
 			gb_register.de = pop_stack();
@@ -681,16 +530,8 @@ int main(int argc, char *argv[]) {
 			push_stack(gb_register.de);
 			break;
 
-		case 0x56: // LD D (HL)
-			gb_register.d = gb_memory[gb_register.hl];
-			break;
-
 		case 0x23: // INC HL
 			gb_register.hl++;
-			break;
-
-		case 0x5E: // LD E (HL)
-			gb_register.e = gb_memory[gb_register.hl];
 			break;
 
 		case 0x19: // ADD HL DE
@@ -702,10 +543,6 @@ int main(int argc, char *argv[]) {
 
 		case 0x16: // LD D u8
 			gb_register.d = read_byte();
-			break;
-
-		case 0x5F: // LD E A
-			gb_register.e = gb_register.a;
 			break;
 
 		case 0xE1: // POP HL
@@ -724,10 +561,6 @@ int main(int argc, char *argv[]) {
 			gb_register.pc = 0x28;
 			break;
 
-		case 0x79: // LD A C
-			gb_register.a = gb_register.c;
-			break;
-
 		case 0xA1: // AND A C
 			gb_register.a &= gb_register.c;
 			gb_register.flags.zero = !gb_register.a;
@@ -740,10 +573,6 @@ int main(int argc, char *argv[]) {
 			gb_register.a ^= gb_register.c;
 			gb_register.f = 0;
 			gb_register.flags.zero = !gb_register.a;
-			break;
-
-		case 0x4F: // LD C A
-			gb_register.c = gb_register.a;
 			break;
 
 		case 0xB0: // OR A B
@@ -783,10 +612,6 @@ int main(int argc, char *argv[]) {
 			gb_register.flags.subtract = 0;
 			gb_register.flags.half_carry = 0;
 			gb_register.flags.carry = 0;
-			break;
-
-		case 0x78: // LD A B
-			gb_register.a = gb_register.b;
 			break;
 
 		case 0x0B: // DEC BC
@@ -908,10 +733,6 @@ int main(int argc, char *argv[]) {
 
 		case 0x11: // LD DE d16: load 16-bit immediate into DE
 			gb_register.de = read_word();
-			break;
-
-		case 0x47: // LD B A: load A into B
-			gb_register.b = gb_register.a;
 			break;
 
 		case 0x21: // LD HL d16: load 16-bit immediate into HL
