@@ -76,6 +76,32 @@ void load_rom(char* rom_name, size_t rom_bytes) {
 void process_extra_opcodes(uint8_t opcode) {
 	switch (opcode) {
 
+	case 0x06: // RLC (HL)
+	{
+		uint8_t value = gb_memory[gb_register.hl];
+		int highest_bit = (value & 0x80) >> 7;
+		value <<= 1;
+		value += highest_bit;
+		gb_register.f = 0;
+		gb_register.flags.zero = !value;
+		gb_register.flags.carry = highest_bit;
+		gb_memory[gb_register.hl] = value;
+		break;
+	}
+
+	case 0x0E: // RRC (HL)
+	{
+		uint8_t value = gb_memory[gb_register.hl];
+		int lowest_bit = value % 2;
+		value >>= 1;
+		value += (lowest_bit << 7);
+		gb_register.f = 0;
+		gb_register.flags.zero = !value;
+		gb_register.flags.carry = lowest_bit;
+		gb_memory[gb_register.hl] = value;
+		break;
+	}
+
 	case 0x1B: // RR E
 	{
 		int oldcarry = gb_register.flags.carry;
@@ -137,7 +163,7 @@ void process_extra_opcodes(uint8_t opcode) {
 		break;
 
 	default:
-		fprintf(stderr, "Error: Extra Op Code 0x%02X is not implemented\n", opcode);
+		printf("Error: Extra Op Code 0x%02X is not implemented\n", opcode);
 		exit(EXIT_FAILURE);
 		break;
 	}
@@ -343,6 +369,72 @@ int main(int argc, char *argv[]) {
 		case 0xCD: op_call(true); break;
 		case 0xD4: op_call(!gb_register.flags.carry); break;
 		case 0xDC: op_call(gb_register.flags.carry); break;
+
+		case 0x34: // INC (HL)
+			op_inc_reg8(gb_memory + gb_register.hl);
+			break;
+
+		case 0xA6: // AND A (HL)
+			gb_register.a &= gb_memory[gb_register.hl];
+			gb_register.flags.zero = !gb_register.a;
+			gb_register.flags.subtract = 0;
+			gb_register.flags.half_carry = 1;
+			gb_register.flags.carry = 0;
+			break;
+
+		case 0x9E: // SBC A (HL)
+		{
+			uint8_t value = gb_memory[gb_register.hl];
+			int oldcarry = gb_register.flags.carry;
+			gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (value & 0x0F) - oldcarry) & 0x10) == 0x10;
+			gb_register.flags.carry = (value == 0xFF && oldcarry == 1) || (gb_register.a < value + oldcarry);
+			gb_register.flags.subtract = 1;
+			gb_register.a -= value + oldcarry;
+			gb_register.flags.zero = !gb_register.a;
+			break;
+		}
+
+		case 0x96: // SUB A (HL)
+			op_sub_reg8(&gb_register.a, gb_memory[gb_register.hl]);
+			break;
+
+		case 0x8E: // ADC A (HL)
+		{
+			uint8_t value = gb_memory[gb_register.hl];
+			int oldcarry = gb_register.flags.carry;
+			gb_register.flags.half_carry = (((gb_register.a & 0x0F) + (value & 0x0F) + oldcarry) & 0x10) == 0x10;
+			gb_register.flags.carry = (value == 0xFF && oldcarry == 1) || ((0xFF - gb_register.a) < value + oldcarry);
+			gb_register.flags.subtract = 0;
+			gb_register.a += value + oldcarry;
+			gb_register.flags.zero = !gb_register.a;
+			break;
+		}
+
+		case 0x86: // ADD A (HL)
+			op_add_reg8(&gb_register.a, gb_memory[gb_register.hl]);
+			break;
+
+		case 0xBE: // CP A (HL)
+		{
+			uint8_t value = gb_memory[gb_register.hl];
+			gb_register.flags.zero = !(gb_register.a - value);
+			gb_register.flags.subtract = 1;
+			gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (value & 0x0F)) & 0x10) == 0x10;
+			gb_register.flags.carry = value > gb_register.a;
+			break;
+		}
+
+		case 0x3A: // LD A (HL-)
+			gb_register.a = gb_memory[gb_register.hl--];
+			break;
+
+		case 0x02: // LD (BC) A
+			gb_memory[gb_register.bc] = gb_register.a;
+			break;
+
+		case 0x0A: // LD A (BC)
+			gb_register.a = gb_memory[gb_register.bc];
+			break;
 
 		case 0xE8: // ADD SP i8
 		{
@@ -794,7 +886,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		default:
-			fprintf(stderr, "Error: Op Code 0x%02X is not implemented\n", op_byte);
+			printf("Error: Op Code 0x%02X is not implemented\n", op_byte);
 			exit(EXIT_FAILURE);
 			break;
 		}
