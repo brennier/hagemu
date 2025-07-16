@@ -183,6 +183,18 @@ void op_jump(bool condition, uint16_t location) {
 	if (condition) gb_register.pc = location;
 }
 
+void op_ret(bool condition) {
+	if (condition) gb_register.pc = pop_stack();
+}
+
+void op_call(bool condition) {
+	uint16_t address = read_word();
+	if (condition) {
+		push_stack(gb_register.pc);
+		gb_register.pc = address;
+	}
+}
+
 int main(int argc, char *argv[]) {
 	if (argc == 1) {
 		fprintf(stderr, "Error: No rom file specified\n");
@@ -276,7 +288,6 @@ int main(int argc, char *argv[]) {
 		case 0x73: gb_memory[gb_register.hl] = gb_register.e; break;
 		case 0x74: gb_memory[gb_register.hl] = gb_register.h; break;
 		case 0x75: gb_memory[gb_register.hl] = gb_register.l; break;
-		// case 0x76: TODO: HALT opcode
 
 		case 0x77: gb_memory[gb_register.hl] = gb_register.a; break;
 		case 0x78: gb_register.a = gb_register.b; break;
@@ -306,50 +317,20 @@ int main(int argc, char *argv[]) {
 		case 0xDA: op_jump(gb_register.flags.carry,  read_word()); break;
 		case 0xE9: op_jump(true,                     gb_register.hl); break;
 
-		case 0xD9: // RETI
-			gb_register.pc = pop_stack();
-			interrupt_flag = true;
-			break;
+		// RET OPERATIONS
+		case 0xC0: op_ret(!gb_register.flags.zero); break;
+		case 0xC8: op_ret(gb_register.flags.zero); break;
+		case 0xC9: op_ret(true); break;
+		case 0xD0: op_ret(!gb_register.flags.carry); break;
+		case 0xD8: op_ret(gb_register.flags.carry); break;
+		case 0xD9: op_ret(true); interrupt_flag = true; break;
 
-		case 0xD8: // RET C
-			if (gb_register.flags.carry)
-				gb_register.pc = pop_stack();
-			break;
-
-		case 0xC0: // RET NZ
-			if (!gb_register.flags.zero)
-				gb_register.pc = pop_stack();
-			break;
-
-		case 0xDC: // CALL C u16
-			if (gb_register.flags.carry) {
-				push_stack(gb_register.pc+2);
-				gb_register.pc = read_word();
-			}
-			else {
-				gb_register.pc += 2;
-			}
-			break;
-
-		case 0xD4: // CALL NC u16
-			if (!gb_register.flags.carry) {
-				push_stack(gb_register.pc+2);
-				gb_register.pc = read_word();
-			}
-			else {
-				gb_register.pc += 2;
-			}
-			break;
-
-		case 0xCC: // CALL Z u16
-			if (gb_register.flags.zero) {
-				push_stack(gb_register.pc+2);
-				gb_register.pc = read_word();
-			}
-			else {
-				gb_register.pc += 2;
-			}
-			break;
+		// CALL OPERATIONS
+		case 0xC4: op_call(!gb_register.flags.zero); break;
+		case 0xCC: op_call(gb_register.flags.zero); break;
+		case 0xCD: op_call(true); break;
+		case 0xD4: op_call(!gb_register.flags.carry); break;
+		case 0xDC: op_call(gb_register.flags.carry); break;
 
 		case 0xF9: // LD SP,HL
 			gb_register.sp = gb_register.hl;
@@ -421,16 +402,6 @@ int main(int argc, char *argv[]) {
 
 		case 0x3D: // DEC A
 			op_dec_reg8(&gb_register.a);
-			break;
-
-		case 0xC8: // RET Z
-			if (gb_register.flags.zero)
-				gb_register.pc = pop_stack();
-			break;
-
-		case 0xD0: // RET NC
-			if (!gb_register.flags.carry)
-				gb_register.pc = pop_stack();
 			break;
 
 		case 0xCE: // ADC A u8
@@ -514,17 +485,6 @@ int main(int argc, char *argv[]) {
 
 		case 0x2C: // INC L
 			op_inc_reg8(&gb_register.l);
-			break;
-
-		case 0xC4: // CALL NZ u16
-			if (!gb_register.flags.zero) {
-				// I need to add 2 so that the saved program counter points after the jump destination
-				push_stack(gb_register.pc+2);
-				gb_register.pc = read_word();
-			}
-			else {
-				gb_register.pc += 2;
-			}
 			break;
 
 		case 0x3C: // INC A
@@ -661,11 +621,6 @@ int main(int argc, char *argv[]) {
 			gb_register.flags.half_carry = 1;
 			break;
 
-		case 0xC9: // RET
-			gb_register.pc_lsb = gb_memory[gb_register.sp++];
-			gb_register.pc_msb = gb_memory[gb_register.sp++];
-			break;
-
 		case 0xB1: // OR A C
 			gb_register.a |= gb_register.c;
 			gb_register.flags.zero = !gb_register.a;
@@ -680,12 +635,6 @@ int main(int argc, char *argv[]) {
 
 		case 0x01: // LD BC, u16
 			gb_register.bc = read_word();
-			break;
-
-		case 0xCD: // CALL u16
-			// I need to add 2 so that the saved program counter points after the jump destination
-			push_stack(gb_register.pc+2);
-			gb_register.pc = read_word();
 			break;
 
 		case 0x0C: // INC C
