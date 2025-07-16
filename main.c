@@ -179,6 +179,10 @@ void op_dec_reg8(uint8_t *reg) {
 	gb_register.flags.subtract = 1;
 }
 
+void op_jump(bool condition, uint16_t location) {
+	if (condition) gb_register.pc = location;
+}
+
 int main(int argc, char *argv[]) {
 	if (argc == 1) {
 		fprintf(stderr, "Error: No rom file specified\n");
@@ -294,6 +298,14 @@ int main(int argc, char *argv[]) {
 		case 0xF7: push_stack(gb_register.pc); gb_register.pc = 0x30; break;
 		case 0xFF: push_stack(gb_register.pc); gb_register.pc = 0x38; break;
 
+		// JP OPERATIONS
+		case 0xC2: op_jump(!gb_register.flags.zero,  read_word()); break;
+		case 0xC3: op_jump(true,                     read_word()); break;
+		case 0xCA: op_jump(gb_register.flags.zero,   read_word()); break;
+		case 0xD2: op_jump(!gb_register.flags.carry, read_word()); break;
+		case 0xDA: op_jump(gb_register.flags.carry,  read_word()); break;
+		case 0xE9: op_jump(true,                     gb_register.hl); break;
+
 		case 0xD9: // RETI
 			gb_register.pc = pop_stack();
 			interrupt_flag = true;
@@ -339,28 +351,6 @@ int main(int argc, char *argv[]) {
 			}
 			break;
 
-
-		case 0xDA: // JP C u16
-			if (gb_register.flags.carry)
-				gb_register.pc = read_word();
-			else
-				gb_register.pc += 2;
-			break;
-
-		case 0xD2: // JP NC u16
-			if (!gb_register.flags.carry)
-				gb_register.pc = read_word();
-			else
-				gb_register.pc += 2;
-			break;
-
-		case 0xCA: // JP Z u16
-			if (gb_register.flags.zero)
-				gb_register.pc = read_word();
-			else
-				gb_register.pc += 2;
-			break;
-
 		case 0xF9: // LD SP,HL
 			gb_register.sp = gb_register.hl;
 			break;
@@ -396,13 +386,6 @@ int main(int argc, char *argv[]) {
 			gb_register.flags.carry = next > gb_register.a;
 			break;
 		}
-
-		case 0xC2: // JP NZ,u16
-			if (!gb_register.flags.zero)
-				gb_register.pc = read_word();
-			else
-				gb_register.pc += 2;
-			break;
 
 		case 0x1D: // DEC E
 			op_dec_reg8(&gb_register.e);
@@ -611,10 +594,6 @@ int main(int argc, char *argv[]) {
 			gb_register.de++;
 			break;
 
-		case 0xE9: // JP HL
-			gb_register.pc = gb_register.hl;
-			break;
-
 		case 0xD5: // PUSH DE
 			push_stack(gb_register.de);
 			break;
@@ -818,10 +797,6 @@ int main(int argc, char *argv[]) {
 
 		case 0x21: // LD HL d16: load 16-bit immediate into HL
 			gb_register.hl = read_word();
-			break;
-
-		case 0xC3: // JP a16: jump to following 16-bit address
-			gb_register.pc = read_word();
 			break;
 
 		case 0x00: // NOP: do nothing
