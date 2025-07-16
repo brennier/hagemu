@@ -552,6 +552,24 @@ void op_call(bool condition) {
 	}
 }
 
+void op_daa() {
+	int offset = 0;
+	if (!gb_register.flags.subtract) {
+		if ((gb_register.a & 0x0F) > 0x09 || gb_register.flags.half_carry)
+			offset |= 0x06;
+		if (gb_register.a > 0x99 || gb_register.flags.carry)
+			offset |= 0x60;
+		gb_register.flags.carry |= (gb_register.a > (0xFF - offset));
+		gb_register.a += offset;
+	} else {
+		if (gb_register.flags.half_carry) offset |= 0x06;
+		if (gb_register.flags.carry)      offset |= 0x60;
+		gb_register.a -= offset;
+	}
+	gb_register.flags.zero = !gb_register.a;
+	gb_register.flags.half_carry = 0;
+}
+
 int main(int argc, char *argv[]) {
 	if (argc == 1) {
 		fprintf(stderr, "Error: No rom file specified\n");
@@ -872,42 +890,15 @@ int main(int argc, char *argv[]) {
 		case 0x29: op_add_16bit(gb_register.hl); break;
 		case 0x39: op_add_16bit(gb_register.sp); break;
 
-		case 0x0F: // RRCA
-		{
-			uint8_t value = gb_register.a;
-			int lowest_bit = value % 2;
-			value >>= 1;
-			value += (lowest_bit << 7);
-			gb_register.f = 0;
-			gb_register.flags.carry = lowest_bit;
-			gb_register.a = value;
-			break;
-		}
+		// ROTATIONS ON REGISTER A
+		case 0x07: op_rlc(&gb_register.a); gb_register.flags.zero = 0; break;
+		case 0x0F: op_rrc(&gb_register.a); gb_register.flags.zero = 0; break;
+		case 0x17: op_rl(&gb_register.a);  gb_register.flags.zero = 0; break;
+		case 0x1F: op_rr(&gb_register.a);  gb_register.flags.zero = 0; break;
 
-		case 0x17: // RLA
-		{
-			uint8_t value = gb_register.a;
-			int highest_bit = (value & 0x80) >> 7;
-			value <<= 1;
-			value += gb_register.flags.carry;
-			gb_register.f = 0;
-			gb_register.flags.carry = highest_bit;
-			gb_register.a = value;
-			break;
-		}
-
-		case 0x07: // RLCA
-		{
-			uint8_t value = gb_register.a;
-			int highest_bit = (value & 0x80) >> 7;
-			value <<= 1;
-			value += highest_bit;
-			gb_register.f = 0;
-			gb_register.flags.carry = highest_bit;
-			gb_register.a = value;
-			break;
-		}
-
+		// FLAG OPERATIONS
+		case 0xF3: interrupt_flag = false; break;
+		case 0xFB: interrupt_flag = true;  break;
 		case 0x3F: // CCF
 			gb_register.flags.subtract = 0;
 			gb_register.flags.half_carry = 0;
@@ -919,18 +910,16 @@ int main(int argc, char *argv[]) {
 			gb_register.flags.half_carry = 0;
 			gb_register.flags.carry = 1;
 			break;
-
-		case 0xE8: // ADD SP i8
-		{
-			uint8_t next = read_byte();
-			gb_register.f = 0;
-			gb_register.flags.half_carry = (((gb_register.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
-			gb_register.flags.carry = (gb_register.sp & 0x00FF) + next > 0x00FF;
-			gb_register.sp += (int8_t)next;
+			
+		case 0x2F: // CPL
+			gb_register.a = ~gb_register.a;
+			gb_register.flags.subtract = 1;
+			gb_register.flags.half_carry = 1;
 			break;
-		}
 
-		case 0xF9: // LD SP,HL
+
+		// SPECIAL STACK POINTER OPERATIONS
+		case 0xF9: // LD SP HL
 			gb_register.sp = gb_register.hl;
 			break;
 
@@ -939,16 +928,6 @@ int main(int argc, char *argv[]) {
 			uint16_t address = read_word();
 			gb_memory[address] = gb_register.sp_lsb;
 			gb_memory[address+1] = gb_register.sp_msb;
-			break;
-		}
-
-		case 0x1F: // RRA
-		{
-			int oldcarry = gb_register.flags.carry;
-			gb_register.f = 0;
-			gb_register.flags.carry = gb_register.a % 2;
-			gb_register.a >>= 1;
-			gb_register.a += (oldcarry << 7);
 			break;
 		}
 
@@ -962,18 +941,18 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 
-		case 0x2F: // CPL
-			gb_register.a = ~gb_register.a;
-			gb_register.flags.subtract = 1;
-			gb_register.flags.half_carry = 1;
+		case 0xE8: // ADD SP i8
+		{
+			uint8_t next = read_byte();
+			gb_register.f = 0;
+			gb_register.flags.half_carry = (((gb_register.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
+			gb_register.flags.carry = (gb_register.sp & 0x00FF) + next > 0x00FF;
+			gb_register.sp += (int8_t)next;
 			break;
-
-		case 0xF3: // DI Disable interrupts
-			interrupt_flag = false;
-			break;
-
-		case 0xFB: // EI Enable interrupts
-			interrupt_flag = true;
+		}
+		
+		case 0x27: // DAA instruction
+			op_daa();
 			break;
 
 		case 0xCB: // Rotate, shift, and bit operations
