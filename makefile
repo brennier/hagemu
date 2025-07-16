@@ -31,4 +31,4 @@ run: ${OUTPUT}
 	rm *.o ${OUTPUT}
 
 test: ${OUTPUT}
-	./${OUTPUT} cpu_instrs_01.gb | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 1
+	./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/${TESTNUM}* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs ${TESTNUM}
