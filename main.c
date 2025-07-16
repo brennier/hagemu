@@ -220,7 +220,7 @@ int main(int argc, char *argv[]) {
 		case 0x45: gb_register.b = gb_register.l; break;
 		case 0x46: gb_register.b = gb_memory[gb_register.hl]; break;
 		case 0x47: gb_register.b = gb_register.a; break;
-	
+
 		case 0x48: gb_register.c = gb_register.b; break;
 		case 0x49: gb_register.c = gb_register.c; break;
 		case 0x4A: gb_register.c = gb_register.d; break;
@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
 		case 0x65: gb_register.h = gb_register.l; break;
 		case 0x66: gb_register.h = gb_memory[gb_register.hl]; break;
 		case 0x67: gb_register.h = gb_register.a; break;
-			
+
 		case 0x68: gb_register.l = gb_register.b; break;
 		case 0x69: gb_register.l = gb_register.c; break;
 		case 0x6A: gb_register.l = gb_register.d; break;
@@ -265,7 +265,7 @@ int main(int argc, char *argv[]) {
 		case 0x6D: gb_register.l = gb_register.l; break;
 		case 0x6E: gb_register.l = gb_memory[gb_register.hl]; break;
 		case 0x6F: gb_register.l = gb_register.a; break;
-			
+
 		case 0x70: gb_memory[gb_register.hl] = gb_register.b; break;
 		case 0x71: gb_memory[gb_register.hl] = gb_register.c; break;
 		case 0x72: gb_memory[gb_register.hl] = gb_register.d; break;
@@ -283,6 +283,120 @@ int main(int argc, char *argv[]) {
 		case 0x7D: gb_register.a = gb_register.l; break;
 		case 0x7E: gb_register.a = gb_memory[gb_register.hl]; break;
 		case 0x7F: gb_register.a = gb_register.a; break;
+
+		case 0xFF: // RST 0x38
+			push_stack(gb_register.pc);
+			gb_register.pc = 0x38;
+			break;
+
+		case 0xF7: // RST 0x30
+			push_stack(gb_register.pc);
+			gb_register.pc = 0x30;
+			break;
+
+		case 0xE7: // RST 0x20
+			push_stack(gb_register.pc);
+			gb_register.pc = 0x20;
+			break;
+
+		case 0xDF: // RST 0x18
+			push_stack(gb_register.pc);
+			gb_register.pc = 0x18;
+			break;
+
+		case 0xD7: // RST 0x10
+			push_stack(gb_register.pc);
+			gb_register.pc = 0x10;
+			break;
+
+		case 0xCF: // RST 0x08
+			push_stack(gb_register.pc);
+			gb_register.pc = 0x08;
+			break;
+
+		case 0xC7: // RST 0x00
+			push_stack(gb_register.pc);
+			gb_register.pc = 0x00;
+			break;
+
+		case 0xD9: // RETI
+			gb_register.pc = pop_stack();
+			interrupt_flag = true;
+			break;
+
+		case 0xD8: // RET C
+			if (gb_register.flags.carry)
+				gb_register.pc = pop_stack();
+			break;
+
+		case 0xC0: // RET NZ
+			if (!gb_register.flags.zero)
+				gb_register.pc = pop_stack();
+			break;
+
+		case 0xDC: // CALL C u16
+			if (gb_register.flags.carry) {
+				push_stack(gb_register.pc+2);
+				gb_register.pc = read_word();
+			}
+			else {
+				gb_register.pc += 2;
+			}
+			break;
+
+		case 0xD4: // CALL NC u16
+			if (!gb_register.flags.carry) {
+				push_stack(gb_register.pc+2);
+				gb_register.pc = read_word();
+			}
+			else {
+				gb_register.pc += 2;
+			}
+			break;
+
+		case 0xCC: // CALL Z u16
+			if (gb_register.flags.zero) {
+				push_stack(gb_register.pc+2);
+				gb_register.pc = read_word();
+			}
+			else {
+				gb_register.pc += 2;
+			}
+			break;
+
+
+		case 0xDA: // JP C u16
+			if (gb_register.flags.carry)
+				gb_register.pc = read_word();
+			else
+				gb_register.pc += 2;
+			break;
+
+		case 0xD2: // JP NC u16
+			if (!gb_register.flags.carry)
+				gb_register.pc = read_word();
+			else
+				gb_register.pc += 2;
+			break;
+
+		case 0xCA: // JP Z u16
+			if (gb_register.flags.zero)
+				gb_register.pc = read_word();
+			else
+				gb_register.pc += 2;
+			break;
+
+		case 0xF9: // LD SP,HL
+			gb_register.sp = gb_register.hl;
+			break;
+
+		case 0x08: // LD (u16) SP
+		{
+			uint16_t address = read_word();
+			gb_memory[address] = gb_register.sp_lsb;
+			gb_memory[address+1] = gb_register.sp_msb;
+			break;
+		}
 
 		case 0xAD: // XOR A L
 			gb_register.a ^= gb_register.l;
