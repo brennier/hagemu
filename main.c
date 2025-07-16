@@ -149,6 +149,36 @@ void print_debug() {
 	gb_register.sp, gb_register.pc, gb_memory[gb_register.pc], gb_memory[gb_register.pc+1], gb_memory[gb_register.pc+2], gb_memory[gb_register.pc+3]);
 }
 
+void op_add_reg8(uint8_t *reg, uint8_t value) {
+	gb_register.flags.half_carry = (((*reg & 0x0F) + (value & 0x0F)) & 0x10) == 0x10;
+	gb_register.flags.carry = (0xFF - *reg) < value;
+	*reg += value;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.subtract = 0;
+}
+
+void op_sub_reg8(uint8_t *reg, uint8_t value) {
+	gb_register.flags.half_carry = (((*reg & 0x0F) - (value & 0x0F)) & 0x10) == 0x10;
+	gb_register.flags.carry = *reg < value;
+	*reg -= value;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.subtract = 1;
+}
+
+void op_inc_reg8(uint8_t *reg) {
+	(*reg)++;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.half_carry = !(*reg & 0x0F);
+	gb_register.flags.subtract = 0;
+}
+
+void op_dec_reg8(uint8_t *reg) {
+	(*reg)--;
+	gb_register.flags.zero = !(*reg);
+	gb_register.flags.half_carry = (*reg & 0x0F) == 0x0F;
+	gb_register.flags.subtract = 1;
+}
+
 int main(int argc, char *argv[]) {
 	if (argc == 1) {
 		fprintf(stderr, "Error: No rom file specified\n");
@@ -204,10 +234,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x04: // INC B
-			gb_register.b++;
-			gb_register.flags.zero = !gb_register.b;
-			gb_register.flags.half_carry = !(gb_register.b & 0x0F);
-			gb_register.flags.subtract = 0;
+			op_inc_reg8(&gb_register.b);
 			break;
 
 		case 0xBB: // CP A E
@@ -228,10 +255,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x1D: // DEC E
-			gb_register.e--;
-			gb_register.flags.zero = !gb_register.e;
-			gb_register.flags.half_carry = (gb_register.e & 0x0F) == 0x0F;
-			gb_register.flags.subtract = 1;
+			op_dec_reg8(&gb_register.e);
 			break;
 
 		case 0x1B: // DEC DE
@@ -271,10 +295,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x3D: // DEC A
-			gb_register.a--;
-			gb_register.flags.zero = !gb_register.a;
-			gb_register.flags.half_carry = (gb_register.a & 0x0F) == 0x0F;
-			gb_register.flags.subtract = 1;
+			op_dec_reg8(&gb_register.a);
 			break;
 
 		case 0xC8: // RET Z
@@ -311,10 +332,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x25: // DEC H
-			gb_register.h--;
-			gb_register.flags.zero = !gb_register.h;
-			gb_register.flags.half_carry = (gb_register.h & 0x0F) == 0x0F;
-			gb_register.flags.subtract = 1;
+			op_dec_reg8(&gb_register.h);
 			break;
 
 		case 0x7B: // LD A E
@@ -374,10 +392,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x2D: // DEC L
-			gb_register.l--;
-			gb_register.flags.zero = !gb_register.l;
-			gb_register.flags.half_carry = (gb_register.l & 0x0F) == 0x0F;
-			gb_register.flags.subtract = 1;
+			op_dec_reg8(&gb_register.l);
 			break;
 
 		case 0x46: // LD B (HL)
@@ -392,41 +407,20 @@ int main(int argc, char *argv[]) {
 			gb_register.flags.carry = 0;
 			break;
 
-		case 0xD6: // SUB A,u8
-		{
-			uint8_t next = read_byte();
-			gb_register.flags.zero = !(gb_register.a - next);
-			gb_register.flags.subtract = 1;
-			gb_register.flags.half_carry = (((gb_register.a & 0x0F) - (next & 0x0F)) & 0x10) == 0x10;
-			gb_register.flags.carry = next > gb_register.a;
-			gb_register.a -= next;
+		case 0xD6: // SUB A u8
+			op_sub_reg8(&gb_register.a, read_byte());
 			break;
-		}
 
 		case 0xC6: // Add A u8
-		{
-			uint8_t operand = read_byte();
-			gb_register.flags.half_carry = (((gb_register.a & 0x0F) + (operand & 0x0F)) & 0x10) == 0x10;
-			gb_register.flags.carry = (0xFF - gb_register.a) < operand;
-			gb_register.a += operand;
-			gb_register.flags.zero = !gb_register.a;
-			gb_register.flags.subtract = 0;
+			op_add_reg8(&gb_register.a, read_byte());
 			break;
-		}
 
 		case 0x24: // INC H
-			gb_register.h++;
-			gb_register.flags.zero = !gb_register.h;
-			gb_register.flags.half_carry = !(gb_register.h & 0x0F);
-			gb_register.flags.subtract = 0;
+			op_inc_reg8(&gb_register.h);
 			break;
 
-
 		case 0x2C: // INC L
-			gb_register.l++;
-			gb_register.flags.zero = !gb_register.l;
-			gb_register.flags.half_carry = !(gb_register.l & 0x0F);
-			gb_register.flags.subtract = 0;
+			op_inc_reg8(&gb_register.l);
 			break;
 
 		case 0x77: // LD (HL) A
@@ -445,10 +439,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x3C: // INC A
-			gb_register.a++;
-			gb_register.flags.zero = !gb_register.a;
-			gb_register.flags.half_carry = !(gb_register.a & 0x0F);
-			gb_register.flags.subtract = 0;
+			op_inc_reg8(&gb_register.a);
 			break;
 
 		case 0xC1: // POP BC
@@ -562,11 +553,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x87: // ADD A A
-			gb_register.flags.half_carry = (((gb_register.a & 0x0F) + (gb_register.a & 0x0F)) & 0x10) != 0;
-			gb_register.flags.carry = (0xFF - gb_register.a) < gb_register.a;
-			gb_register.a += gb_register.a;
-			gb_register.flags.zero = !gb_register.a;
-			gb_register.flags.subtract = 0;
+			op_add_reg8(&gb_register.a, gb_register.a);
 			break;
 
 		case 0xEF: // RST 0x28
@@ -657,10 +644,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x0C: // INC C
-			gb_register.c++;
-			gb_register.flags.zero = !gb_register.c;
-			gb_register.flags.half_carry = !(gb_register.c & 0x0F);
-			gb_register.flags.subtract = 0;
+			op_inc_reg8(&gb_register.c);
 			break;
 
 		case 0xE2: // LD (FF00+C) A
@@ -710,10 +694,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x05: // DEC B
-			gb_register.b--;
-			gb_register.flags.zero = !gb_register.b;
-			gb_register.flags.half_carry = (gb_register.b & 0x0F) == 0x0F;
-			gb_register.flags.subtract = 1;
+			op_dec_reg8(&gb_register.b);
 			break;
 
 		case 0x32: // LD (HL-) A
@@ -731,17 +712,11 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x14: // INC D
-			gb_register.d++;
-			gb_register.flags.zero = !gb_register.d;
-			gb_register.flags.half_carry = !(gb_register.d & 0x0F);
-			gb_register.flags.subtract = 0;
+			op_inc_reg8(&gb_register.d);
 			break;
 
 		case 0x0D: // DEC C
-			gb_register.c--;
-			gb_register.flags.half_carry = (gb_register.c & 0x0F) == 0x0F;
-			gb_register.flags.zero = !gb_register.c;
-			gb_register.flags.subtract = 1;
+			op_dec_reg8(&gb_register.c);
 			break;
 
 		case 0xFB: // EI Enable interrupts
@@ -756,10 +731,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x1C: // INC E
-			gb_register.e++;
-			gb_register.flags.zero = !gb_register.e;
-			gb_register.flags.half_carry = !(gb_register.e & 0x0F);
-			gb_register.flags.subtract = 0;
+			op_inc_reg8(&gb_register.e);
 			break;
 
 		case 0x12: // LD (DE) A
