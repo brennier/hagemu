@@ -41,7 +41,13 @@ union {
 
 bool master_interrupt_flag = false;
 bool master_interrupt_flag_pending = false;
+
 uint16_t m_cycle_clock = 0;
+bool clock_running = true;
+
+void increment_clock() {
+	if (clock_running) m_cycle_clock++;
+}
 
 enum special_addresses {
 	JOYPAD_INPUT = 0xFF00,
@@ -59,7 +65,14 @@ enum special_addresses {
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024] = { 0 };
 
-uint8_t memory_read(uint16_t address) {
+uint8_t mmu_read(uint16_t address) {
+	// Handle special cases first
+	switch (address) {
+
+	case DIVIDER_REGISTER:
+		return ((m_cycle_clock & 0xFF00) >> 8);
+	}
+
 	switch (address & 0xF000) {
 
 	// Read from ROM bank 00 (16 KiB)
@@ -99,12 +112,15 @@ uint8_t memory_read(uint16_t address) {
 
 	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
 	exit(EXIT_FAILURE);
-	return 0x00;
+}
+
+void mmu_write(uint16_t address, uint8_t value) {
+	gb_memory[address] = value;
 }
 
 uint8_t read_byte() {
-	m_cycle_clock++;
-	return gb_memory[cpu.wreg.pc++];
+	increment_clock();
+	return mmu_read(cpu.wreg.pc++);
 }
 
 uint16_t read_word() {
@@ -114,8 +130,8 @@ uint16_t read_word() {
 }
 
 uint16_t pop_stack() {
-	uint8_t lower = gb_memory[cpu.wreg.sp++];
-	uint8_t upper = gb_memory[cpu.wreg.sp++];
+	uint8_t lower = mmu_read(cpu.wreg.sp++);
+	uint8_t upper = mmu_read(cpu.wreg.sp++);
 	return (upper << 8) | lower;
 }
 
@@ -123,9 +139,9 @@ void push_stack(uint16_t reg16) {
 	uint8_t lower = (reg16 & 0x00FF);
 	uint8_t upper = (reg16 & 0xFF00) >> 8;
 	cpu.wreg.sp--;
-	gb_memory[cpu.wreg.sp] = upper;
+	mmu_write(cpu.wreg.sp, upper);
 	cpu.wreg.sp--;
-	gb_memory[cpu.wreg.sp] = lower;
+	mmu_write(cpu.wreg.sp, lower);
 }
 
 void load_rom(char* rom_name, size_t rom_bytes) {
@@ -286,20 +302,20 @@ void process_extra_opcodes(uint8_t opcode) {
 		break;
 	}
 
-	m_cycle_clock++;
+	increment_clock();
 }
 
 void print_debug_gameboy_doctor() {
 	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
 	cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l,
-	cpu.wreg.sp, cpu.wreg.pc, gb_memory[cpu.wreg.pc], gb_memory[cpu.wreg.pc+1], gb_memory[cpu.wreg.pc+2], gb_memory[cpu.wreg.pc+3]);
+	       cpu.wreg.sp, cpu.wreg.pc, mmu_read(cpu.wreg.pc), mmu_read(cpu.wreg.pc+1), mmu_read(cpu.wreg.pc+2), mmu_read(cpu.wreg.pc+3));
 }
 
 void print_debug_blargg_test() {
-	if (gb_memory[0xFF02] == 0x81)
+	if (mmu_read(SERIAL_CONTROL) == 0x81)
 	{
-		printf("%c", gb_memory[0xFF01]);
-		gb_memory[0xFF02] = 0;
+		printf("%c", mmu_read(SERIAL_DATA));
+		mmu_write(SERIAL_CONTROL, 0);
 	}
 }
 
@@ -431,8 +447,8 @@ enum interrupt_type {
 };
 
 void handle_interrupts() {
-	uint8_t interrupts = gb_memory[INTERRUPT_FLAGS];
-	interrupts &= gb_memory[INTERRUPT_ENABLE];
+	uint8_t interrupts = mmu_read(INTERRUPT_FLAGS);
+	interrupts &= mmu_read(INTERRUPT_ENABLE);
 	if (!interrupts) return;
 
 	master_interrupt_flag = false;
@@ -503,7 +519,7 @@ int main(int argc, char *argv[]) {
 			handle_interrupts();
 		}
 
-		uint8_t op_byte = gb_memory[cpu.wreg.pc++];
+		uint8_t op_byte = mmu_read(cpu.wreg.pc++);
 		process_opcode(op_byte);
 	}
 
@@ -568,7 +584,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x43: cpu.reg.b = cpu.reg.e; break;
 	case 0x44: cpu.reg.b = cpu.reg.h; break;
 	case 0x45: cpu.reg.b = cpu.reg.l; break;
-	case 0x46: cpu.reg.b = gb_memory[cpu.wreg.hl]; break;
+	case 0x46: cpu.reg.b = mmu_read(cpu.wreg.hl); break;
 	case 0x47: cpu.reg.b = cpu.reg.a; break;
 
 	case 0x48: cpu.reg.c = cpu.reg.b; break;
@@ -577,7 +593,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x4B: cpu.reg.c = cpu.reg.e; break;
 	case 0x4C: cpu.reg.c = cpu.reg.h; break;
 	case 0x4D: cpu.reg.c = cpu.reg.l; break;
-	case 0x4E: cpu.reg.c = gb_memory[cpu.wreg.hl]; break;
+	case 0x4E: cpu.reg.c = mmu_read(cpu.wreg.hl); break;
 	case 0x4F: cpu.reg.c = cpu.reg.a; break;
 
 	case 0x50: cpu.reg.d = cpu.reg.b; break;
@@ -586,7 +602,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x53: cpu.reg.d = cpu.reg.e; break;
 	case 0x54: cpu.reg.d = cpu.reg.h; break;
 	case 0x55: cpu.reg.d = cpu.reg.l; break;
-	case 0x56: cpu.reg.d = gb_memory[cpu.wreg.hl]; break;
+	case 0x56: cpu.reg.d = mmu_read(cpu.wreg.hl); break;
 	case 0x57: cpu.reg.d = cpu.reg.a; break;
 
 	case 0x58: cpu.reg.e = cpu.reg.b; break;
@@ -595,7 +611,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x5B: cpu.reg.e = cpu.reg.e; break;
 	case 0x5C: cpu.reg.e = cpu.reg.h; break;
 	case 0x5D: cpu.reg.e = cpu.reg.l; break;
-	case 0x5E: cpu.reg.e = gb_memory[cpu.wreg.hl]; break;
+	case 0x5E: cpu.reg.e = mmu_read(cpu.wreg.hl); break;
 	case 0x5F: cpu.reg.e = cpu.reg.a; break;
 
 	case 0x60: cpu.reg.h = cpu.reg.b; break;
@@ -604,7 +620,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x63: cpu.reg.h = cpu.reg.e; break;
 	case 0x64: cpu.reg.h = cpu.reg.h; break;
 	case 0x65: cpu.reg.h = cpu.reg.l; break;
-	case 0x66: cpu.reg.h = gb_memory[cpu.wreg.hl]; break;
+	case 0x66: cpu.reg.h = mmu_read(cpu.wreg.hl); break;
 	case 0x67: cpu.reg.h = cpu.reg.a; break;
 
 	case 0x68: cpu.reg.l = cpu.reg.b; break;
@@ -613,16 +629,16 @@ void process_opcode(uint8_t op_byte) {
 	case 0x6B: cpu.reg.l = cpu.reg.e; break;
 	case 0x6C: cpu.reg.l = cpu.reg.h; break;
 	case 0x6D: cpu.reg.l = cpu.reg.l; break;
-	case 0x6E: cpu.reg.l = gb_memory[cpu.wreg.hl]; break;
+	case 0x6E: cpu.reg.l = mmu_read(cpu.wreg.hl); break;
 	case 0x6F: cpu.reg.l = cpu.reg.a; break;
 
-	case 0x70: gb_memory[cpu.wreg.hl] = cpu.reg.b; break;
-	case 0x71: gb_memory[cpu.wreg.hl] = cpu.reg.c; break;
-	case 0x72: gb_memory[cpu.wreg.hl] = cpu.reg.d; break;
-	case 0x73: gb_memory[cpu.wreg.hl] = cpu.reg.e; break;
-	case 0x74: gb_memory[cpu.wreg.hl] = cpu.reg.h; break;
-	case 0x75: gb_memory[cpu.wreg.hl] = cpu.reg.l; break;
-	case 0x77: gb_memory[cpu.wreg.hl] = cpu.reg.a; break;
+	case 0x70: mmu_write(cpu.wreg.hl, cpu.reg.b); break;
+	case 0x71: mmu_write(cpu.wreg.hl, cpu.reg.c); break;
+	case 0x72: mmu_write(cpu.wreg.hl, cpu.reg.d); break;
+	case 0x73: mmu_write(cpu.wreg.hl, cpu.reg.e); break;
+	case 0x74: mmu_write(cpu.wreg.hl, cpu.reg.h); break;
+	case 0x75: mmu_write(cpu.wreg.hl, cpu.reg.l); break;
+	case 0x77: mmu_write(cpu.wreg.hl, cpu.reg.a); break;
 
 	case 0x78: cpu.reg.a = cpu.reg.b; break;
 	case 0x79: cpu.reg.a = cpu.reg.c; break;
@@ -630,7 +646,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x7B: cpu.reg.a = cpu.reg.e; break;
 	case 0x7C: cpu.reg.a = cpu.reg.h; break;
 	case 0x7D: cpu.reg.a = cpu.reg.l; break;
-	case 0x7E: cpu.reg.a = gb_memory[cpu.wreg.hl]; break;
+	case 0x7E: cpu.reg.a = mmu_read(cpu.wreg.hl); break;
 	case 0x7F: cpu.reg.a = cpu.reg.a; break;
 
 	// LOAD IMMEDIATE OPERATIONS
@@ -640,7 +656,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x1E: cpu.reg.e = read_byte(); break;
 	case 0x26: cpu.reg.h = read_byte(); break;
 	case 0x2E: cpu.reg.l = read_byte(); break;
-	case 0x36: gb_memory[cpu.wreg.hl] = read_byte(); break;
+	case 0x36: mmu_write(cpu.wreg.hl, read_byte()); break;
 	case 0x3E: cpu.reg.a = read_byte(); break;
 
 	case 0x01: cpu.wreg.bc = read_word(); break;
@@ -649,26 +665,26 @@ void process_opcode(uint8_t op_byte) {
 	case 0x31: cpu.wreg.sp = read_word(); break;
 
 	// LOAD IMMEDIATE ADDRESS
-	case 0xEA: gb_memory[read_word()] = cpu.reg.a; break;
-	case 0xFA: cpu.reg.a = gb_memory[read_word()]; break;
+	case 0xEA: mmu_write(read_word(), cpu.reg.a); break;
+	case 0xFA: cpu.reg.a = mmu_read(read_word()); break;
 
 	// LOAD HIGH OPERATIONS
-	case 0xE0: gb_memory[0xFF00 | read_byte()] = cpu.reg.a; break;
-	case 0xE2: gb_memory[0xFF00 | cpu.reg.c] = cpu.reg.a; break;
-	case 0xF0: cpu.reg.a = gb_memory[0xFF00 | read_byte()]; break;
-	case 0xF2: cpu.reg.a = gb_memory[0xFF00 | cpu.reg.c]; break;
+	case 0xE0: mmu_write(0xFF00 | read_byte(), cpu.reg.a); break;
+	case 0xE2: mmu_write(0xFF00 | cpu.reg.c  , cpu.reg.a); break;
+	case 0xF0: cpu.reg.a = mmu_read(0xFF00 | read_byte()); break;
+	case 0xF2: cpu.reg.a = mmu_read(0xFF00 | cpu.reg.c); break;
 
 	// LOAD ADDRESS AT REGISTER WITH A
-	case 0x02: gb_memory[cpu.wreg.bc] = cpu.reg.a; break;
-	case 0x0A: cpu.reg.a = gb_memory[cpu.wreg.bc]; break;
-	case 0x12: gb_memory[cpu.wreg.de] = cpu.reg.a; break;
-	case 0x1A: cpu.reg.a = gb_memory[cpu.wreg.de]; break;
+	case 0x02: mmu_write(cpu.wreg.bc, cpu.reg.a); break;
+	case 0x0A: cpu.reg.a = mmu_read(cpu.wreg.bc); break;
+	case 0x12: mmu_write(cpu.wreg.de, cpu.reg.a); break;
+	case 0x1A: cpu.reg.a = mmu_read(cpu.wreg.de); break;
 
 	// LOAD AND INCREMENT / DECREMENT OPERATIONS
-	case 0x22: gb_memory[cpu.wreg.hl++] = cpu.reg.a; break;
-	case 0x2A: cpu.reg.a = gb_memory[cpu.wreg.hl++]; break;
-	case 0x32: gb_memory[cpu.wreg.hl--] = cpu.reg.a; break;
-	case 0x3A: cpu.reg.a = gb_memory[cpu.wreg.hl--]; break;
+	case 0x22: mmu_write(cpu.wreg.hl++, cpu.reg.a); break;
+	case 0x2A: cpu.reg.a = mmu_read(cpu.wreg.hl++); break;
+	case 0x32: mmu_write(cpu.wreg.hl--, cpu.reg.a); break;
+	case 0x3A: cpu.reg.a = mmu_read(cpu.wreg.hl--); break;
 
 	// RST OPERATIONS
 	case 0xC7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x00; break;
@@ -889,8 +905,8 @@ void process_opcode(uint8_t op_byte) {
 	case 0x08: // LD (u16) SP
 	{
 		uint16_t address = read_word();
-		gb_memory[address] = (cpu.wreg.sp & 0x00FF);
-		gb_memory[address+1] = ((cpu.wreg.sp & 0xFF00) >> 8);
+		mmu_write(address, cpu.wreg.sp & 0x00FF);
+		mmu_write(address + 1, (cpu.wreg.sp & 0xFF00) >> 8);
 		break;
 	}
 
@@ -937,5 +953,5 @@ void process_opcode(uint8_t op_byte) {
 		break;
 	}
 
-	m_cycle_clock++;
+	increment_clock();
 }
