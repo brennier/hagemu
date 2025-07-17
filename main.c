@@ -438,7 +438,7 @@ void handle_interrupt(uint8_t interrupts) {
 }
 
 void process_opcode(uint8_t op_byte);
-void debug_opcode_timing();
+void test_opcode_timing();
 
 int main(int argc, char *argv[]) {
 	// Inital state of registers
@@ -453,7 +453,7 @@ int main(int argc, char *argv[]) {
 	cpu.wreg.sp = 0xFFFE;
 	cpu.wreg.pc = 0x0100;
 
-	debug_opcode_timing();
+	test_opcode_timing();
 
 	// The gameboy doctor test suite requires that the LY register always returns 0x90
 	gb_memory[0xFF44] = 0x90;
@@ -496,21 +496,39 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-void debug_opcode_timing() {
+int opcode_timing[256] = {
+    1, 3, 1, 1, 1, 1, 2, 1, 3, 1, 1, 1, 1, 1, 2, 1,
+    2, 3, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1,
+    2, 3, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1,
+    2, 3, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 3, 3, 3, 1, 2, 1, 1, 1, 3, 1, 3, 3, 2, 1,
+    1, 1, 3, 0, 3, 1, 2, 1, 1, 1, 3, 0, 3, 0, 2, 1,
+    2, 1, 2, 0, 0, 1, 2, 1, 2, 1, 3, 0, 0, 0, 2, 1,
+    2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 3, 1, 0, 0, 2, 1,
+};
+
+void test_opcode_timing() {
 	for (int i = 0; i < 256; i++) {
-		if (i % 16 == 0)
-			printf("\n");
 		switch(i) {
 		case 0x10: case 0x76: // STOP and HALT
 		case 0xD3: case 0xDB: case 0xDD: case 0xE3:
 		case 0xE4: case 0xEB: case 0xEC: case 0xED:
 		case 0xF4: case 0xFC: case 0xFD: // Not used
-			printf("  ");
 			continue;
 		}
 		m_cycle_clock = 0;
 		process_opcode(i);
-		printf("%d ", m_cycle_clock);
+		if (m_cycle_clock != opcode_timing[i])
+			printf("Opcode %02X has timing %d, but should have timing %d\n",
+			       i, m_cycle_clock, opcode_timing[i]);
 	}
 	printf("\n");
 
