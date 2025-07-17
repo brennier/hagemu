@@ -7,6 +7,15 @@
 #define SCREENWIDTH 166
 #define SCREENHEIGHT 144
 
+// TODO:
+// - HALT and STOP codes
+// - Pass Blargg's interrupt handling
+// - Display LCD
+// - Add timings
+// - Add MMU functions for reading and writing memory
+// - Simplify extra opcode table
+// - Use named structs to be compatible with C99
+
 // Unions are a wonderful thing
 union {
 	struct {
