@@ -570,6 +570,43 @@ void op_daa() {
 	gb_register.flags.half_carry = 0;
 }
 
+void op_nop() {
+	;
+}
+
+void handle_interrupt(uint8_t interrupts) {
+	if (!interrupts) return;
+
+	interrupt_flag = false;
+	push_stack(gb_register.pc);
+
+	if (interrupts & 0x01) {
+		// VBLANK INTERRUPT
+		gb_register.pc = 0x0040;
+		gb_memory[0xFF0F] &= ~((uint8_t)0x01);
+	}
+	if ((interrupts >> 1) & 0x01) {
+		// LCD INTERRUPT
+		gb_register.pc = 0x0048;
+		gb_memory[0xFF0F] &= ~((uint8_t)0x01 << 1);
+	}
+	if ((interrupts >> 2) & 0x01) {
+		// TIMER INTERRUPT
+		gb_register.pc = 0x0050;
+		gb_memory[0xFF0F] &= ~((uint8_t)0x01 << 2);
+	}
+	if ((interrupts >> 3) & 0x01) {
+		// SERIAL INTERRUPT
+		gb_register.pc = 0x0058;
+		gb_memory[0xFF0F] &= ~((uint8_t)0x01 << 3);
+	}
+	if ((interrupts >> 4) & 0x01) {
+		// JOYPAD INTERRUPT
+		gb_register.pc = 0x0060;
+		gb_memory[0xFF0F] &= ~((uint8_t)0x01 << 4);
+	}
+}
+
 int main(int argc, char *argv[]) {
 	if (argc == 1) {
 		fprintf(stderr, "Error: No rom file specified\n");
@@ -599,6 +636,9 @@ int main(int argc, char *argv[]) {
 
 	while (true) {
 		print_debug();
+		if (interrupt_flag)
+			handle_interrupt(gb_memory[0xFF0F] & gb_memory[0xFFFF] & 0x1F);
+
 		uint8_t op_byte = gb_memory[gb_register.pc++];
 		switch (op_byte) {
 
@@ -960,6 +1000,7 @@ int main(int argc, char *argv[]) {
 			break;
 
 		case 0x00: // NOP: do nothing
+			op_nop();
 			break;
 
 		default:
