@@ -38,9 +38,10 @@ union {
 } cpu = { 0 };
 
 bool interrupt_flag = false;
+bool interrupt_pending_flag = false;
 
 // The GB has 64kb of mapped memory
-uint8_t gb_memory[64 * 1024];
+uint8_t gb_memory[64 * 1024] = { 0 };
 
 uint8_t memory_read(uint16_t address) {
 	switch (address & 0xF000) {
@@ -456,8 +457,14 @@ int main(int argc, char *argv[]) {
 
 	while (true) {
 		print_debug();
-		if (interrupt_flag)
-			handle_interrupt(gb_memory[0xFF0F] & gb_memory[0xFFFF] & 0x1F);
+
+		if (interrupt_pending_flag) {
+			interrupt_pending_flag = false;
+			interrupt_flag = true;
+		}
+		else if (interrupt_flag) {
+			handle_interrupt(gb_memory[0xFF0F] & gb_memory[0xFFFF]);
+		}
 
 		uint8_t op_byte = gb_memory[cpu.wreg.pc++];
 		switch (op_byte) {
@@ -757,8 +764,8 @@ int main(int argc, char *argv[]) {
 		case 0x1F: op_rr(&cpu.reg.a);  cpu.flag.zero = 0; break;
 
 		// FLAG OPERATIONS
-		case 0xF3: interrupt_flag = false; break;
-		case 0xFB: interrupt_flag = true;  break;
+		case 0xF3: interrupt_pending_flag = false; interrupt_flag = false; break;
+		case 0xFB: interrupt_pending_flag = true;  break;
 		case 0x3F: // CCF
 			cpu.flag.subtract = 0;
 			cpu.flag.half_carry = 0;
