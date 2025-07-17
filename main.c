@@ -13,17 +13,19 @@
 // - Display LCD
 // - Add timings
 // - Add MMU functions for reading and writing memory
-// - Simplify extra opcode table
 // - Make cpu flags into separate bools
 
 // Unions are a wonderful thing
 union {
+	// Regular 8-bit registers
 	struct {
 		uint8_t f, a, c, b, e, d, l, h;
-	} reg; // Regular 8-bit registers
+	} reg;
+	// Wide 16-bit registers
 	struct {
 		uint16_t af, bc, de, hl, sp, pc;
-	} wreg; // Wide 16-bit registers
+	} wreg;
+	// Various flags
 	struct {
 		uint8_t unused : 4;
 		uint8_t carry : 1;
@@ -149,10 +151,10 @@ void op_swap(uint8_t* reg) {
 	cpu.flag.zero = !(*reg);
 }
 
-void op_bit(int bit_num, uint8_t value) {
+void op_bit(int bit_num, uint8_t* reg) {
 	cpu.flag.subtract = 0;
 	cpu.flag.half_carry = 1;
-	cpu.flag.zero = !(value & (1 << bit_num));
+	cpu.flag.zero = !((*reg) & (1 << bit_num));
 }
 
 void op_res(int bit_num, uint8_t* reg) {
@@ -164,285 +166,57 @@ void op_set(int bit_num, uint8_t* reg) {
 }
 
 void process_extra_opcodes(uint8_t opcode) {
-	switch (opcode) {
+	// The lower 4 bits of the opcode determines the register
+	uint8_t *location;
+	switch (opcode & 0x07) {
+		case 0x00: location = &cpu.reg.b; break;
+		case 0x01: location = &cpu.reg.c; break;
+		case 0x02: location = &cpu.reg.d; break;
+		case 0x03: location = &cpu.reg.e; break;
+		case 0x04: location = &cpu.reg.h; break;
+		case 0x05: location = &cpu.reg.l; break;
+		case 0x06: location = &gb_memory[cpu.wreg.hl]; break;
+		case 0x07: location = &cpu.reg.a; break;
+	}
 
-	// ROTATE LEFT CIRCULAR
-	case 0x00: op_rlc(&cpu.reg.b); break;
-	case 0x01: op_rlc(&cpu.reg.c); break;
-	case 0x02: op_rlc(&cpu.reg.d); break;
-	case 0x03: op_rlc(&cpu.reg.e); break;
-	case 0x04: op_rlc(&cpu.reg.h); break;
-	case 0x05: op_rlc(&cpu.reg.l); break;
-	case 0x06: op_rlc(&gb_memory[cpu.wreg.hl]); break;
-	case 0x07: op_rlc(&cpu.reg.a); break;
+	// The upper 5 bits of the opcode determines the operation
+	switch (opcode & 0xF8) {
 
-	// ROTATE RIGHT CIRCULAR
-	case 0x08: op_rrc(&cpu.reg.b); break;
-	case 0x09: op_rrc(&cpu.reg.c); break;
-	case 0x0A: op_rrc(&cpu.reg.d); break;
-	case 0x0B: op_rrc(&cpu.reg.e); break;
-	case 0x0C: op_rrc(&cpu.reg.h); break;
-	case 0x0D: op_rrc(&cpu.reg.l); break;
-	case 0x0E: op_rrc(&gb_memory[cpu.wreg.hl]); break;
-	case 0x0F: op_rrc(&cpu.reg.a); break;
+	case 0x00: op_rlc(location);    break; // ROTATE LEFT CIRCULAR
+	case 0x08: op_rrc(location);    break; // ROTATE RIGHT CIRCULAR
+	case 0x10: op_rl(location);     break; // ROTATE LEFT
+	case 0x18: op_rr(location);     break; // ROTATE RIGHT
+	case 0x20: op_sla(location);    break; // SHIFT LEFT ARITHMETIC
+	case 0x28: op_sra(location);    break; // SHIFT RIGHT ARITHEMTIC
+	case 0x30: op_swap(location);   break; // SWAP
+	case 0x38: op_srl(location);    break; // SHIFT RIGHT LOGICAL
 
-	// ROTATE LEFT OPERATIONS
-	case 0x10: op_rl(&cpu.reg.b); break;
-	case 0x11: op_rl(&cpu.reg.c); break;
-	case 0x12: op_rl(&cpu.reg.d); break;
-	case 0x13: op_rl(&cpu.reg.e); break;
-	case 0x14: op_rl(&cpu.reg.h); break;
-	case 0x15: op_rl(&cpu.reg.l); break;
-	case 0x16: op_rl(&gb_memory[cpu.wreg.hl]); break;
-	case 0x17: op_rl(&cpu.reg.a); break;
+	case 0x40: op_bit(0, location); break; // TEST BIT 0
+	case 0x48: op_bit(1, location); break; // TEST BIT 1
+	case 0x50: op_bit(2, location); break; // TEST BIT 2
+	case 0x58: op_bit(3, location); break; // TEST BIT 3
+	case 0x60: op_bit(4, location); break; // TEST BIT 4
+	case 0x68: op_bit(5, location); break; // TEST BIT 5
+	case 0x70: op_bit(6, location); break; // TEST BIT 6
+	case 0x78: op_bit(7, location); break; // TEST BIT 7
 
-	// ROTATE RIGHT OPERATIONS
-	case 0x18: op_rr(&cpu.reg.b); break;
-	case 0x19: op_rr(&cpu.reg.c); break;
-	case 0x1A: op_rr(&cpu.reg.d); break;
-	case 0x1B: op_rr(&cpu.reg.e); break;
-	case 0x1C: op_rr(&cpu.reg.h); break;
-	case 0x1D: op_rr(&cpu.reg.l); break;
-	case 0x1E: op_rr(&gb_memory[cpu.wreg.hl]); break;
-	case 0x1F: op_rr(&cpu.reg.a); break;
+	case 0x80: op_res(0, location); break; // RESET BIT 0
+	case 0x88: op_res(1, location); break; // RESET BIT 1
+	case 0x90: op_res(2, location); break; // RESET BIT 2
+	case 0x98: op_res(3, location); break; // RESET BIT 3
+	case 0xA0: op_res(4, location); break; // RESET BIT 4
+	case 0xA8: op_res(5, location); break; // RESET BIT 5
+	case 0xB0: op_res(6, location); break; // RESET BIT 6
+	case 0xB8: op_res(7, location); break; // RESET BIT 7
 
-	// SHIFT LEFT ARITHMETIC
-	case 0x20: op_sla(&cpu.reg.b); break;
-	case 0x21: op_sla(&cpu.reg.c); break;
-	case 0x22: op_sla(&cpu.reg.d); break;
-	case 0x23: op_sla(&cpu.reg.e); break;
-	case 0x24: op_sla(&cpu.reg.h); break;
-	case 0x25: op_sla(&cpu.reg.l); break;
-	case 0x26: op_sla(&gb_memory[cpu.wreg.hl]); break;
-	case 0x27: op_sla(&cpu.reg.a); break;
-
-	// SHIFT RIGHT ARITHEMTIC
-	case 0x28: op_sra(&cpu.reg.b); break;
-	case 0x29: op_sra(&cpu.reg.c); break;
-	case 0x2A: op_sra(&cpu.reg.d); break;
-	case 0x2B: op_sra(&cpu.reg.e); break;
-	case 0x2C: op_sra(&cpu.reg.h); break;
-	case 0x2D: op_sra(&cpu.reg.l); break;
-	case 0x2E: op_sra(&gb_memory[cpu.wreg.hl]); break;
-	case 0x2F: op_sra(&cpu.reg.a); break;
-
-	// SWAP OPERATIONS
-	case 0x30: op_swap(&cpu.reg.b); break;
-	case 0x31: op_swap(&cpu.reg.c); break;
-	case 0x32: op_swap(&cpu.reg.d); break;
-	case 0x33: op_swap(&cpu.reg.e); break;
-	case 0x34: op_swap(&cpu.reg.h); break;
-	case 0x35: op_swap(&cpu.reg.l); break;
-	case 0x36: op_swap(&gb_memory[cpu.wreg.hl]); break;
-	case 0x37: op_swap(&cpu.reg.a); break;
-
-	// SHIFT RIGHT LOGICAL
-	case 0x38: op_srl(&cpu.reg.b); break;
-	case 0x39: op_srl(&cpu.reg.c); break;
-	case 0x3A: op_srl(&cpu.reg.d); break;
-	case 0x3B: op_srl(&cpu.reg.e); break;
-	case 0x3C: op_srl(&cpu.reg.h); break;
-	case 0x3D: op_srl(&cpu.reg.l); break;
-	case 0x3E: op_srl(&gb_memory[cpu.wreg.hl]); break;
-	case 0x3F: op_srl(&cpu.reg.a); break;
-
-	// TEST BIT OPERATIONS
-	case 0x40: op_bit(0, cpu.reg.b); break;
-	case 0x41: op_bit(0, cpu.reg.c); break;
-	case 0x42: op_bit(0, cpu.reg.d); break;
-	case 0x43: op_bit(0, cpu.reg.e); break;
-	case 0x44: op_bit(0, cpu.reg.h); break;
-	case 0x45: op_bit(0, cpu.reg.l); break;
-	case 0x46: op_bit(0, gb_memory[cpu.wreg.hl]); break;
-	case 0x47: op_bit(0, cpu.reg.a); break;
-	case 0x48: op_bit(1, cpu.reg.b); break;
-	case 0x49: op_bit(1, cpu.reg.c); break;
-	case 0x4A: op_bit(1, cpu.reg.d); break;
-	case 0x4B: op_bit(1, cpu.reg.e); break;
-	case 0x4C: op_bit(1, cpu.reg.h); break;
-	case 0x4D: op_bit(1, cpu.reg.l); break;
-	case 0x4E: op_bit(1, gb_memory[cpu.wreg.hl]); break;
-	case 0x4F: op_bit(1, cpu.reg.a); break;
-	case 0x50: op_bit(2, cpu.reg.b); break;
-	case 0x51: op_bit(2, cpu.reg.c); break;
-	case 0x52: op_bit(2, cpu.reg.d); break;
-	case 0x53: op_bit(2, cpu.reg.e); break;
-	case 0x54: op_bit(2, cpu.reg.h); break;
-	case 0x55: op_bit(2, cpu.reg.l); break;
-	case 0x56: op_bit(2, gb_memory[cpu.wreg.hl]); break;
-	case 0x57: op_bit(2, cpu.reg.a); break;
-	case 0x58: op_bit(3, cpu.reg.b); break;
-	case 0x59: op_bit(3, cpu.reg.c); break;
-	case 0x5A: op_bit(3, cpu.reg.d); break;
-	case 0x5B: op_bit(3, cpu.reg.e); break;
-	case 0x5C: op_bit(3, cpu.reg.h); break;
-	case 0x5D: op_bit(3, cpu.reg.l); break;
-	case 0x5E: op_bit(3, gb_memory[cpu.wreg.hl]); break;
-	case 0x5F: op_bit(3, cpu.reg.a); break;
-	case 0x60: op_bit(4, cpu.reg.b); break;
-	case 0x61: op_bit(4, cpu.reg.c); break;
-	case 0x62: op_bit(4, cpu.reg.d); break;
-	case 0x63: op_bit(4, cpu.reg.e); break;
-	case 0x64: op_bit(4, cpu.reg.h); break;
-	case 0x65: op_bit(4, cpu.reg.l); break;
-	case 0x66: op_bit(4, gb_memory[cpu.wreg.hl]); break;
-	case 0x67: op_bit(4, cpu.reg.a); break;
-	case 0x68: op_bit(5, cpu.reg.b); break;
-	case 0x69: op_bit(5, cpu.reg.c); break;
-	case 0x6A: op_bit(5, cpu.reg.d); break;
-	case 0x6B: op_bit(5, cpu.reg.e); break;
-	case 0x6C: op_bit(5, cpu.reg.h); break;
-	case 0x6D: op_bit(5, cpu.reg.l); break;
-	case 0x6E: op_bit(5, gb_memory[cpu.wreg.hl]); break;
-	case 0x6F: op_bit(5, cpu.reg.a); break;
-	case 0x70: op_bit(6, cpu.reg.b); break;
-	case 0x71: op_bit(6, cpu.reg.c); break;
-	case 0x72: op_bit(6, cpu.reg.d); break;
-	case 0x73: op_bit(6, cpu.reg.e); break;
-	case 0x74: op_bit(6, cpu.reg.h); break;
-	case 0x75: op_bit(6, cpu.reg.l); break;
-	case 0x76: op_bit(6, gb_memory[cpu.wreg.hl]); break;
-	case 0x77: op_bit(6, cpu.reg.a); break;
-	case 0x78: op_bit(7, cpu.reg.b); break;
-	case 0x79: op_bit(7, cpu.reg.c); break;
-	case 0x7A: op_bit(7, cpu.reg.d); break;
-	case 0x7B: op_bit(7, cpu.reg.e); break;
-	case 0x7C: op_bit(7, cpu.reg.h); break;
-	case 0x7D: op_bit(7, cpu.reg.l); break;
-	case 0x7E: op_bit(7, gb_memory[cpu.wreg.hl]); break;
-	case 0x7F: op_bit(7, cpu.reg.a); break;
-
-	// RESET BIT OPERATIONS
-	case 0x80: op_res(0, &cpu.reg.b); break;
-	case 0x81: op_res(0, &cpu.reg.c); break;
-	case 0x82: op_res(0, &cpu.reg.d); break;
-	case 0x83: op_res(0, &cpu.reg.e); break;
-	case 0x84: op_res(0, &cpu.reg.h); break;
-	case 0x85: op_res(0, &cpu.reg.l); break;
-	case 0x86: op_res(0, &gb_memory[cpu.wreg.hl]); break;
-	case 0x87: op_res(0, &cpu.reg.a); break;
-	case 0x88: op_res(1, &cpu.reg.b); break;
-	case 0x89: op_res(1, &cpu.reg.c); break;
-	case 0x8A: op_res(1, &cpu.reg.d); break;
-	case 0x8B: op_res(1, &cpu.reg.e); break;
-	case 0x8C: op_res(1, &cpu.reg.h); break;
-	case 0x8D: op_res(1, &cpu.reg.l); break;
-	case 0x8E: op_res(1, &gb_memory[cpu.wreg.hl]); break;
-	case 0x8F: op_res(1, &cpu.reg.a); break;
-	case 0x90: op_res(2, &cpu.reg.b); break;
-	case 0x91: op_res(2, &cpu.reg.c); break;
-	case 0x92: op_res(2, &cpu.reg.d); break;
-	case 0x93: op_res(2, &cpu.reg.e); break;
-	case 0x94: op_res(2, &cpu.reg.h); break;
-	case 0x95: op_res(2, &cpu.reg.l); break;
-	case 0x96: op_res(2, &gb_memory[cpu.wreg.hl]); break;
-	case 0x97: op_res(2, &cpu.reg.a); break;
-	case 0x98: op_res(3, &cpu.reg.b); break;
-	case 0x99: op_res(3, &cpu.reg.c); break;
-	case 0x9A: op_res(3, &cpu.reg.d); break;
-	case 0x9B: op_res(3, &cpu.reg.e); break;
-	case 0x9C: op_res(3, &cpu.reg.h); break;
-	case 0x9D: op_res(3, &cpu.reg.l); break;
-	case 0x9E: op_res(3, &gb_memory[cpu.wreg.hl]); break;
-	case 0x9F: op_res(3, &cpu.reg.a); break;
-	case 0xA0: op_res(4, &cpu.reg.b); break;
-	case 0xA1: op_res(4, &cpu.reg.c); break;
-	case 0xA2: op_res(4, &cpu.reg.d); break;
-	case 0xA3: op_res(4, &cpu.reg.e); break;
-	case 0xA4: op_res(4, &cpu.reg.h); break;
-	case 0xA5: op_res(4, &cpu.reg.l); break;
-	case 0xA6: op_res(4, &gb_memory[cpu.wreg.hl]); break;
-	case 0xA7: op_res(4, &cpu.reg.a); break;
-	case 0xA8: op_res(5, &cpu.reg.b); break;
-	case 0xA9: op_res(5, &cpu.reg.c); break;
-	case 0xAA: op_res(5, &cpu.reg.d); break;
-	case 0xAB: op_res(5, &cpu.reg.e); break;
-	case 0xAC: op_res(5, &cpu.reg.h); break;
-	case 0xAD: op_res(5, &cpu.reg.l); break;
-	case 0xAE: op_res(5, &gb_memory[cpu.wreg.hl]); break;
-	case 0xAF: op_res(5, &cpu.reg.a); break;
-	case 0xB0: op_res(6, &cpu.reg.b); break;
-	case 0xB1: op_res(6, &cpu.reg.c); break;
-	case 0xB2: op_res(6, &cpu.reg.d); break;
-	case 0xB3: op_res(6, &cpu.reg.e); break;
-	case 0xB4: op_res(6, &cpu.reg.h); break;
-	case 0xB5: op_res(6, &cpu.reg.l); break;
-	case 0xB6: op_res(6, &gb_memory[cpu.wreg.hl]); break;
-	case 0xB7: op_res(6, &cpu.reg.a); break;
-	case 0xB8: op_res(7, &cpu.reg.b); break;
-	case 0xB9: op_res(7, &cpu.reg.c); break;
-	case 0xBA: op_res(7, &cpu.reg.d); break;
-	case 0xBB: op_res(7, &cpu.reg.e); break;
-	case 0xBC: op_res(7, &cpu.reg.h); break;
-	case 0xBD: op_res(7, &cpu.reg.l); break;
-	case 0xBE: op_res(7, &gb_memory[cpu.wreg.hl]); break;
-	case 0xBF: op_res(7, &cpu.reg.a); break;
-
-	// SET BIT OPERATIONS
-	case 0xC0: op_set(0, &cpu.reg.b); break;
-	case 0xC1: op_set(0, &cpu.reg.c); break;
-	case 0xC2: op_set(0, &cpu.reg.d); break;
-	case 0xC3: op_set(0, &cpu.reg.e); break;
-	case 0xC4: op_set(0, &cpu.reg.h); break;
-	case 0xC5: op_set(0, &cpu.reg.l); break;
-	case 0xC6: op_set(0, &gb_memory[cpu.wreg.hl]); break;
-	case 0xC7: op_set(0, &cpu.reg.a); break;
-	case 0xC8: op_set(1, &cpu.reg.b); break;
-	case 0xC9: op_set(1, &cpu.reg.c); break;
-	case 0xCA: op_set(1, &cpu.reg.d); break;
-	case 0xCB: op_set(1, &cpu.reg.e); break;
-	case 0xCC: op_set(1, &cpu.reg.h); break;
-	case 0xCD: op_set(1, &cpu.reg.l); break;
-	case 0xCE: op_set(1, &gb_memory[cpu.wreg.hl]); break;
-	case 0xCF: op_set(1, &cpu.reg.a); break;
-	case 0xD0: op_set(2, &cpu.reg.b); break;
-	case 0xD1: op_set(2, &cpu.reg.c); break;
-	case 0xD2: op_set(2, &cpu.reg.d); break;
-	case 0xD3: op_set(2, &cpu.reg.e); break;
-	case 0xD4: op_set(2, &cpu.reg.h); break;
-	case 0xD5: op_set(2, &cpu.reg.l); break;
-	case 0xD6: op_set(2, &gb_memory[cpu.wreg.hl]); break;
-	case 0xD7: op_set(2, &cpu.reg.a); break;
-	case 0xD8: op_set(3, &cpu.reg.b); break;
-	case 0xD9: op_set(3, &cpu.reg.c); break;
-	case 0xDA: op_set(3, &cpu.reg.d); break;
-	case 0xDB: op_set(3, &cpu.reg.e); break;
-	case 0xDC: op_set(3, &cpu.reg.h); break;
-	case 0xDD: op_set(3, &cpu.reg.l); break;
-	case 0xDE: op_set(3, &gb_memory[cpu.wreg.hl]); break;
-	case 0xDF: op_set(3, &cpu.reg.a); break;
-	case 0xE0: op_set(4, &cpu.reg.b); break;
-	case 0xE1: op_set(4, &cpu.reg.c); break;
-	case 0xE2: op_set(4, &cpu.reg.d); break;
-	case 0xE3: op_set(4, &cpu.reg.e); break;
-	case 0xE4: op_set(4, &cpu.reg.h); break;
-	case 0xE5: op_set(4, &cpu.reg.l); break;
-	case 0xE6: op_set(4, &gb_memory[cpu.wreg.hl]); break;
-	case 0xE7: op_set(4, &cpu.reg.a); break;
-	case 0xE8: op_set(5, &cpu.reg.b); break;
-	case 0xE9: op_set(5, &cpu.reg.c); break;
-	case 0xEA: op_set(5, &cpu.reg.d); break;
-	case 0xEB: op_set(5, &cpu.reg.e); break;
-	case 0xEC: op_set(5, &cpu.reg.h); break;
-	case 0xED: op_set(5, &cpu.reg.l); break;
-	case 0xEE: op_set(5, &gb_memory[cpu.wreg.hl]); break;
-	case 0xEF: op_set(5, &cpu.reg.a); break;
-	case 0xF0: op_set(6, &cpu.reg.b); break;
-	case 0xF1: op_set(6, &cpu.reg.c); break;
-	case 0xF2: op_set(6, &cpu.reg.d); break;
-	case 0xF3: op_set(6, &cpu.reg.e); break;
-	case 0xF4: op_set(6, &cpu.reg.h); break;
-	case 0xF5: op_set(6, &cpu.reg.l); break;
-	case 0xF6: op_set(6, &gb_memory[cpu.wreg.hl]); break;
-	case 0xF7: op_set(6, &cpu.reg.a); break;
-	case 0xF8: op_set(7, &cpu.reg.b); break;
-	case 0xF9: op_set(7, &cpu.reg.c); break;
-	case 0xFA: op_set(7, &cpu.reg.d); break;
-	case 0xFB: op_set(7, &cpu.reg.e); break;
-	case 0xFC: op_set(7, &cpu.reg.h); break;
-	case 0xFD: op_set(7, &cpu.reg.l); break;
-	case 0xFE: op_set(7, &gb_memory[cpu.wreg.hl]); break;
-	case 0xFF: op_set(7, &cpu.reg.a); break;
+	case 0xC0: op_set(0, location); break; // SET BIT 0
+	case 0xC8: op_set(1, location); break; // SET BIT 1
+	case 0xD0: op_set(2, location); break; // SET BIT 2
+	case 0xD8: op_set(3, location); break; // SET BIT 3
+	case 0xE0: op_set(4, location); break; // SET BIT 4
+	case 0xE8: op_set(5, location); break; // SET BIT 5
+	case 0xF0: op_set(6, location); break; // SET BIT 6
+	case 0xF8: op_set(7, location); break; // SET BIT 7
 
 	default:
 		printf("Error: Unknown prefixed opcode `%02X'\n", opcode);
