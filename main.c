@@ -8,7 +8,6 @@
 #define SCREENHEIGHT 144
 
 // TODO:
-// - HALT and STOP codes
 // - Pass Blargg's interrupt handling
 // - Display LCD
 // - Add timings
@@ -17,6 +16,7 @@
 // - Switchable ROM bank
 // - Implement STOP and HALT
 // - Update timer registers
+// - Add bit manipulation macros
 
 // Unions are a wonderful thing
 union {
@@ -39,9 +39,22 @@ union {
 	uint8_t raw_bytes[12];
 } cpu = { 0 };
 
-bool interrupt_flag = false;
-bool interrupt_pending_flag = false;
+bool master_interrupt_flag = false;
+bool master_interrupt_flag_pending = false;
 uint16_t m_cycle_clock = 0;
+
+enum special_addresses {
+	JOYPAD_INPUT = 0xFF00,
+	SERIAL_DATA = 0xFF01,
+	SERIAL_CONTROL = 0xFF02,
+	DIVIDER_REGISTER = 0xFF04,
+	TIMER_COUNTER = 0xFF05,
+	TIMER_MODULO = 0xFF06,
+	TIMER_CONTROL = 0xFF07,
+	INTERRUPT_FLAGS = 0xFF0F,
+	BOOT_ROM_CONTROL = 0xFF50,
+	INTERRUPT_ENABLE = 0xFFFF,
+};
 
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024] = { 0 };
@@ -83,6 +96,9 @@ uint8_t memory_read(uint16_t address) {
 		else
 			return gb_memory[address];
 	}
+
+	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
+	exit(EXIT_FAILURE);
 	return 0x00;
 }
 
@@ -406,36 +422,41 @@ void op_daa() {
 	cpu.flag.half_carry = 0;
 }
 
-void handle_interrupt(uint8_t interrupts) {
+enum interrupt_type {
+	VBLANK_INTERRUPT_BIT = (1 << 0),
+	LCD_INTERRUPT_BIT    = (1 << 1),
+	TIMER_INTERRUPT_BIT  = (1 << 2),
+	SERIAL_INTERRUPT_BIT = (1 << 3),
+	JOYPAD_INTERRUPT_BIT = (1 << 4),
+};
+
+void handle_interrupts() {
+	uint8_t interrupts = gb_memory[INTERRUPT_FLAGS];
+	interrupts &= gb_memory[INTERRUPT_ENABLE];
 	if (!interrupts) return;
 
-	interrupt_flag = false;
+	master_interrupt_flag = false;
 	push_stack(cpu.wreg.pc);
 
-	if (interrupts & 0x01) {
-		// VBLANK INTERRUPT
+	if (interrupts & VBLANK_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0040;
-		gb_memory[0xFF0F] &= ~((uint8_t)0x01);
+		gb_memory[INTERRUPT_FLAGS] &= ~VBLANK_INTERRUPT_BIT;
 	}
-	if ((interrupts >> 1) & 0x01) {
-		// LCD INTERRUPT
+	if (interrupts & LCD_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0048;
-		gb_memory[0xFF0F] &= ~((uint8_t)0x01 << 1);
+		gb_memory[INTERRUPT_FLAGS] &= ~LCD_INTERRUPT_BIT;
 	}
-	if ((interrupts >> 2) & 0x01) {
-		// TIMER INTERRUPT
+	if (interrupts & TIMER_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0050;
-		gb_memory[0xFF0F] &= ~((uint8_t)0x01 << 2);
+		gb_memory[INTERRUPT_FLAGS] &= ~TIMER_INTERRUPT_BIT;
 	}
-	if ((interrupts >> 3) & 0x01) {
-		// SERIAL INTERRUPT
+	if (interrupts & SERIAL_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0058;
-		gb_memory[0xFF0F] &= ~((uint8_t)0x01 << 3);
+		gb_memory[INTERRUPT_FLAGS] &= ~SERIAL_INTERRUPT_BIT;
 	}
-	if ((interrupts >> 4) & 0x01) {
-		// JOYPAD INTERRUPT
+	if (interrupts & JOYPAD_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0060;
-		gb_memory[0xFF0F] &= ~((uint8_t)0x01 << 4);
+		gb_memory[INTERRUPT_FLAGS] &= ~JOYPAD_INTERRUPT_BIT;
 	}
 }
 
@@ -474,12 +495,12 @@ int main(int argc, char *argv[]) {
 	while (true) {
 		print_debug_blargg_test();
 
-		if (interrupt_pending_flag) {
-			interrupt_pending_flag = false;
-			interrupt_flag = true;
+		if (master_interrupt_flag_pending) {
+			master_interrupt_flag_pending = false;
+			master_interrupt_flag = true;
 		}
-		else if (interrupt_flag) {
-			handle_interrupt(gb_memory[0xFF0F] & gb_memory[0xFFFF]);
+		else if (master_interrupt_flag) {
+			handle_interrupts();
 		}
 
 		uint8_t op_byte = gb_memory[cpu.wreg.pc++];
@@ -680,7 +701,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0xC9: op_ret(true); break;
 	case 0xD0: op_ret(!cpu.flag.carry); break;
 	case 0xD8: op_ret(cpu.flag.carry); break;
-	case 0xD9: op_ret(true); interrupt_flag = true; break;
+	case 0xD9: op_ret(true); master_interrupt_flag = true; break;
 
 	// CALL OPERATIONS
 	case 0xC4: op_call(!cpu.flag.zero); break;
@@ -838,11 +859,11 @@ void process_opcode(uint8_t op_byte) {
 
 	// FLAG OPERATIONS
 	case 0xF3: // DE
-		interrupt_pending_flag = false;
-		interrupt_flag = false;
+		master_interrupt_flag_pending = false;
+		master_interrupt_flag = false;
 		break;
 	case 0xFB: // IE
-		interrupt_pending_flag = true;
+		master_interrupt_flag_pending = true;
 		break;
 	case 0x3F: // CCF
 		cpu.flag.subtract = 0;
