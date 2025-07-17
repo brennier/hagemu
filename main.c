@@ -80,6 +80,7 @@ uint8_t memory_read(uint16_t address) {
 		else
 			return gb_memory[address];
 	}
+	return 0x00;
 }
 
 uint8_t read_byte() {
@@ -266,10 +267,18 @@ void process_extra_opcodes(uint8_t opcode) {
 	}
 }
 
-void print_debug() {
+void print_debug_gameboy_doctor() {
 	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
 	cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l,
 	cpu.wreg.sp, cpu.wreg.pc, gb_memory[cpu.wreg.pc], gb_memory[cpu.wreg.pc+1], gb_memory[cpu.wreg.pc+2], gb_memory[cpu.wreg.pc+3]);
+}
+
+void print_debug_blargg_test() {
+	if (gb_memory[0xFF02] == 0x81)
+	{
+		printf("%c", gb_memory[0xFF01]);
+		gb_memory[0xFF02] = 0;
+	}
 }
 
 void op_add(uint8_t value) {
@@ -456,7 +465,7 @@ int main(int argc, char *argv[]) {
 	gb_memory[0xFF44] = 0x90;
 
 	while (true) {
-		print_debug();
+		print_debug_blargg_test();
 
 		if (interrupt_pending_flag) {
 			interrupt_pending_flag = false;
