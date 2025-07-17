@@ -39,17 +39,18 @@ union {
 
 bool interrupt_flag = false;
 bool interrupt_pending_flag = false;
+int  m_cycle_clock = 0;
 
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024] = { 0 };
 
 uint8_t memory_read(uint16_t address) {
 	switch (address & 0xF000) {
-	
+
 	// Read from ROM bank 00 (16 KiB)
 	case 0x0000: case 0x1000: case 0x2000: case 0x3000:
 		return gb_memory[address];
-	
+
 	// Read from switchable ROM bank (16 KiB)
 	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
 		return gb_memory[address];
@@ -57,11 +58,11 @@ uint8_t memory_read(uint16_t address) {
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
 		return gb_memory[address];
-	
+
 	// External switchable RAM from cartridge (8 KiB)
 	case 0xA000: case 0xB000:
 		return gb_memory[address];
-	
+
 	// Work RAM (8 KiB)
 	case 0xC000: case 0xD000:
 		return gb_memory[address];
@@ -84,6 +85,7 @@ uint8_t memory_read(uint16_t address) {
 }
 
 uint8_t read_byte() {
+	m_cycle_clock++;
 	return gb_memory[cpu.wreg.pc++];
 }
 
@@ -265,6 +267,8 @@ void process_extra_opcodes(uint8_t opcode) {
 		exit(EXIT_FAILURE);
 		break;
 	}
+
+	m_cycle_clock++;
 }
 
 void print_debug_gameboy_doctor() {
@@ -400,10 +404,6 @@ void op_daa() {
 	cpu.flag.half_carry = 0;
 }
 
-void op_nop() {
-	;
-}
-
 void handle_interrupt(uint8_t interrupts) {
 	if (!interrupts) return;
 
@@ -437,18 +437,10 @@ void handle_interrupt(uint8_t interrupts) {
 	}
 }
 
+void process_opcode(uint8_t op_byte);
+void debug_opcode_timing();
+
 int main(int argc, char *argv[]) {
-	if (argc == 1) {
-		fprintf(stderr, "Error: No rom file specified\n");
-		exit(EXIT_FAILURE);
-	}
-	else if (argc > 2) {
-		fprintf(stderr, "Error: Too many arguments\n");
-		exit(EXIT_FAILURE);
-	}
-
-	load_rom(argv[1], 32 * 1024);
-
 	// Inital state of registers
 	cpu.reg.a = 0x01;
 	cpu.reg.f = 0xB0;
@@ -461,8 +453,21 @@ int main(int argc, char *argv[]) {
 	cpu.wreg.sp = 0xFFFE;
 	cpu.wreg.pc = 0x0100;
 
+	debug_opcode_timing();
+
 	// The gameboy doctor test suite requires that the LY register always returns 0x90
 	gb_memory[0xFF44] = 0x90;
+
+	if (argc == 1) {
+		fprintf(stderr, "Error: No rom file specified\n");
+		exit(EXIT_FAILURE);
+	}
+	else if (argc > 2) {
+		fprintf(stderr, "Error: Too many arguments\n");
+		exit(EXIT_FAILURE);
+	}
+
+	load_rom(argv[1], 32 * 1024);
 
 	while (true) {
 		print_debug_blargg_test();
@@ -476,374 +481,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		uint8_t op_byte = gb_memory[cpu.wreg.pc++];
-		switch (op_byte) {
-
-		// LOAD OPERATIONS (These are in sequential order)
-		case 0x40: cpu.reg.b = cpu.reg.b; break;
-		case 0x41: cpu.reg.b = cpu.reg.c; break;
-		case 0x42: cpu.reg.b = cpu.reg.d; break;
-		case 0x43: cpu.reg.b = cpu.reg.e; break;
-		case 0x44: cpu.reg.b = cpu.reg.h; break;
-		case 0x45: cpu.reg.b = cpu.reg.l; break;
-		case 0x46: cpu.reg.b = gb_memory[cpu.wreg.hl]; break;
-		case 0x47: cpu.reg.b = cpu.reg.a; break;
-
-		case 0x48: cpu.reg.c = cpu.reg.b; break;
-		case 0x49: cpu.reg.c = cpu.reg.c; break;
-		case 0x4A: cpu.reg.c = cpu.reg.d; break;
-		case 0x4B: cpu.reg.c = cpu.reg.e; break;
-		case 0x4C: cpu.reg.c = cpu.reg.h; break;
-		case 0x4D: cpu.reg.c = cpu.reg.l; break;
-		case 0x4E: cpu.reg.c = gb_memory[cpu.wreg.hl]; break;
-		case 0x4F: cpu.reg.c = cpu.reg.a; break;
-
-		case 0x50: cpu.reg.d = cpu.reg.b; break;
-		case 0x51: cpu.reg.d = cpu.reg.c; break;
-		case 0x52: cpu.reg.d = cpu.reg.d; break;
-		case 0x53: cpu.reg.d = cpu.reg.e; break;
-		case 0x54: cpu.reg.d = cpu.reg.h; break;
-		case 0x55: cpu.reg.d = cpu.reg.l; break;
-		case 0x56: cpu.reg.d = gb_memory[cpu.wreg.hl]; break;
-		case 0x57: cpu.reg.d = cpu.reg.a; break;
-
-		case 0x58: cpu.reg.e = cpu.reg.b; break;
-		case 0x59: cpu.reg.e = cpu.reg.c; break;
-		case 0x5A: cpu.reg.e = cpu.reg.d; break;
-		case 0x5B: cpu.reg.e = cpu.reg.e; break;
-		case 0x5C: cpu.reg.e = cpu.reg.h; break;
-		case 0x5D: cpu.reg.e = cpu.reg.l; break;
-		case 0x5E: cpu.reg.e = gb_memory[cpu.wreg.hl]; break;
-		case 0x5F: cpu.reg.e = cpu.reg.a; break;
-
-		case 0x60: cpu.reg.h = cpu.reg.b; break;
-		case 0x61: cpu.reg.h = cpu.reg.c; break;
-		case 0x62: cpu.reg.h = cpu.reg.d; break;
-		case 0x63: cpu.reg.h = cpu.reg.e; break;
-		case 0x64: cpu.reg.h = cpu.reg.h; break;
-		case 0x65: cpu.reg.h = cpu.reg.l; break;
-		case 0x66: cpu.reg.h = gb_memory[cpu.wreg.hl]; break;
-		case 0x67: cpu.reg.h = cpu.reg.a; break;
-
-		case 0x68: cpu.reg.l = cpu.reg.b; break;
-		case 0x69: cpu.reg.l = cpu.reg.c; break;
-		case 0x6A: cpu.reg.l = cpu.reg.d; break;
-		case 0x6B: cpu.reg.l = cpu.reg.e; break;
-		case 0x6C: cpu.reg.l = cpu.reg.h; break;
-		case 0x6D: cpu.reg.l = cpu.reg.l; break;
-		case 0x6E: cpu.reg.l = gb_memory[cpu.wreg.hl]; break;
-		case 0x6F: cpu.reg.l = cpu.reg.a; break;
-
-		case 0x70: gb_memory[cpu.wreg.hl] = cpu.reg.b; break;
-		case 0x71: gb_memory[cpu.wreg.hl] = cpu.reg.c; break;
-		case 0x72: gb_memory[cpu.wreg.hl] = cpu.reg.d; break;
-		case 0x73: gb_memory[cpu.wreg.hl] = cpu.reg.e; break;
-		case 0x74: gb_memory[cpu.wreg.hl] = cpu.reg.h; break;
-		case 0x75: gb_memory[cpu.wreg.hl] = cpu.reg.l; break;
-		case 0x77: gb_memory[cpu.wreg.hl] = cpu.reg.a; break;
-
-		case 0x78: cpu.reg.a = cpu.reg.b; break;
-		case 0x79: cpu.reg.a = cpu.reg.c; break;
-		case 0x7A: cpu.reg.a = cpu.reg.d; break;
-		case 0x7B: cpu.reg.a = cpu.reg.e; break;
-		case 0x7C: cpu.reg.a = cpu.reg.h; break;
-		case 0x7D: cpu.reg.a = cpu.reg.l; break;
-		case 0x7E: cpu.reg.a = gb_memory[cpu.wreg.hl]; break;
-		case 0x7F: cpu.reg.a = cpu.reg.a; break;
-
-		// LOAD IMMEDIATE OPERATIONS
-		case 0x06: cpu.reg.b = read_byte(); break;
-		case 0x0E: cpu.reg.c = read_byte(); break;
-		case 0x16: cpu.reg.d = read_byte(); break;
-		case 0x1E: cpu.reg.e = read_byte(); break;
-		case 0x26: cpu.reg.h = read_byte(); break;
-		case 0x2E: cpu.reg.l = read_byte(); break;
-		case 0x36: gb_memory[cpu.wreg.hl] = read_byte(); break;
-		case 0x3E: cpu.reg.a = read_byte(); break;
-
-		case 0x01: cpu.wreg.bc = read_word(); break;
-		case 0x11: cpu.wreg.de = read_word(); break;
-		case 0x21: cpu.wreg.hl = read_word(); break;
-		case 0x31: cpu.wreg.sp = read_word(); break;
-
-		// LOAD IMMEDIATE ADDRESS
-		case 0xEA: gb_memory[read_word()] = cpu.reg.a; break;
-		case 0xFA: cpu.reg.a = gb_memory[read_word()]; break;
-
-		// LOAD HIGH OPERATIONS
-		case 0xE0: gb_memory[0xFF00 | read_byte()] = cpu.reg.a; break;
-		case 0xE2: gb_memory[0xFF00 | cpu.reg.c] = cpu.reg.a; break;
-		case 0xF0: cpu.reg.a = gb_memory[0xFF00 | read_byte()]; break;
-		case 0xF2: cpu.reg.a = gb_memory[0xFF00 | cpu.reg.c]; break;
-
-		// LOAD ADDRESS AT REGISTER WITH A
-		case 0x02: gb_memory[cpu.wreg.bc] = cpu.reg.a; break;
-		case 0x12: gb_memory[cpu.wreg.de] = cpu.reg.a; break;
-		case 0x0A: cpu.reg.a = gb_memory[cpu.wreg.bc]; break;
-		case 0x1A: cpu.reg.a = gb_memory[cpu.wreg.de]; break;
-
-		// LOAD AND INCREMENT / DECREMENT OPERATIONS
-		case 0x22: gb_memory[cpu.wreg.hl++] = cpu.reg.a; break;
-		case 0x32: gb_memory[cpu.wreg.hl--] = cpu.reg.a; break;
-		case 0x2A: cpu.reg.a = gb_memory[cpu.wreg.hl++]; break;
-		case 0x3A: cpu.reg.a = gb_memory[cpu.wreg.hl--]; break;
-
-		// RST OPERATIONS
-		case 0xC7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x00; break;
-		case 0xCF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x08; break;
-		case 0xD7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x10; break;
-		case 0xDF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x18; break;
-		case 0xE7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x20; break;
-		case 0xEF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x28; break;
-		case 0xF7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x30; break;
-		case 0xFF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x38; break;
-
-		// JP OPERATIONS
-		case 0xC2: op_jump(!cpu.flag.zero,  read_word()); break;
-		case 0xC3: op_jump(true,                     read_word()); break;
-		case 0xCA: op_jump(cpu.flag.zero,   read_word()); break;
-		case 0xD2: op_jump(!cpu.flag.carry, read_word()); break;
-		case 0xDA: op_jump(cpu.flag.carry,  read_word()); break;
-		case 0xE9: op_jump(true,                     cpu.wreg.hl); break;
-
-		// JR OPERATIONS
-		case 0x18: op_jr(true); break;
-		case 0x20: op_jr(!cpu.flag.zero); break;
-		case 0x28: op_jr(cpu.flag.zero); break;
-		case 0x30: op_jr(!cpu.flag.carry); break;
-		case 0x38: op_jr(cpu.flag.carry); break;
-
-		// RET OPERATIONS
-		case 0xC0: op_ret(!cpu.flag.zero); break;
-		case 0xC8: op_ret(cpu.flag.zero); break;
-		case 0xC9: op_ret(true); break;
-		case 0xD0: op_ret(!cpu.flag.carry); break;
-		case 0xD8: op_ret(cpu.flag.carry); break;
-		case 0xD9: op_ret(true); interrupt_flag = true; break;
-
-		// CALL OPERATIONS
-		case 0xC4: op_call(!cpu.flag.zero); break;
-		case 0xCC: op_call(cpu.flag.zero); break;
-		case 0xCD: op_call(true); break;
-		case 0xD4: op_call(!cpu.flag.carry); break;
-		case 0xDC: op_call(cpu.flag.carry); break;
-
-		// INC OPERATIONS
-		case 0x04: op_inc(&cpu.reg.b); break;
-		case 0x0C: op_inc(&cpu.reg.c); break;
-		case 0x14: op_inc(&cpu.reg.d); break;
-		case 0x1C: op_inc(&cpu.reg.e); break;
-		case 0x24: op_inc(&cpu.reg.h); break;
-		case 0x2C: op_inc(&cpu.reg.l); break;
-		case 0x34: op_inc(gb_memory + cpu.wreg.hl); break;
-		case 0x3C: op_inc(&cpu.reg.a); break;
-		case 0x03: cpu.wreg.bc++; break;
-		case 0x13: cpu.wreg.de++; break;
-		case 0x23: cpu.wreg.hl++; break;
-		case 0x33: cpu.wreg.sp++; break;
-
-		// DEC OPERATIONS
-		case 0x05: op_dec(&cpu.reg.b); break;
-		case 0x0D: op_dec(&cpu.reg.c); break;
-		case 0x15: op_dec(&cpu.reg.d); break;
-		case 0x1D: op_dec(&cpu.reg.e); break;
-		case 0x25: op_dec(&cpu.reg.h); break;
-		case 0x2D: op_dec(&cpu.reg.l); break;
-		case 0x35: op_dec(gb_memory + cpu.wreg.hl); break;
-		case 0x3D: op_dec(&cpu.reg.a); break;
-		case 0x0B: cpu.wreg.bc--; break;
-		case 0x1B: cpu.wreg.de--; break;
-		case 0x2B: cpu.wreg.hl--; break;
-		case 0x3B: cpu.wreg.sp--; break;
-
-		// XOR OPERATIONS
-		case 0xAF: op_xor(cpu.reg.a); break;
-		case 0xAE: op_xor(gb_memory[cpu.wreg.hl]); break;
-		case 0xAD: op_xor(cpu.reg.l); break;
-		case 0xAC: op_xor(cpu.reg.h); break;
-		case 0xAB: op_xor(cpu.reg.e); break;
-		case 0xAA: op_xor(cpu.reg.d); break;
-		case 0xA9: op_xor(cpu.reg.c); break;
-		case 0xA8: op_xor(cpu.reg.b); break;
-
-		// AND OPERATIONS
-		case 0xA7: op_and(cpu.reg.a); break;
-		case 0xA6: op_and(gb_memory[cpu.wreg.hl]); break;
-		case 0xA5: op_and(cpu.reg.l); break;
-		case 0xA4: op_and(cpu.reg.h); break;
-		case 0xA3: op_and(cpu.reg.e); break;
-		case 0xA2: op_and(cpu.reg.d); break;
-		case 0xA1: op_and(cpu.reg.c); break;
-		case 0xA0: op_and(cpu.reg.b); break;
-
-		// SBC OPERATIONS
-		case 0x9F: op_sbc(cpu.reg.a); break;
-		case 0x9E: op_sbc(gb_memory[cpu.wreg.hl]); break;
-		case 0x9D: op_sbc(cpu.reg.l); break;
-		case 0x9C: op_sbc(cpu.reg.h); break;
-		case 0x9B: op_sbc(cpu.reg.e); break;
-		case 0x9A: op_sbc(cpu.reg.d); break;
-		case 0x99: op_sbc(cpu.reg.c); break;
-		case 0x98: op_sbc(cpu.reg.b); break;
-
-		// SUB OPERATIONS
-		case 0x97: op_sub(cpu.reg.a); break;
-		case 0x96: op_sub(gb_memory[cpu.wreg.hl]); break;
-		case 0x95: op_sub(cpu.reg.l); break;
-		case 0x94: op_sub(cpu.reg.h); break;
-		case 0x93: op_sub(cpu.reg.e); break;
-		case 0x92: op_sub(cpu.reg.d); break;
-		case 0x91: op_sub(cpu.reg.c); break;
-		case 0x90: op_sub(cpu.reg.b); break;
-
-		// ADC OPERATIONS
-		case 0x8F: op_adc(cpu.reg.a); break;
-		case 0x8E: op_adc(gb_memory[cpu.wreg.hl]); break;
-		case 0x8D: op_adc(cpu.reg.l); break;
-		case 0x8C: op_adc(cpu.reg.h); break;
-		case 0x8B: op_adc(cpu.reg.e); break;
-		case 0x8A: op_adc(cpu.reg.d); break;
-		case 0x89: op_adc(cpu.reg.c); break;
-		case 0x88: op_adc(cpu.reg.b); break;
-
-		// ADD OPERATIONS
-		case 0x87: op_add(cpu.reg.a); break;
-		case 0x86: op_add(gb_memory[cpu.wreg.hl]); break;
-		case 0x85: op_add(cpu.reg.l); break;
-		case 0x84: op_add(cpu.reg.h); break;
-		case 0x83: op_add(cpu.reg.e); break;
-		case 0x82: op_add(cpu.reg.d); break;
-		case 0x81: op_add(cpu.reg.c); break;
-		case 0x80: op_add(cpu.reg.b); break;
-
-		// CP OPERATIONS
-		case 0xBF: op_cp(cpu.reg.a); break;
-		case 0xBE: op_cp(gb_memory[cpu.wreg.hl]); break;
-		case 0xBD: op_cp(cpu.reg.l); break;
-		case 0xBC: op_cp(cpu.reg.h); break;
-		case 0xBB: op_cp(cpu.reg.e); break;
-		case 0xBA: op_cp(cpu.reg.d); break;
-		case 0xB9: op_cp(cpu.reg.c); break;
-		case 0xB8: op_cp(cpu.reg.b); break;
-
-		// OR OPERATIONS
-		case 0xB7: op_or(cpu.reg.a); break;
-		case 0xB6: op_or(gb_memory[cpu.wreg.hl]); break;
-		case 0xB5: op_or(cpu.reg.l); break;
-		case 0xB4: op_or(cpu.reg.h); break;
-		case 0xB3: op_or(cpu.reg.e); break;
-		case 0xB2: op_or(cpu.reg.d); break;
-		case 0xB1: op_or(cpu.reg.c); break;
-		case 0xB0: op_or(cpu.reg.b); break;
-
-		// OPERATIONS BETWEEN A AND AN IMMEDIATE
-		case 0xC6: op_add(read_byte()); break;
-		case 0xD6: op_sub(read_byte()); break;
-		case 0xE6: op_and(read_byte()); break;
-		case 0xF6: op_or(read_byte());  break;
-		case 0xCE: op_adc(read_byte()); break;
-		case 0xDE: op_sbc(read_byte()); break;
-		case 0xEE: op_xor(read_byte()); break;
-		case 0xFE: op_cp(read_byte());  break;
-
-		// PUSH OPERATIONS
-		case 0xC5: push_stack(cpu.wreg.bc); break;
-		case 0xD5: push_stack(cpu.wreg.de); break;
-		case 0xE5: push_stack(cpu.wreg.hl); break;
-		case 0xF5: push_stack(cpu.wreg.af); break;
-
-		// POP OPERATIONS
-		case 0xC1: cpu.wreg.bc = pop_stack(); break;
-		case 0xD1: cpu.wreg.de = pop_stack(); break;
-		case 0xE1: cpu.wreg.hl = pop_stack(); break;
-		case 0xF1: cpu.wreg.af = pop_stack();
-			// Need to clear the unused part of F
-			cpu.flag.unused = 0;
-			break;
-
-		// 16-bit ADD OPERATIONS
-		case 0x09: op_add_16bit(cpu.wreg.bc); break;
-		case 0x19: op_add_16bit(cpu.wreg.de); break;
-		case 0x29: op_add_16bit(cpu.wreg.hl); break;
-		case 0x39: op_add_16bit(cpu.wreg.sp); break;
-
-		// ROTATIONS ON REGISTER A
-		case 0x07: op_rlc(&cpu.reg.a); cpu.flag.zero = 0; break;
-		case 0x0F: op_rrc(&cpu.reg.a); cpu.flag.zero = 0; break;
-		case 0x17: op_rl(&cpu.reg.a);  cpu.flag.zero = 0; break;
-		case 0x1F: op_rr(&cpu.reg.a);  cpu.flag.zero = 0; break;
-
-		// FLAG OPERATIONS
-		case 0xF3: interrupt_pending_flag = false; interrupt_flag = false; break;
-		case 0xFB: interrupt_pending_flag = true;  break;
-		case 0x3F: // CCF
-			cpu.flag.subtract = 0;
-			cpu.flag.half_carry = 0;
-			cpu.flag.carry = !cpu.flag.carry;
-			break;
-
-		case 0x37: // SCF
-			cpu.flag.subtract = 0;
-			cpu.flag.half_carry = 0;
-			cpu.flag.carry = 1;
-			break;
-			
-		case 0x2F: // CPL
-			cpu.reg.a = ~cpu.reg.a;
-			cpu.flag.subtract = 1;
-			cpu.flag.half_carry = 1;
-			break;
-
-
-		// SPECIAL STACK POINTER OPERATIONS
-		case 0xF9: // LD SP HL
-			cpu.wreg.sp = cpu.wreg.hl;
-			break;
-
-		case 0x08: // LD (u16) SP
-		{
-			uint16_t address = read_word();
-			gb_memory[address] = (cpu.wreg.sp & 0x00FF);
-			gb_memory[address+1] = ((cpu.wreg.sp & 0xFF00) >> 8);
-			break;
-		}
-
-		case 0xF8: // LD HL SP+i8
-		{
-			uint8_t next = read_byte();
-			cpu.reg.f = 0;
-			cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
-			cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
-			cpu.wreg.hl = cpu.wreg.sp + (int8_t)next;
-			break;
-		}
-
-		case 0xE8: // ADD SP i8
-		{
-			uint8_t next = read_byte();
-			cpu.reg.f = 0;
-			cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
-			cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
-			cpu.wreg.sp += (int8_t)next;
-			break;
-		}
-		
-		case 0x27: // DAA instruction
-			op_daa();
-			break;
-
-		case 0xCB: // Rotate, shift, and bit operations
-			process_extra_opcodes(read_byte());
-			break;
-
-		case 0x00: // NOP: do nothing
-			op_nop();
-			break;
-
-		default:
-			printf("Error: Op Code 0x%02X is not implemented\n", op_byte);
-			exit(EXIT_FAILURE);
-			break;
-		}
+		process_opcode(op_byte);
 	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
@@ -856,4 +494,401 @@ int main(int argc, char *argv[]) {
 	/* CloseWindow(); */
 
 	return 0;
+}
+
+void debug_opcode_timing() {
+	for (int i = 0; i < 256; i++) {
+		if (i % 16 == 0)
+			printf("\n");
+		switch(i) {
+		case 0x10: case 0x76: // STOP and HALT
+		case 0xD3: case 0xDB: case 0xDD: case 0xE3:
+		case 0xE4: case 0xEB: case 0xEC: case 0xED:
+		case 0xF4: case 0xFC: case 0xFD: // Not used
+			printf("  ");
+			continue;
+		}
+		m_cycle_clock = 0;
+		process_opcode(i);
+		printf("%d ", m_cycle_clock);
+	}
+	printf("\n");
+
+	exit(EXIT_SUCCESS);
+}
+
+void process_opcode(uint8_t op_byte) {
+	switch (op_byte) {
+
+	// LOAD OPERATIONS (These are in sequential order)
+	case 0x40: cpu.reg.b = cpu.reg.b; break;
+	case 0x41: cpu.reg.b = cpu.reg.c; break;
+	case 0x42: cpu.reg.b = cpu.reg.d; break;
+	case 0x43: cpu.reg.b = cpu.reg.e; break;
+	case 0x44: cpu.reg.b = cpu.reg.h; break;
+	case 0x45: cpu.reg.b = cpu.reg.l; break;
+	case 0x46: cpu.reg.b = gb_memory[cpu.wreg.hl]; break;
+	case 0x47: cpu.reg.b = cpu.reg.a; break;
+
+	case 0x48: cpu.reg.c = cpu.reg.b; break;
+	case 0x49: cpu.reg.c = cpu.reg.c; break;
+	case 0x4A: cpu.reg.c = cpu.reg.d; break;
+	case 0x4B: cpu.reg.c = cpu.reg.e; break;
+	case 0x4C: cpu.reg.c = cpu.reg.h; break;
+	case 0x4D: cpu.reg.c = cpu.reg.l; break;
+	case 0x4E: cpu.reg.c = gb_memory[cpu.wreg.hl]; break;
+	case 0x4F: cpu.reg.c = cpu.reg.a; break;
+
+	case 0x50: cpu.reg.d = cpu.reg.b; break;
+	case 0x51: cpu.reg.d = cpu.reg.c; break;
+	case 0x52: cpu.reg.d = cpu.reg.d; break;
+	case 0x53: cpu.reg.d = cpu.reg.e; break;
+	case 0x54: cpu.reg.d = cpu.reg.h; break;
+	case 0x55: cpu.reg.d = cpu.reg.l; break;
+	case 0x56: cpu.reg.d = gb_memory[cpu.wreg.hl]; break;
+	case 0x57: cpu.reg.d = cpu.reg.a; break;
+
+	case 0x58: cpu.reg.e = cpu.reg.b; break;
+	case 0x59: cpu.reg.e = cpu.reg.c; break;
+	case 0x5A: cpu.reg.e = cpu.reg.d; break;
+	case 0x5B: cpu.reg.e = cpu.reg.e; break;
+	case 0x5C: cpu.reg.e = cpu.reg.h; break;
+	case 0x5D: cpu.reg.e = cpu.reg.l; break;
+	case 0x5E: cpu.reg.e = gb_memory[cpu.wreg.hl]; break;
+	case 0x5F: cpu.reg.e = cpu.reg.a; break;
+
+	case 0x60: cpu.reg.h = cpu.reg.b; break;
+	case 0x61: cpu.reg.h = cpu.reg.c; break;
+	case 0x62: cpu.reg.h = cpu.reg.d; break;
+	case 0x63: cpu.reg.h = cpu.reg.e; break;
+	case 0x64: cpu.reg.h = cpu.reg.h; break;
+	case 0x65: cpu.reg.h = cpu.reg.l; break;
+	case 0x66: cpu.reg.h = gb_memory[cpu.wreg.hl]; break;
+	case 0x67: cpu.reg.h = cpu.reg.a; break;
+
+	case 0x68: cpu.reg.l = cpu.reg.b; break;
+	case 0x69: cpu.reg.l = cpu.reg.c; break;
+	case 0x6A: cpu.reg.l = cpu.reg.d; break;
+	case 0x6B: cpu.reg.l = cpu.reg.e; break;
+	case 0x6C: cpu.reg.l = cpu.reg.h; break;
+	case 0x6D: cpu.reg.l = cpu.reg.l; break;
+	case 0x6E: cpu.reg.l = gb_memory[cpu.wreg.hl]; break;
+	case 0x6F: cpu.reg.l = cpu.reg.a; break;
+
+	case 0x70: gb_memory[cpu.wreg.hl] = cpu.reg.b; break;
+	case 0x71: gb_memory[cpu.wreg.hl] = cpu.reg.c; break;
+	case 0x72: gb_memory[cpu.wreg.hl] = cpu.reg.d; break;
+	case 0x73: gb_memory[cpu.wreg.hl] = cpu.reg.e; break;
+	case 0x74: gb_memory[cpu.wreg.hl] = cpu.reg.h; break;
+	case 0x75: gb_memory[cpu.wreg.hl] = cpu.reg.l; break;
+	case 0x77: gb_memory[cpu.wreg.hl] = cpu.reg.a; break;
+
+	case 0x78: cpu.reg.a = cpu.reg.b; break;
+	case 0x79: cpu.reg.a = cpu.reg.c; break;
+	case 0x7A: cpu.reg.a = cpu.reg.d; break;
+	case 0x7B: cpu.reg.a = cpu.reg.e; break;
+	case 0x7C: cpu.reg.a = cpu.reg.h; break;
+	case 0x7D: cpu.reg.a = cpu.reg.l; break;
+	case 0x7E: cpu.reg.a = gb_memory[cpu.wreg.hl]; break;
+	case 0x7F: cpu.reg.a = cpu.reg.a; break;
+
+	// LOAD IMMEDIATE OPERATIONS
+	case 0x06: cpu.reg.b = read_byte(); break;
+	case 0x0E: cpu.reg.c = read_byte(); break;
+	case 0x16: cpu.reg.d = read_byte(); break;
+	case 0x1E: cpu.reg.e = read_byte(); break;
+	case 0x26: cpu.reg.h = read_byte(); break;
+	case 0x2E: cpu.reg.l = read_byte(); break;
+	case 0x36: gb_memory[cpu.wreg.hl] = read_byte(); break;
+	case 0x3E: cpu.reg.a = read_byte(); break;
+
+	case 0x01: cpu.wreg.bc = read_word(); break;
+	case 0x11: cpu.wreg.de = read_word(); break;
+	case 0x21: cpu.wreg.hl = read_word(); break;
+	case 0x31: cpu.wreg.sp = read_word(); break;
+
+	// LOAD IMMEDIATE ADDRESS
+	case 0xEA: gb_memory[read_word()] = cpu.reg.a; break;
+	case 0xFA: cpu.reg.a = gb_memory[read_word()]; break;
+
+	// LOAD HIGH OPERATIONS
+	case 0xE0: gb_memory[0xFF00 | read_byte()] = cpu.reg.a; break;
+	case 0xE2: gb_memory[0xFF00 | cpu.reg.c] = cpu.reg.a; break;
+	case 0xF0: cpu.reg.a = gb_memory[0xFF00 | read_byte()]; break;
+	case 0xF2: cpu.reg.a = gb_memory[0xFF00 | cpu.reg.c]; break;
+
+	// LOAD ADDRESS AT REGISTER WITH A
+	case 0x02: gb_memory[cpu.wreg.bc] = cpu.reg.a; break;
+	case 0x0A: cpu.reg.a = gb_memory[cpu.wreg.bc]; break;
+	case 0x12: gb_memory[cpu.wreg.de] = cpu.reg.a; break;
+	case 0x1A: cpu.reg.a = gb_memory[cpu.wreg.de]; break;
+
+	// LOAD AND INCREMENT / DECREMENT OPERATIONS
+	case 0x22: gb_memory[cpu.wreg.hl++] = cpu.reg.a; break;
+	case 0x2A: cpu.reg.a = gb_memory[cpu.wreg.hl++]; break;
+	case 0x32: gb_memory[cpu.wreg.hl--] = cpu.reg.a; break;
+	case 0x3A: cpu.reg.a = gb_memory[cpu.wreg.hl--]; break;
+
+	// RST OPERATIONS
+	case 0xC7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x00; break;
+	case 0xCF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x08; break;
+	case 0xD7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x10; break;
+	case 0xDF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x18; break;
+	case 0xE7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x20; break;
+	case 0xEF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x28; break;
+	case 0xF7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x30; break;
+	case 0xFF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x38; break;
+
+	// JP OPERATIONS
+	case 0xC2: op_jump(!cpu.flag.zero,  read_word()); break;
+	case 0xC3: op_jump(true,                     read_word()); break;
+	case 0xCA: op_jump(cpu.flag.zero,   read_word()); break;
+	case 0xD2: op_jump(!cpu.flag.carry, read_word()); break;
+	case 0xDA: op_jump(cpu.flag.carry,  read_word()); break;
+	case 0xE9: op_jump(true,                     cpu.wreg.hl); break;
+
+	// JR OPERATIONS
+	case 0x18: op_jr(true); break;
+	case 0x20: op_jr(!cpu.flag.zero); break;
+	case 0x28: op_jr(cpu.flag.zero); break;
+	case 0x30: op_jr(!cpu.flag.carry); break;
+	case 0x38: op_jr(cpu.flag.carry); break;
+
+	// RET OPERATIONS
+	case 0xC0: op_ret(!cpu.flag.zero); break;
+	case 0xC8: op_ret(cpu.flag.zero); break;
+	case 0xC9: op_ret(true); break;
+	case 0xD0: op_ret(!cpu.flag.carry); break;
+	case 0xD8: op_ret(cpu.flag.carry); break;
+	case 0xD9: op_ret(true); interrupt_flag = true; break;
+
+	// CALL OPERATIONS
+	case 0xC4: op_call(!cpu.flag.zero); break;
+	case 0xCC: op_call(cpu.flag.zero); break;
+	case 0xCD: op_call(true); break;
+	case 0xD4: op_call(!cpu.flag.carry); break;
+	case 0xDC: op_call(cpu.flag.carry); break;
+
+	// INC OPERATIONS
+	case 0x04: op_inc(&cpu.reg.b); break;
+	case 0x0C: op_inc(&cpu.reg.c); break;
+	case 0x14: op_inc(&cpu.reg.d); break;
+	case 0x1C: op_inc(&cpu.reg.e); break;
+	case 0x24: op_inc(&cpu.reg.h); break;
+	case 0x2C: op_inc(&cpu.reg.l); break;
+	case 0x34: op_inc(gb_memory + cpu.wreg.hl); break;
+	case 0x3C: op_inc(&cpu.reg.a); break;
+
+	case 0x03: cpu.wreg.bc++; break;
+	case 0x13: cpu.wreg.de++; break;
+	case 0x23: cpu.wreg.hl++; break;
+	case 0x33: cpu.wreg.sp++; break;
+
+	// DEC OPERATIONS
+	case 0x05: op_dec(&cpu.reg.b); break;
+	case 0x0D: op_dec(&cpu.reg.c); break;
+	case 0x15: op_dec(&cpu.reg.d); break;
+	case 0x1D: op_dec(&cpu.reg.e); break;
+	case 0x25: op_dec(&cpu.reg.h); break;
+	case 0x2D: op_dec(&cpu.reg.l); break;
+	case 0x35: op_dec(gb_memory + cpu.wreg.hl); break;
+	case 0x3D: op_dec(&cpu.reg.a); break;
+
+	case 0x0B: cpu.wreg.bc--; break;
+	case 0x1B: cpu.wreg.de--; break;
+	case 0x2B: cpu.wreg.hl--; break;
+	case 0x3B: cpu.wreg.sp--; break;
+
+	// XOR OPERATIONS
+	case 0xA8: op_xor(cpu.reg.b); break;
+	case 0xA9: op_xor(cpu.reg.c); break;
+	case 0xAA: op_xor(cpu.reg.d); break;
+	case 0xAB: op_xor(cpu.reg.e); break;
+	case 0xAC: op_xor(cpu.reg.h); break;
+	case 0xAD: op_xor(cpu.reg.l); break;
+	case 0xAE: op_xor(gb_memory[cpu.wreg.hl]); break;
+	case 0xAF: op_xor(cpu.reg.a); break;
+
+	// AND OPERATIONS
+	case 0xA0: op_and(cpu.reg.b); break;
+	case 0xA1: op_and(cpu.reg.c); break;
+	case 0xA2: op_and(cpu.reg.d); break;
+	case 0xA3: op_and(cpu.reg.e); break;
+	case 0xA4: op_and(cpu.reg.h); break;
+	case 0xA5: op_and(cpu.reg.l); break;
+	case 0xA6: op_and(gb_memory[cpu.wreg.hl]); break;
+	case 0xA7: op_and(cpu.reg.a); break;
+
+	// SBC OPERATIONS
+	case 0x98: op_sbc(cpu.reg.b); break;
+	case 0x99: op_sbc(cpu.reg.c); break;
+	case 0x9A: op_sbc(cpu.reg.d); break;
+	case 0x9B: op_sbc(cpu.reg.e); break;
+	case 0x9C: op_sbc(cpu.reg.h); break;
+	case 0x9D: op_sbc(cpu.reg.l); break;
+	case 0x9E: op_sbc(gb_memory[cpu.wreg.hl]); break;
+	case 0x9F: op_sbc(cpu.reg.a); break;
+
+	// SUB OPERATIONS
+	case 0x90: op_sub(cpu.reg.b); break;
+	case 0x91: op_sub(cpu.reg.c); break;
+	case 0x92: op_sub(cpu.reg.d); break;
+	case 0x93: op_sub(cpu.reg.e); break;
+	case 0x94: op_sub(cpu.reg.h); break;
+	case 0x95: op_sub(cpu.reg.l); break;
+	case 0x96: op_sub(gb_memory[cpu.wreg.hl]); break;
+	case 0x97: op_sub(cpu.reg.a); break;
+
+	// ADC OPERATIONS
+	case 0x88: op_adc(cpu.reg.b); break;
+	case 0x89: op_adc(cpu.reg.c); break;
+	case 0x8A: op_adc(cpu.reg.d); break;
+	case 0x8B: op_adc(cpu.reg.e); break;
+	case 0x8C: op_adc(cpu.reg.h); break;
+	case 0x8D: op_adc(cpu.reg.l); break;
+	case 0x8E: op_adc(gb_memory[cpu.wreg.hl]); break;
+	case 0x8F: op_adc(cpu.reg.a); break;
+
+	// ADD OPERATIONS
+	case 0x80: op_add(cpu.reg.b); break;
+	case 0x81: op_add(cpu.reg.c); break;
+	case 0x82: op_add(cpu.reg.d); break;
+	case 0x83: op_add(cpu.reg.e); break;
+	case 0x84: op_add(cpu.reg.h); break;
+	case 0x85: op_add(cpu.reg.l); break;
+	case 0x86: op_add(gb_memory[cpu.wreg.hl]); break;
+	case 0x87: op_add(cpu.reg.a); break;
+
+	// CP OPERATIONS
+	case 0xB8: op_cp(cpu.reg.b); break;
+	case 0xB9: op_cp(cpu.reg.c); break;
+	case 0xBA: op_cp(cpu.reg.d); break;
+	case 0xBB: op_cp(cpu.reg.e); break;
+	case 0xBC: op_cp(cpu.reg.h); break;
+	case 0xBD: op_cp(cpu.reg.l); break;
+	case 0xBE: op_cp(gb_memory[cpu.wreg.hl]); break;
+	case 0xBF: op_cp(cpu.reg.a); break;
+
+	// OR OPERATIONS
+	case 0xB0: op_or(cpu.reg.b); break;
+	case 0xB1: op_or(cpu.reg.c); break;
+	case 0xB2: op_or(cpu.reg.d); break;
+	case 0xB3: op_or(cpu.reg.e); break;
+	case 0xB4: op_or(cpu.reg.h); break;
+	case 0xB5: op_or(cpu.reg.l); break;
+	case 0xB6: op_or(gb_memory[cpu.wreg.hl]); break;
+	case 0xB7: op_or(cpu.reg.a); break;
+
+	// OPERATIONS BETWEEN A AND AN IMMEDIATE
+	case 0xC6: op_add(read_byte()); break;
+	case 0xCE: op_adc(read_byte()); break;
+	case 0xD6: op_sub(read_byte()); break;
+	case 0xDE: op_sbc(read_byte()); break;
+	case 0xE6: op_and(read_byte()); break;
+	case 0xEE: op_xor(read_byte()); break;
+	case 0xF6: op_or(read_byte());  break;
+	case 0xFE: op_cp(read_byte());  break;
+
+	// PUSH OPERATIONS
+	case 0xC5: push_stack(cpu.wreg.bc); break;
+	case 0xD5: push_stack(cpu.wreg.de); break;
+	case 0xE5: push_stack(cpu.wreg.hl); break;
+	case 0xF5: push_stack(cpu.wreg.af); break;
+
+	// POP OPERATIONS
+	case 0xC1: cpu.wreg.bc = pop_stack(); break;
+	case 0xD1: cpu.wreg.de = pop_stack(); break;
+	case 0xE1: cpu.wreg.hl = pop_stack(); break;
+	case 0xF1: cpu.wreg.af = pop_stack();
+		// Need to clear the unused part of F
+		cpu.flag.unused = 0;
+		break;
+
+	// 16-bit ADD OPERATIONS
+	case 0x09: op_add_16bit(cpu.wreg.bc); break;
+	case 0x19: op_add_16bit(cpu.wreg.de); break;
+	case 0x29: op_add_16bit(cpu.wreg.hl); break;
+	case 0x39: op_add_16bit(cpu.wreg.sp); break;
+
+	// ROTATIONS ON REGISTER A
+	case 0x07: op_rlc(&cpu.reg.a); cpu.flag.zero = 0; break;
+	case 0x0F: op_rrc(&cpu.reg.a); cpu.flag.zero = 0; break;
+	case 0x17: op_rl(&cpu.reg.a);  cpu.flag.zero = 0; break;
+	case 0x1F: op_rr(&cpu.reg.a);  cpu.flag.zero = 0; break;
+
+	// FLAG OPERATIONS
+	case 0xF3: // DE
+		interrupt_pending_flag = false;
+		interrupt_flag = false;
+		break;
+	case 0xFB: // IE
+		interrupt_pending_flag = true;
+		break;
+	case 0x3F: // CCF
+		cpu.flag.subtract = 0;
+		cpu.flag.half_carry = 0;
+		cpu.flag.carry = !cpu.flag.carry;
+		break;
+	case 0x37: // SCF
+		cpu.flag.subtract = 0;
+		cpu.flag.half_carry = 0;
+		cpu.flag.carry = 1;
+		break;
+	case 0x2F: // CPL
+		cpu.reg.a = ~cpu.reg.a;
+		cpu.flag.subtract = 1;
+		cpu.flag.half_carry = 1;
+		break;
+
+	// SPECIAL STACK POINTER OPERATIONS
+	case 0xF9: // LD SP HL
+		cpu.wreg.sp = cpu.wreg.hl;
+		break;
+
+	case 0x08: // LD (u16) SP
+	{
+		uint16_t address = read_word();
+		gb_memory[address] = (cpu.wreg.sp & 0x00FF);
+		gb_memory[address+1] = ((cpu.wreg.sp & 0xFF00) >> 8);
+		break;
+	}
+
+	case 0xF8: // LD HL SP+i8
+	{
+		uint8_t next = read_byte();
+		cpu.reg.f = 0;
+		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
+		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
+		cpu.wreg.hl = cpu.wreg.sp + (int8_t)next;
+		break;
+	}
+
+	case 0xE8: // ADD SP i8
+	{
+		uint8_t next = read_byte();
+		cpu.reg.f = 0;
+		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
+		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
+		cpu.wreg.sp += (int8_t)next;
+		break;
+	}
+
+	case 0x27: // DAA instruction
+		op_daa();
+		break;
+
+	case 0xCB: // Rotate, shift, and bit operations
+		process_extra_opcodes(read_byte());
+		break;
+
+	case 0x00: // NOP: do nothing
+		break;
+
+	default:
+		printf("Error: Op Code 0x%02X is not implemented\n", op_byte);
+		exit(EXIT_FAILURE);
+		break;
+	}
+
+	m_cycle_clock++;
 }
