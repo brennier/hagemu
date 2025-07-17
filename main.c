@@ -15,6 +15,8 @@
 // - Add MMU functions for reading and writing memory
 // - Make cpu flags into separate bools
 // - Switchable ROM bank
+// - Implement STOP and HALT
+// - Update timer registers
 
 // Unions are a wonderful thing
 union {
@@ -39,7 +41,7 @@ union {
 
 bool interrupt_flag = false;
 bool interrupt_pending_flag = false;
-int  m_cycle_clock = 0;
+uint16_t m_cycle_clock = 0;
 
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024] = { 0 };
@@ -453,7 +455,7 @@ int main(int argc, char *argv[]) {
 	cpu.wreg.sp = 0xFFFE;
 	cpu.wreg.pc = 0x0100;
 
-	test_opcode_timing();
+	/* test_opcode_timing(); */
 
 	// The gameboy doctor test suite requires that the LY register always returns 0x90
 	gb_memory[0xFF44] = 0x90;
@@ -509,7 +511,7 @@ int opcode_timing[256] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 3, 3, 3, 1, 2, 1, 1, 1, 3, 1, 3, 3, 2, 1,
+    1, 1, 3, 3, 3, 1, 2, 1, 1, 1, 3, 3, 3, 3, 2, 1,
     1, 1, 3, 0, 3, 1, 2, 1, 1, 1, 3, 0, 3, 0, 2, 1,
     2, 1, 2, 0, 0, 1, 2, 1, 2, 1, 3, 0, 0, 0, 2, 1,
     2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 3, 1, 0, 0, 2, 1,
@@ -900,6 +902,12 @@ void process_opcode(uint8_t op_byte) {
 		break;
 
 	case 0x00: // NOP: do nothing
+		break;
+
+	case 0x10: // STOP: Implement later
+		break;
+
+	case 0x76: // HALT: Implement later
 		break;
 
 	default:
