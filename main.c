@@ -14,6 +14,7 @@
 // - Add timings
 // - Add MMU functions for reading and writing memory
 // - Make cpu flags into separate bools
+// - Switchable ROM bank
 
 // Unions are a wonderful thing
 union {
@@ -40,6 +41,45 @@ bool interrupt_flag = false;
 
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024];
+
+uint8_t memory_read(uint16_t address) {
+	switch (address & 0xF000) {
+	
+	// Read from ROM bank 00 (16 KiB)
+	case 0x0000: case 0x1000: case 0x2000: case 0x3000:
+		return gb_memory[address];
+	
+	// Read from switchable ROM bank (16 KiB)
+	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
+		return gb_memory[address];
+
+	// Video Ram (8 KiB)
+	case 0x8000: case 0x9000:
+		return gb_memory[address];
+	
+	// External switchable RAM from cartridge (8 KiB)
+	case 0xA000: case 0xB000:
+		return gb_memory[address];
+	
+	// Work RAM (8 KiB)
+	case 0xC000: case 0xD000:
+		return gb_memory[address];
+
+	case 0xE000: case 0xF000:
+		// Echo RAM (about 8 KiB)
+		if (address < 0xFE00)
+			return gb_memory[address - 0x2000];
+		// Object Attribute Memory
+		else if (address < 0xFEA0)
+			return gb_memory[address];
+		// Unusable memory
+		else if (address < 0xFEFF)
+			return 0;
+		// TODO: IO Registers and High RAM
+		else
+			return gb_memory[address];
+	}
+}
 
 uint8_t read_byte() {
 	return gb_memory[cpu.wreg.pc++];
