@@ -6,6 +6,7 @@
 
 #define SCREENWIDTH 166
 #define SCREENHEIGHT 144
+#define CARTRIDGE_SIZE 64 * 1024
 
 // TODO:
 // - Pass Blargg's interrupt handling
@@ -50,6 +51,7 @@ void increment_clock() {
 }
 
 enum special_addresses {
+	CARTRIDGE_TYPE = 0x0147,
 	JOYPAD_INPUT = 0xFF00,
 	SERIAL_DATA = 0xFF01,
 	SERIAL_CONTROL = 0xFF02,
@@ -62,8 +64,11 @@ enum special_addresses {
 	INTERRUPT_ENABLE = 0xFFFF,
 };
 
+uint8_t rom_memory[CARTRIDGE_SIZE] = { 0 };
 // The GB has 64kb of mapped memory
-uint8_t gb_memory[64 * 1024] = { 0 };
+uint8_t gb_memory[64 * 1024]  = { 0 };
+
+int rom_bank_index = 0;
 
 uint8_t mmu_read(uint16_t address) {
 	// Handle special cases first
@@ -77,11 +82,13 @@ uint8_t mmu_read(uint16_t address) {
 
 	// Read from ROM bank 00 (16 KiB)
 	case 0x0000: case 0x1000: case 0x2000: case 0x3000:
-		return gb_memory[address];
+		return rom_memory[address];
 
 	// Read from switchable ROM bank (16 KiB)
 	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
-		return gb_memory[address];
+		if (rom_bank_index == 0)
+			return rom_memory[address];
+		return rom_memory[(address & 0x3FFF) + rom_bank_index * 0x4000];
 
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
@@ -115,6 +122,23 @@ uint8_t mmu_read(uint16_t address) {
 }
 
 void mmu_write(uint16_t address, uint8_t value) {
+	// Handle special cases first
+	switch (address) {
+
+	case DIVIDER_REGISTER:
+		m_cycle_clock = 0; return;
+	}
+
+	switch (address & 0xF0000) {
+
+	// ROM BANK SWITCH
+	case 0x2000: case 0x3000:
+		fprintf(stderr, "ROM BANK SWITCHED TO %d \n", value & 0x1F);
+		rom_bank_index = value & 0x1F;
+		return;
+	}
+
+	// Else just write the value normally
 	gb_memory[address] = value;
 }
 
@@ -151,7 +175,7 @@ void load_rom(char* rom_name, size_t rom_bytes) {
 		exit(EXIT_FAILURE);
 	}
 
-	size_t bytes_read = fread(gb_memory, 1, rom_bytes, rom_file);
+	size_t bytes_read = fread(rom_memory, 1, rom_bytes, rom_file);
 	if (bytes_read != rom_bytes) {
 		fprintf(stderr, "Error: Failed reading from the rom file\n");
 		exit(EXIT_FAILURE);
@@ -506,7 +530,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	load_rom(argv[1], 32 * 1024);
+	load_rom(argv[1], CARTRIDGE_SIZE);
 
 	while (true) {
 		print_debug_blargg_test();
