@@ -6,7 +6,7 @@
 
 #define SCREENWIDTH 166
 #define SCREENHEIGHT 144
-#define CARTRIDGE_SIZE 64 * 1024
+#define CARTRIDGE_SIZE 32 * 1024
 
 // TODO:
 // - Pass Blargg's interrupt handling
@@ -533,7 +533,7 @@ int main(int argc, char *argv[]) {
 	load_rom(argv[1], CARTRIDGE_SIZE);
 
 	while (true) {
-		print_debug_blargg_test();
+		print_debug_gameboy_doctor();
 
 		if (master_interrupt_flag_pending) {
 			master_interrupt_flag_pending = false;
