@@ -9,15 +9,16 @@
 #define CARTRIDGE_SIZE 32 * 1024
 
 // TODO:
-// - Pass Blargg's interrupt handling
 // - Display LCD
 // - Add timings
 // - Add MMU functions for reading and writing memory
 // - Make cpu flags into separate bools
 // - Switchable ROM bank
-// - Implement STOP and HALT
-// - Update timer registers
+// - Implement STOP
+// - Fix MCB1 controller
 // - Add bit manipulation macros
+// - Timer Divider is off by 4 maybe?
+// - Pass GameBoy Doctor Test #2
 
 // Unions are a wonderful thing
 union {
@@ -565,9 +566,11 @@ int main(int argc, char *argv[]) {
 	while (true) {
 		print_debug_blargg_test();
 
+		if (gb_memory[INTERRUPT_FLAGS] & gb_memory[INTERRUPT_ENABLE])
+			cpu_halted = false;
+
 		if (cpu_halted) {
 			increment_clock();
-			handle_interrupts();
 			continue;
 		}
 
