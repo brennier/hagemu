@@ -6,14 +6,12 @@
 
 #define SCREENWIDTH 166
 #define SCREENHEIGHT 144
-#define CARTRIDGE_SIZE 32 * 1024
+#define CARTRIDGE_SIZE 64 * 1024
 
 // TODO:
 // - Display LCD
-// - Add timings
-// - Add MMU functions for reading and writing memory
+// - Complete MMU functions for reading and writing memory
 // - Make cpu flags into separate bools
-// - Switchable ROM bank
 // - Implement STOP
 // - Add bit manipulation macros
 // - Timer Divider is off by 4 maybe?
@@ -93,7 +91,7 @@ uint8_t mmu_read(uint16_t address) {
 	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
 		if (rom_bank_index == 0)
 			return rom_memory[address];
-		return rom_memory[(address & 0x3FFF) + rom_bank_index * 0x4000];
+		return rom_memory[address + (rom_bank_index - 1) * 0x4000];
 
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
@@ -1011,8 +1009,10 @@ void process_opcode(uint8_t op_byte) {
 	case 0x10: // STOP: Implement later
 		reset_clock();
 		clock_running = false;
-		fprintf(stderr, "Warning: STOP is not implemented yet\n");
-		exit(EXIT_FAILURE);
+		fprintf(stderr, "Warning: STOP is not fully implemented yet\n");
+		// The next byte is ignored for some reason
+		read_byte();
+		/* exit(EXIT_FAILURE); */
 		break;
 
 	case 0x76: // HALT: Implement later
