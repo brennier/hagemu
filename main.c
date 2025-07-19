@@ -43,25 +43,30 @@ union {
 bool master_interrupt_flag = false;
 bool master_interrupt_flag_pending = false;
 
-uint16_t m_cycle_clock = 0;
+bool cpu_halted = false;
+uint16_t master_clock = 0; // measured in m-cycles
 bool clock_running = true;
-
-void increment_clock() {
-	if (clock_running) m_cycle_clock++;
-}
 
 enum special_addresses {
 	CARTRIDGE_TYPE = 0x0147,
 	JOYPAD_INPUT = 0xFF00,
 	SERIAL_DATA = 0xFF01,
 	SERIAL_CONTROL = 0xFF02,
-	DIVIDER_REGISTER = 0xFF04,
+	TIMER_DIVIDER = 0xFF04,
 	TIMER_COUNTER = 0xFF05,
 	TIMER_MODULO = 0xFF06,
 	TIMER_CONTROL = 0xFF07,
 	INTERRUPT_FLAGS = 0xFF0F,
 	BOOT_ROM_CONTROL = 0xFF50,
 	INTERRUPT_ENABLE = 0xFFFF,
+};
+
+enum interrupt_type {
+	VBLANK_INTERRUPT_BIT = (1 << 0),
+	LCD_INTERRUPT_BIT    = (1 << 1),
+	TIMER_INTERRUPT_BIT  = (1 << 2),
+	SERIAL_INTERRUPT_BIT = (1 << 3),
+	JOYPAD_INTERRUPT_BIT = (1 << 4),
 };
 
 uint8_t rom_memory[CARTRIDGE_SIZE] = { 0 };
@@ -74,8 +79,8 @@ uint8_t mmu_read(uint16_t address) {
 	// Handle special cases first
 	switch (address) {
 
-	case DIVIDER_REGISTER:
-		return ((m_cycle_clock & 0xFF00) >> 8);
+	case TIMER_DIVIDER:
+		return ((master_clock & 0xFF00) >> 8);
 	}
 
 	switch (address & 0xF000) {
@@ -125,8 +130,8 @@ void mmu_write(uint16_t address, uint8_t value) {
 	// Handle special cases first
 	switch (address) {
 
-	case DIVIDER_REGISTER:
-		m_cycle_clock = 0; return;
+	case TIMER_DIVIDER:
+		master_clock = 0; return;
 	}
 
 	switch (address & 0xF0000) {
@@ -142,8 +147,42 @@ void mmu_write(uint16_t address, uint8_t value) {
 	gb_memory[address] = value;
 }
 
+void increment_clock() {
+	// Add one m-cycle
+	if (clock_running) master_clock += 1;
+	switch (gb_memory[TIMER_CONTROL] & 0x07) {
+
+	case 0x00: case 0x01: case 0x02: case 0x03:
+		return;
+        case 0x04:
+		if (master_clock % 256) gb_memory[TIMER_COUNTER]++;
+		break;
+	case 0x05:
+		if (master_clock % 4) gb_memory[TIMER_COUNTER]++;
+		break;
+	case 0x06:
+		if (master_clock % 16) gb_memory[TIMER_COUNTER]++;
+		break;
+	case 0x07:
+		if (master_clock % 64) gb_memory[TIMER_COUNTER]++;
+		break;
+	default:
+		return;
+	}
+
+	if (gb_memory[TIMER_COUNTER] == 0x00)
+	{
+		gb_memory[TIMER_COUNTER] = gb_memory[TIMER_MODULO];
+		gb_memory[INTERRUPT_FLAGS] |= TIMER_INTERRUPT_BIT;
+	}
+
+}
+
+void reset_clock() {
+	master_clock = 0;
+}
+
 uint8_t read_byte() {
-	increment_clock();
 	return mmu_read(cpu.wreg.pc++);
 }
 
@@ -325,8 +364,6 @@ void process_extra_opcodes(uint8_t opcode) {
 		exit(EXIT_FAILURE);
 		break;
 	}
-
-	increment_clock();
 }
 
 void print_debug_gameboy_doctor() {
@@ -462,20 +499,13 @@ void op_daa() {
 	cpu.flag.half_carry = 0;
 }
 
-enum interrupt_type {
-	VBLANK_INTERRUPT_BIT = (1 << 0),
-	LCD_INTERRUPT_BIT    = (1 << 1),
-	TIMER_INTERRUPT_BIT  = (1 << 2),
-	SERIAL_INTERRUPT_BIT = (1 << 3),
-	JOYPAD_INTERRUPT_BIT = (1 << 4),
-};
-
 void handle_interrupts() {
 	uint8_t interrupts = mmu_read(INTERRUPT_FLAGS);
 	interrupts &= mmu_read(INTERRUPT_ENABLE);
 	if (!interrupts) return;
 
 	master_interrupt_flag = false;
+	cpu_halted = false;
 	push_stack(cpu.wreg.pc);
 
 	if (interrupts & VBLANK_INTERRUPT_BIT) {
@@ -533,7 +563,13 @@ int main(int argc, char *argv[]) {
 	load_rom(argv[1], CARTRIDGE_SIZE);
 
 	while (true) {
-		print_debug_gameboy_doctor();
+		print_debug_blargg_test();
+
+		if (cpu_halted) {
+			increment_clock();
+			handle_interrupts();
+			continue;
+		}
 
 		if (master_interrupt_flag_pending) {
 			master_interrupt_flag_pending = false;
@@ -587,11 +623,11 @@ void test_opcode_timing() {
 		case 0xF4: case 0xFC: case 0xFD: // Not used
 			continue;
 		}
-		m_cycle_clock = 0;
+		master_clock = 0;
 		process_opcode(i);
-		if (m_cycle_clock != opcode_timing[i])
+		if (master_clock != opcode_timing[i])
 			printf("Opcode %02X has timing %d, but should have timing %d\n",
-			       i, m_cycle_clock, opcode_timing[i]);
+			       i, master_clock, opcode_timing[i]);
 	}
 	printf("\n");
 
@@ -966,9 +1002,14 @@ void process_opcode(uint8_t op_byte) {
 		break;
 
 	case 0x10: // STOP: Implement later
+		reset_clock();
+		clock_running = false;
+		printf("Error: STOP is not implemented\n");
+		exit(EXIT_FAILURE);
 		break;
 
 	case 0x76: // HALT: Implement later
+		cpu_halted = true;
 		break;
 
 	default:
