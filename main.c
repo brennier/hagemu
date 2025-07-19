@@ -15,7 +15,6 @@
 // - Make cpu flags into separate bools
 // - Switchable ROM bank
 // - Implement STOP
-// - Fix MCB1 controller
 // - Add bit manipulation macros
 // - Timer Divider is off by 4 maybe?
 // - Pass GameBoy Doctor Test #2
@@ -135,11 +134,16 @@ void mmu_write(uint16_t address, uint8_t value) {
 		master_clock = 0; return;
 	}
 
-	switch (address & 0xF0000) {
+	switch (address & 0xF000) {
+
+	// ROM BANK 0
+	case 0x0000: case 0x1000:
+		fprintf(stderr, "WARNING: Attempt to write value %d at address %02X\n", value, address);
+		return;
 
 	// ROM BANK SWITCH
 	case 0x2000: case 0x3000:
-		fprintf(stderr, "ROM BANK SWITCHED TO %d \n", value & 0x1F);
+		fprintf(stderr, "ROM BANK SWITCHED TO %d\n", value & 0x1F);
 		rom_bank_index = value & 0x1F;
 		return;
 	}
@@ -1007,7 +1011,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x10: // STOP: Implement later
 		reset_clock();
 		clock_running = false;
-		printf("Error: STOP is not implemented\n");
+		fprintf(stderr, "Warning: STOP is not implemented yet\n");
 		exit(EXIT_FAILURE);
 		break;
 
