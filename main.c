@@ -16,6 +16,7 @@
 // - Add bit manipulation macros
 // - Timer Divider is off by 4 maybe?
 // - Pass GameBoy Doctor Test #2
+// - Check rom size and allocated an appropriate amount of space
 
 // Unions are a wonderful thing
 union {
@@ -219,8 +220,8 @@ void load_rom(char* rom_name, size_t rom_bytes) {
 
 	size_t bytes_read = fread(rom_memory, 1, rom_bytes, rom_file);
 	if (bytes_read != rom_bytes) {
-		fprintf(stderr, "Error: Failed reading from the rom file\n");
-		exit(EXIT_FAILURE);
+		fprintf(stderr, "Warning: Rom was expected to be %d bytes, but was actually %d bytes\n", CARTRIDGE_SIZE, (int)bytes_read);
+		/* exit(EXIT_FAILURE); */
 	}
 	fclose(rom_file);
 }
