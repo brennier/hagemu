@@ -37,4 +37,14 @@ test-timing: ${OUTPUT}
 	./${OUTPUT} lib/gb-test-roms/instr_timing/instr_timing.gb
 
 test-gameboy-doctor: ${OUTPUT}
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/01* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 01
 	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/02* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 02
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/03* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 03
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/04* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 04
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/05* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 05
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/06* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 06
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/07* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 07
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/08* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 08
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/09* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 09
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/10* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 10
+	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/11* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 11

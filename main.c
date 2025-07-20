@@ -567,8 +567,6 @@ int main(int argc, char *argv[]) {
 	load_rom(argv[1], CARTRIDGE_SIZE);
 
 	while (true) {
-		print_debug_blargg_test();
-
 		if (gb_memory[INTERRUPT_FLAGS] & gb_memory[INTERRUPT_ENABLE])
 			cpu_halted = false;
 
@@ -576,6 +574,8 @@ int main(int argc, char *argv[]) {
 			increment_clock();
 			continue;
 		}
+
+		print_debug_gameboy_doctor();
 
 		if (master_interrupt_flag_pending) {
 			master_interrupt_flag_pending = false;
