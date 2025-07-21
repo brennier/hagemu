@@ -43,7 +43,7 @@ bool master_interrupt_flag = false;
 bool master_interrupt_flag_pending = false;
 
 bool cpu_halted = false;
-uint16_t master_clock = 0; // measured in m-cycles
+uint16_t master_clock = 0; // measured in t-cycles
 bool clock_running = true;
 
 enum special_addresses {
@@ -130,7 +130,20 @@ void mmu_write(uint16_t address, uint8_t value) {
 	switch (address) {
 
 	case TIMER_DIVIDER:
-		master_clock = 0; return;
+		master_clock = 0;
+		fprintf(stderr, "The value `%02X' was written to timer divider.\n", value);
+		return;
+
+	case TIMER_CONTROL:
+		fprintf(stderr, "The value `%02X' was written to timer control.\n", value);
+		break;
+	case TIMER_COUNTER:
+		fprintf(stderr, "The value `%02X' was written to timer counter.\n", value);
+		break;
+	case TIMER_MODULO:
+		fprintf(stderr, "The value `%02X' was written to timer modulo.\n", value);
+		break;
+
 	}
 
 	switch (address & 0xF000) {
@@ -152,30 +165,33 @@ void mmu_write(uint16_t address, uint8_t value) {
 }
 
 void increment_clock() {
-	// Add one m-cycle
-	if (clock_running) master_clock += 1;
+	if (clock_running) master_clock += 4; // Add one m-cycle
 	switch (gb_memory[TIMER_CONTROL] & 0x07) {
 
 	case 0x00: case 0x01: case 0x02: case 0x03:
+		// Timer Control is off so return early
 		return;
         case 0x04:
-		if (master_clock % 256) gb_memory[TIMER_COUNTER]++;
+		if (master_clock % 1024) gb_memory[TIMER_COUNTER]++;
 		break;
 	case 0x05:
-		if (master_clock % 4) gb_memory[TIMER_COUNTER]++;
-		break;
-	case 0x06:
 		if (master_clock % 16) gb_memory[TIMER_COUNTER]++;
 		break;
-	case 0x07:
+	case 0x06:
 		if (master_clock % 64) gb_memory[TIMER_COUNTER]++;
 		break;
+	case 0x07:
+		if (master_clock % 256) gb_memory[TIMER_COUNTER]++;
+		break;
 	default:
-		return;
+		fprintf(stderr, "Unreachable case in TIMER CONTROL");
+		exit(EXIT_FAILURE);
 	}
+	/* fprintf(stderr, "Timer Counter is `%d'\n", gb_memory[TIMER_COUNTER]); */
 
 	if (gb_memory[TIMER_COUNTER] == 0x00)
 	{
+		fprintf(stderr, "Timer Counter interrupted\n");
 		gb_memory[TIMER_COUNTER] = gb_memory[TIMER_MODULO];
 		gb_memory[INTERRUPT_FLAGS] |= TIMER_INTERRUPT_BIT;
 	}
@@ -379,7 +395,7 @@ void print_debug_gameboy_doctor() {
 void print_debug_blargg_test() {
 	if (mmu_read(SERIAL_CONTROL) == 0x81)
 	{
-		printf("%c", mmu_read(SERIAL_DATA));
+		fprintf(stderr, "%c", mmu_read(SERIAL_DATA));
 		mmu_write(SERIAL_CONTROL, 0);
 	}
 }
@@ -488,9 +504,9 @@ void op_call(bool condition) {
 void op_daa() {
 	int offset = 0;
 	if (!cpu.flag.subtract) {
-		if ((cpu.reg.a & 0x0F) > 0x09 || cpu.flag.half_carry)
+		if (cpu.flag.half_carry || (cpu.reg.a & 0x0F) > 0x09)
 			offset |= 0x06;
-		if (cpu.reg.a > 0x99 || cpu.flag.carry)
+		if (cpu.flag.carry || cpu.reg.a > 0x99)
 			offset |= 0x60;
 		cpu.flag.carry |= (cpu.reg.a > (0xFF - offset));
 		cpu.reg.a += offset;
@@ -571,11 +587,11 @@ int main(int argc, char *argv[]) {
 			cpu_halted = false;
 
 		if (cpu_halted) {
-			increment_clock();
+			increment_clock(1);
 			continue;
 		}
 
-		print_debug_gameboy_doctor();
+		print_debug_blargg_test();
 
 		if (master_interrupt_flag_pending) {
 			master_interrupt_flag_pending = false;
@@ -587,6 +603,7 @@ int main(int argc, char *argv[]) {
 
 		uint8_t op_byte = mmu_read(cpu.wreg.pc++);
 		process_opcode(op_byte);
+		increment_clock();
 	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
@@ -1025,6 +1042,4 @@ void process_opcode(uint8_t op_byte) {
 		exit(EXIT_FAILURE);
 		break;
 	}
-
-	increment_clock();
 }
