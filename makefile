@@ -5,7 +5,8 @@ INCLUDES = include
 
 # Use different linker libraries and output names depending on the OS
 ifeq ($(OS),Windows_NT)
-	LFLAGS = -lraylib -lopengl32 -lgdi32 -lwinmm -mwindows
+	LFLAGS = -lraylib -lopengl32 -lgdi32 -lwinmm
+# Maybe add -mwindows later
 	OUTPUT = game.exe
 else
 	LFLAGS = -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
@@ -30,10 +31,19 @@ run: ${OUTPUT}
 	./${OUTPUT}
 	rm *.o ${OUTPUT}
 
-test-cpu: ${OUTPUT}
+test-read-timing:
+	./${OUTPUT} lib/gb-test-roms/mem_timing/individual/01-read_timing.gb
+
+test-write-timing:
+	./${OUTPUT} lib/gb-test-roms/mem_timing/individual/02-write_timing.gb
+
+test-modify-timing:
+	./${OUTPUT} lib/gb-test-roms/mem_timing/individual/03-modify_timing.gb
+
+test-cpu-instrs: ${OUTPUT}
 	./${OUTPUT} lib/gb-test-roms/cpu_instrs/cpu_instrs.gb
 
-test-timing: ${OUTPUT}
+test-instr-timing: ${OUTPUT}
 	./${OUTPUT} lib/gb-test-roms/instr_timing/instr_timing.gb
 
 test-gameboy-doctor: ${OUTPUT}
