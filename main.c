@@ -131,29 +131,11 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	case TIMER_DIVIDER:
 		master_clock = 0;
-		//gb_memory[TIMER_DIVIDER] = 0;
-		fprintf(stderr, "The value `%02X' was written to timer divider.\n", value);
 		return;
 
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits
-		fprintf(stderr, "The value `%02X' was written to timer control.\n", value);
 		break;
-	case TIMER_COUNTER:
-		fprintf(stderr, "The value `%02X' was written to timer counter.\n", value);
-		break;
-	case TIMER_MODULO:
-		fprintf(stderr, "The value `%02X' was written to timer modulo.\n", value);
-		break;
-	
-	case INTERRUPT_ENABLE:
-		fprintf(stderr, "The value `%02X' was written to interrupt enable.\n", value);
-		break;
-	
-	case INTERRUPT_FLAGS:
-		fprintf(stderr, "The value `%02X' was written to the interrupt flag.\n", value);
-		break;
-
 	}
 
 	switch (address & 0xF000) {
@@ -198,13 +180,12 @@ void increment_clock_once() {
 		exit(EXIT_FAILURE);
 	}
 
-	if (increment_counter)
-		gb_memory[TIMER_COUNTER]++;
-
-	if (increment_counter && gb_memory[TIMER_COUNTER] == 0x00)
+	if (increment_counter && gb_memory[TIMER_COUNTER] == 0xFF)
 	{
 		gb_memory[TIMER_COUNTER] = gb_memory[TIMER_MODULO];
 		gb_memory[INTERRUPT_FLAGS] |= TIMER_INTERRUPT_BIT;
+	} else if (increment_counter) {
+		gb_memory[TIMER_COUNTER]++;
 	}
 
 }
@@ -655,7 +636,6 @@ int main(int argc, char *argv[]) {
 		uint8_t op_byte = mmu_read(cpu.wreg.pc++);
 		process_opcode(op_byte);
 		increment_clock(blargg_opcode_timing[op_byte]);
-		//printf("OP: %02X\t DIV: %d\t CONTROL: %d\t COUNTER: %d \n", op_byte, master_clock, gb_memory[TIMER_CONTROL], gb_memory[TIMER_COUNTER]);
 	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
