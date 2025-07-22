@@ -791,34 +791,34 @@ void process_opcode(uint8_t op_byte) {
 	case 0xFF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x38; break;
 
 	// JP OPERATIONS
-	case 0xC2: op_jump(!cpu.flag.zero,  read_word()); break;
+	case 0xC2: op_jump(!cpu.flag.zero,  read_word()); if (!cpu.flag.zero) increment_clock(1); break;
 	case 0xC3: op_jump(true,            read_word()); break;
-	case 0xCA: op_jump(cpu.flag.zero,   read_word()); break;
-	case 0xD2: op_jump(!cpu.flag.carry, read_word()); break;
-	case 0xDA: op_jump(cpu.flag.carry,  read_word()); break;
+	case 0xCA: op_jump(cpu.flag.zero,   read_word()); if (cpu.flag.zero) increment_clock(1); break;
+	case 0xD2: op_jump(!cpu.flag.carry, read_word()); if (!cpu.flag.carry) increment_clock(1); break;
+	case 0xDA: op_jump(cpu.flag.carry,  read_word()); if (cpu.flag.carry) increment_clock(1); break;
 	case 0xE9: op_jump(true,            cpu.wreg.hl); break;
 
 	// JR OPERATIONS
 	case 0x18: op_jr(true); break;
-	case 0x20: op_jr(!cpu.flag.zero); break;
-	case 0x28: op_jr(cpu.flag.zero); break;
-	case 0x30: op_jr(!cpu.flag.carry); break;
-	case 0x38: op_jr(cpu.flag.carry); break;
+	case 0x20: op_jr(!cpu.flag.zero); if (!cpu.flag.zero) increment_clock(1); break;
+	case 0x28: op_jr(cpu.flag.zero); if (cpu.flag.zero) increment_clock(1); break;
+	case 0x30: op_jr(!cpu.flag.carry); if (!cpu.flag.carry) increment_clock(1); break;
+	case 0x38: op_jr(cpu.flag.carry); if (cpu.flag.carry) increment_clock(1); break;
 
 	// RET OPERATIONS
-	case 0xC0: op_ret(!cpu.flag.zero); break;
-	case 0xC8: op_ret(cpu.flag.zero); break;
+	case 0xC0: op_ret(!cpu.flag.zero); if (!cpu.flag.zero) increment_clock(3); break;
+	case 0xC8: op_ret(cpu.flag.zero); if (cpu.flag.zero) increment_clock(3); break;
 	case 0xC9: op_ret(true); break;
-	case 0xD0: op_ret(!cpu.flag.carry); break;
-	case 0xD8: op_ret(cpu.flag.carry); break;
+	case 0xD0: op_ret(!cpu.flag.carry); if (!cpu.flag.carry) increment_clock(3); break;
+	case 0xD8: op_ret(cpu.flag.carry); if (cpu.flag.carry) increment_clock(3); break;
 	case 0xD9: op_ret(true); master_interrupt_flag = true; break;
 
 	// CALL OPERATIONS
-	case 0xC4: op_call(!cpu.flag.zero); break;
-	case 0xCC: op_call(cpu.flag.zero); break;
+	case 0xC4: op_call(!cpu.flag.zero); if (!cpu.flag.zero) increment_clock(3); break;
+	case 0xCC: op_call(cpu.flag.zero); if (cpu.flag.zero) increment_clock(3); break;
 	case 0xCD: op_call(true); break;
-	case 0xD4: op_call(!cpu.flag.carry); break;
-	case 0xDC: op_call(cpu.flag.carry); break;
+	case 0xD4: op_call(!cpu.flag.carry); if (!cpu.flag.carry) increment_clock(3); break;
+	case 0xDC: op_call(cpu.flag.carry); if (cpu.flag.carry) increment_clock(3); break;
 
 	// INC OPERATIONS
 	case 0x04: op_inc(&cpu.reg.b); break;
@@ -1029,9 +1029,12 @@ void process_opcode(uint8_t op_byte) {
 		break;
 
 	case 0xCB: // Rotate, shift, and bit operations
-		process_extra_opcodes(read_byte());
-		increment_clock(blargg_extra_opcode_timing[op_byte]);
+	{
+		uint8_t sub_opcode = read_byte();
+		process_extra_opcodes(sub_opcode);
+		increment_clock(blargg_extra_opcode_timing[sub_opcode]);
 		break;
+	}
 
 	case 0x00: // NOP: do nothing
 		break;
