@@ -6,7 +6,6 @@
 
 #define SCREENWIDTH 166
 #define SCREENHEIGHT 144
-#define CARTRIDGE_SIZE 64 * 1024
 
 // TODO:
 // - Display LCD
@@ -14,9 +13,6 @@
 // - Make cpu flags into separate bools
 // - Implement STOP
 // - Add bit manipulation macros
-// - Timer Divider is off by 4 maybe?
-// - Pass GameBoy Doctor Test #2
-// - Check rom size and allocated an appropriate amount of space
 
 // Unions are a wonderful thing
 union {
@@ -48,6 +44,7 @@ bool clock_running = true;
 
 enum special_addresses {
 	CARTRIDGE_TYPE = 0x0147,
+	CARTRIDGE_SIZE = 0x0148,
 	JOYPAD_INPUT = 0xFF00,
 	SERIAL_DATA = 0xFF01,
 	SERIAL_CONTROL = 0xFF02,
@@ -68,7 +65,7 @@ enum interrupt_type {
 	JOYPAD_INTERRUPT_BIT = (1 << 4),
 };
 
-uint8_t rom_memory[CARTRIDGE_SIZE] = { 0 };
+uint8_t *rom_memory;
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024]  = { 0 };
 
@@ -224,17 +221,37 @@ void push_stack(uint16_t reg16) {
 	mmu_write(cpu.wreg.sp, lower);
 }
 
-void load_rom(char* rom_name, size_t rom_bytes) {
+void load_rom(char* rom_name) {
 	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
 	if (rom_file == NULL) {
 		fprintf(stderr, "Error: Failed to find the rom file `%s'\n", rom_name);
 		exit(EXIT_FAILURE);
 	}
 
-	size_t bytes_read = fread(rom_memory, 1, rom_bytes, rom_file);
-	if (bytes_read != rom_bytes) {
-		fprintf(stderr, "Warning: Rom was expected to be %d bytes, but was actually %d bytes\n", CARTRIDGE_SIZE, (int)bytes_read);
-		/* exit(EXIT_FAILURE); */
+	uint8_t *rom_size_byte = malloc(1);
+	// Skip up until the cartridge size byte in the header
+	fseek(rom_file, CARTRIDGE_SIZE, SEEK_SET);
+	size_t bytes_read = fread(rom_size_byte, 1, 1, rom_file);
+
+	if (bytes_read != 1) {
+		fprintf(stderr, "Error: Couldn't read the cartridge size from the ROM file\n");
+		exit(EXIT_FAILURE);
+	}
+
+	int rom_size = 32 * 1024 * (1 << *rom_size_byte);
+	free(rom_size_byte);
+	printf("Allocating %d bytes for the rom...\n", rom_size);
+	rom_memory = malloc(rom_size);
+	if (rom_memory == NULL) {
+		fprintf(stderr, "Error: Couldn't allocate the space for the rom\n");
+		exit(EXIT_FAILURE);
+	}
+
+	fseek(rom_file, 0, SEEK_SET);
+	bytes_read = fread(rom_memory, 1, rom_size, rom_file);
+	if (bytes_read != rom_size) {
+		fprintf(stderr, "Error: Rom was expected to be %d bytes, but was actually %d bytes\n", rom_size, (int)bytes_read);
+		exit(EXIT_FAILURE);
 	}
 	fclose(rom_file);
 }
@@ -612,7 +629,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	load_rom(argv[1], CARTRIDGE_SIZE);
+	load_rom(argv[1]);
 
 	while (true) {
 		if (gb_memory[INTERRUPT_FLAGS] & gb_memory[INTERRUPT_ENABLE])
@@ -647,6 +664,7 @@ int main(int argc, char *argv[]) {
 	/* } */
 	/* CloseWindow(); */
 
+	free(rom_memory);
 	return 0;
 }
 
