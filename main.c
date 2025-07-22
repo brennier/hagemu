@@ -131,10 +131,12 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	case TIMER_DIVIDER:
 		master_clock = 0;
+		//gb_memory[TIMER_DIVIDER] = 0;
 		fprintf(stderr, "The value `%02X' was written to timer divider.\n", value);
 		return;
 
 	case TIMER_CONTROL:
+		value &= 0x07; // Mask all but the lowest 3 bits
 		fprintf(stderr, "The value `%02X' was written to timer control.\n", value);
 		break;
 	case TIMER_COUNTER:
@@ -142,6 +144,14 @@ void mmu_write(uint16_t address, uint8_t value) {
 		break;
 	case TIMER_MODULO:
 		fprintf(stderr, "The value `%02X' was written to timer modulo.\n", value);
+		break;
+	
+	case INTERRUPT_ENABLE:
+		fprintf(stderr, "The value `%02X' was written to interrupt enable.\n", value);
+		break;
+	
+	case INTERRUPT_FLAGS:
+		fprintf(stderr, "The value `%02X' was written to the interrupt flag.\n", value);
 		break;
 
 	}
@@ -155,7 +165,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	// ROM BANK SWITCH
 	case 0x2000: case 0x3000:
-		fprintf(stderr, "ROM BANK SWITCHED TO %d\n", value & 0x1F);
+		//fprintf(stderr, "ROM BANK SWITCHED TO %d\n", value & 0x1F);
 		rom_bank_index = value & 0x1F;
 		return;
 	}
@@ -164,38 +174,44 @@ void mmu_write(uint16_t address, uint8_t value) {
 	gb_memory[address] = value;
 }
 
-void increment_clock() {
-	if (clock_running) master_clock += 4; // Add one m-cycle
-	switch (gb_memory[TIMER_CONTROL] & 0x07) {
+void increment_clock_once() {
+	if (clock_running) master_clock += 4;
+	bool increment_counter = false;
+	switch (gb_memory[TIMER_CONTROL]) {
 
 	case 0x00: case 0x01: case 0x02: case 0x03:
-		// Timer Control is off so return early
-		return;
+		break;
         case 0x04:
-		if (master_clock % 1024) gb_memory[TIMER_COUNTER]++;
+		if (master_clock % 1024 == 0) increment_counter = true;
 		break;
 	case 0x05:
-		if (master_clock % 16) gb_memory[TIMER_COUNTER]++;
+		if (master_clock % 16 == 0) increment_counter = true;
 		break;
 	case 0x06:
-		if (master_clock % 64) gb_memory[TIMER_COUNTER]++;
+		if (master_clock % 64 == 0) increment_counter = true;
 		break;
 	case 0x07:
-		if (master_clock % 256) gb_memory[TIMER_COUNTER]++;
+		if (master_clock % 256 == 0) increment_counter = true;
 		break;
 	default:
 		fprintf(stderr, "Unreachable case in TIMER CONTROL");
 		exit(EXIT_FAILURE);
 	}
-	/* fprintf(stderr, "Timer Counter is `%d'\n", gb_memory[TIMER_COUNTER]); */
 
-	if (gb_memory[TIMER_COUNTER] == 0x00)
+	if (increment_counter)
+		gb_memory[TIMER_COUNTER]++;
+
+	if (increment_counter && gb_memory[TIMER_COUNTER] == 0x00)
 	{
-		fprintf(stderr, "Timer Counter interrupted\n");
 		gb_memory[TIMER_COUNTER] = gb_memory[TIMER_MODULO];
 		gb_memory[INTERRUPT_FLAGS] |= TIMER_INTERRUPT_BIT;
 	}
 
+}
+
+void increment_clock(int m_cycles) {
+	for (int i = 0; i < m_cycles; i++)
+		increment_clock_once();
 }
 
 void reset_clock() {
@@ -395,7 +411,7 @@ void print_debug_gameboy_doctor() {
 void print_debug_blargg_test() {
 	if (mmu_read(SERIAL_CONTROL) == 0x81)
 	{
-		fprintf(stderr, "%c", mmu_read(SERIAL_DATA));
+		printf("%c", mmu_read(SERIAL_DATA));
 		mmu_write(SERIAL_CONTROL, 0);
 	}
 }
@@ -525,7 +541,6 @@ void handle_interrupts() {
 	if (!interrupts) return;
 
 	master_interrupt_flag = false;
-	cpu_halted = false;
 	push_stack(cpu.wreg.pc);
 
 	if (interrupts & VBLANK_INTERRUPT_BIT) {
@@ -553,6 +568,44 @@ void handle_interrupts() {
 void process_opcode(uint8_t op_byte);
 void test_opcode_timing();
 
+int blargg_opcode_timing[256] = {
+	1,3,2,2,1,1,2,1,5,2,2,2,1,1,2,1,
+	0,3,2,2,1,1,2,1,3,2,2,2,1,1,2,1,
+	2,3,2,2,1,1,2,1,2,2,2,2,1,1,2,1,
+	2,3,2,2,3,3,3,1,2,2,2,2,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	2,2,2,2,2,2,0,2,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	2,3,3,4,3,4,2,4,2,4,3,0,3,6,2,4,
+	2,3,3,0,3,4,2,4,2,4,3,0,3,0,2,4,
+	3,3,2,0,0,4,2,4,4,1,4,0,0,0,2,4,
+	3,3,2,1,0,4,2,4,3,2,4,1,0,0,2,4
+};
+
+int blargg_extra_opcode_timing[256] = {
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,3,2,2,2,2,2,2,2,3,2,
+	2,2,2,2,2,2,3,2,2,2,2,2,2,2,3,2,
+	2,2,2,2,2,2,3,2,2,2,2,2,2,2,3,2,
+	2,2,2,2,2,2,3,2,2,2,2,2,2,2,3,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
+	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2
+};
+
 int main(int argc, char *argv[]) {
 	// Inital state of registers
 	cpu.reg.a = 0x01;
@@ -565,8 +618,6 @@ int main(int argc, char *argv[]) {
 	cpu.reg.l = 0x4D;
 	cpu.wreg.sp = 0xFFFE;
 	cpu.wreg.pc = 0x0100;
-
-	/* test_opcode_timing(); */
 
 	// The gameboy doctor test suite requires that the LY register always returns 0x90
 	gb_memory[0xFF44] = 0x90;
@@ -587,23 +638,24 @@ int main(int argc, char *argv[]) {
 			cpu_halted = false;
 
 		if (cpu_halted) {
-			increment_clock(1);
+			increment_clock_once();
 			continue;
 		}
 
 		print_debug_blargg_test();
+		//print_debug_gameboy_doctor();
 
 		if (master_interrupt_flag_pending) {
 			master_interrupt_flag_pending = false;
 			master_interrupt_flag = true;
-		}
-		else if (master_interrupt_flag) {
+		} else if (master_interrupt_flag) {
 			handle_interrupts();
 		}
 
 		uint8_t op_byte = mmu_read(cpu.wreg.pc++);
 		process_opcode(op_byte);
-		increment_clock();
+		increment_clock(blargg_opcode_timing[op_byte]);
+		//printf("OP: %02X\t DIV: %d\t CONTROL: %d\t COUNTER: %d \n", op_byte, master_clock, gb_memory[TIMER_CONTROL], gb_memory[TIMER_COUNTER]);
 	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
@@ -616,45 +668,6 @@ int main(int argc, char *argv[]) {
 	/* CloseWindow(); */
 
 	return 0;
-}
-
-int opcode_timing[256] = {
-    1, 3, 1, 1, 1, 1, 2, 1, 3, 1, 1, 1, 1, 1, 2, 1,
-    2, 3, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1,
-    2, 3, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1,
-    2, 3, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 3, 3, 3, 1, 2, 1, 1, 1, 3, 3, 3, 3, 2, 1,
-    1, 1, 3, 0, 3, 1, 2, 1, 1, 1, 3, 0, 3, 0, 2, 1,
-    2, 1, 2, 0, 0, 1, 2, 1, 2, 1, 3, 0, 0, 0, 2, 1,
-    2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 3, 1, 0, 0, 2, 1,
-};
-
-void test_opcode_timing() {
-	for (int i = 0; i < 256; i++) {
-		switch(i) {
-		case 0x10: case 0x76: // STOP and HALT
-		case 0xD3: case 0xDB: case 0xDD: case 0xE3:
-		case 0xE4: case 0xEB: case 0xEC: case 0xED:
-		case 0xF4: case 0xFC: case 0xFD: // Not used
-			continue;
-		}
-		master_clock = 0;
-		process_opcode(i);
-		if (master_clock != opcode_timing[i])
-			printf("Opcode %02X has timing %d, but should have timing %d\n",
-			       i, master_clock, opcode_timing[i]);
-	}
-	printf("\n");
-
-	exit(EXIT_SUCCESS);
 }
 
 void process_opcode(uint8_t op_byte) {
@@ -781,11 +794,11 @@ void process_opcode(uint8_t op_byte) {
 
 	// JP OPERATIONS
 	case 0xC2: op_jump(!cpu.flag.zero,  read_word()); break;
-	case 0xC3: op_jump(true,                     read_word()); break;
+	case 0xC3: op_jump(true,            read_word()); break;
 	case 0xCA: op_jump(cpu.flag.zero,   read_word()); break;
 	case 0xD2: op_jump(!cpu.flag.carry, read_word()); break;
 	case 0xDA: op_jump(cpu.flag.carry,  read_word()); break;
-	case 0xE9: op_jump(true,                     cpu.wreg.hl); break;
+	case 0xE9: op_jump(true,            cpu.wreg.hl); break;
 
 	// JR OPERATIONS
 	case 0x18: op_jr(true); break;
@@ -1019,6 +1032,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0xCB: // Rotate, shift, and bit operations
 		process_extra_opcodes(read_byte());
+		increment_clock(blargg_extra_opcode_timing[op_byte]);
 		break;
 
 	case 0x00: // NOP: do nothing
