@@ -2,11 +2,12 @@
 
 This is an attempt to write a GameBoy emulator in C99. Raylib is used to write the pixels and handle input. The end goal is to compile this project into WebAssembly using Emscripten. At the moment, this project is still a work in progress.
 
-- [x] Pass all of Blargg's cpu_instrs test roms
-- [x] Pass Blargg's instr_timing test rom
-- [ ] Pass Blargg's mem_timing test rom
-- [ ] Pass Blargg's mem_timing_2 test rom
-- [ ] Display tiles from VRAM
+- [ ] Pass Blargg's CPU test roms
+  - [x] cpu_instrs test
+  - [x] instr_timing test
+  - [x] mem_timing test
+  - [ ] mem_timing_2 test
+  - [ ] interrupt_time test
 - [ ] Implement a basic PPU
   - [ ] Display tiles from VRAM
   - [ ] Write tiles to window with Raylib
@@ -15,6 +16,7 @@ This is an attempt to write a GameBoy emulator in C99. Raylib is used to write t
   - [ ] Add sprites
   - [ ] Get the timing correct with the CPU
 - [ ] Implement support for various MBC chips
+  - [x] MCB1 (Basic support)
 - [ ] Add the APU (Audio Processing Unit)
 - [ ] Get the web version working
 - [ ] Add save states

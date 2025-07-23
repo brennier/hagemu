@@ -31,14 +31,8 @@ run: ${OUTPUT}
 	./${OUTPUT}
 	rm *.o ${OUTPUT}
 
-test-read-timing:
-	./${OUTPUT} lib/gb-test-roms/mem_timing/individual/01-read_timing.gb
-
-test-write-timing:
-	./${OUTPUT} lib/gb-test-roms/mem_timing/individual/02-write_timing.gb
-
-test-modify-timing:
-	./${OUTPUT} lib/gb-test-roms/mem_timing/individual/03-modify_timing.gb
+test-mem-timing: ${OUTPUT}
+	./${OUTPUT} lib/gb-test-roms/mem_timing/mem_timing.gb
 
 test-cpu-instrs: ${OUTPUT}
 	./${OUTPUT} lib/gb-test-roms/cpu_instrs/cpu_instrs.gb
