@@ -643,6 +643,34 @@ int blargg_opcode_timing[256] = {
 	0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0
 };
 
+// Returns the number of t-cycles it took to complete the next instruction
+int cpu_do_next_instruction() {
+	int old_clock = master_clock;
+
+	if (gb_memory[INTERRUPT_FLAGS] & gb_memory[INTERRUPT_ENABLE])
+		cpu_halted = false;
+
+	if (cpu_halted) {
+		increment_clock(1);
+		return (master_clock - old_clock);
+	}
+
+	print_debug_blargg_test();
+	/* print_debug_gameboy_doctor(); */
+
+	if (master_interrupt_flag_pending) {
+		master_interrupt_flag_pending = false;
+		master_interrupt_flag = true;
+	} else if (master_interrupt_flag) {
+		handle_interrupts();
+	}
+
+	uint8_t op_byte = fetch_next_byte();
+	process_opcode(op_byte);
+	increment_clock(blargg_opcode_timing[op_byte]);
+	return (master_clock - old_clock);
+}
+
 int main(int argc, char *argv[]) {
 	// Inital state of registers
 	cpu.reg.a = 0x01;
@@ -671,27 +699,8 @@ int main(int argc, char *argv[]) {
 	load_rom(argv[1]);
 
 	while (true) {
-		if (gb_memory[INTERRUPT_FLAGS] & gb_memory[INTERRUPT_ENABLE])
-			cpu_halted = false;
-
-		if (cpu_halted) {
-			increment_clock(1);
-			continue;
-		}
-
-		print_debug_blargg_test();
-		/* print_debug_gameboy_doctor(); */
-
-		if (master_interrupt_flag_pending) {
-			master_interrupt_flag_pending = false;
-			master_interrupt_flag = true;
-		} else if (master_interrupt_flag) {
-			handle_interrupts();
-		}
-
-		uint8_t op_byte = fetch_next_byte();
-		process_opcode(op_byte);
-		increment_clock(blargg_opcode_timing[op_byte]);
+		int t_cycles = cpu_do_next_instruction();
+		printf("Last instruction took %d t-cycles...\n", t_cycles);
 	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
