@@ -1040,7 +1040,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0xF8: // LD HL SP+i8
 	{
-		int8_t next = fetch_next_byte();
+		uint8_t next = fetch_next_byte();
 		cpu.reg.f = 0;
 		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
 		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
@@ -1050,7 +1050,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0xE8: // ADD SP i8
 	{
-		int8_t next = fetch_next_byte();
+		uint8_t next = fetch_next_byte();
 		cpu.reg.f = 0;
 		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
 		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
