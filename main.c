@@ -632,34 +632,15 @@ int blargg_opcode_timing[256] = {
 	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
 	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
 
-	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
 
 	1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
 	1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
 	0,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0,
 	0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0
-};
-
-int blargg_extra_opcode_timing[256] = {
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0,
-	0,0,0,0,0,0,2,0,0,0,0,0,0,0,2,0
 };
 
 int main(int argc, char *argv[]) {
@@ -928,7 +909,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0xAB: op_xor(cpu.reg.e); break;
 	case 0xAC: op_xor(cpu.reg.h); break;
 	case 0xAD: op_xor(cpu.reg.l); break;
-	case 0xAE: op_xor(gb_memory[cpu.wreg.hl]); break;
+	case 0xAE: op_xor(fetch_byte(cpu.wreg.hl)); break;
 	case 0xAF: op_xor(cpu.reg.a); break;
 
 	// AND OPERATIONS
@@ -938,7 +919,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0xA3: op_and(cpu.reg.e); break;
 	case 0xA4: op_and(cpu.reg.h); break;
 	case 0xA5: op_and(cpu.reg.l); break;
-	case 0xA6: op_and(gb_memory[cpu.wreg.hl]); break;
+	case 0xA6: op_and(fetch_byte(cpu.wreg.hl)); break;
 	case 0xA7: op_and(cpu.reg.a); break;
 
 	// SBC OPERATIONS
@@ -948,7 +929,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x9B: op_sbc(cpu.reg.e); break;
 	case 0x9C: op_sbc(cpu.reg.h); break;
 	case 0x9D: op_sbc(cpu.reg.l); break;
-	case 0x9E: op_sbc(gb_memory[cpu.wreg.hl]); break;
+	case 0x9E: op_sbc(fetch_byte(cpu.wreg.hl)); break;
 	case 0x9F: op_sbc(cpu.reg.a); break;
 
 	// SUB OPERATIONS
@@ -958,7 +939,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x93: op_sub(cpu.reg.e); break;
 	case 0x94: op_sub(cpu.reg.h); break;
 	case 0x95: op_sub(cpu.reg.l); break;
-	case 0x96: op_sub(gb_memory[cpu.wreg.hl]); break;
+	case 0x96: op_sub(fetch_byte(cpu.wreg.hl)); break;
 	case 0x97: op_sub(cpu.reg.a); break;
 
 	// ADC OPERATIONS
@@ -968,7 +949,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x8B: op_adc(cpu.reg.e); break;
 	case 0x8C: op_adc(cpu.reg.h); break;
 	case 0x8D: op_adc(cpu.reg.l); break;
-	case 0x8E: op_adc(gb_memory[cpu.wreg.hl]); break;
+	case 0x8E: op_adc(fetch_byte(cpu.wreg.hl)); break;
 	case 0x8F: op_adc(cpu.reg.a); break;
 
 	// ADD OPERATIONS
@@ -978,7 +959,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x83: op_add(cpu.reg.e); break;
 	case 0x84: op_add(cpu.reg.h); break;
 	case 0x85: op_add(cpu.reg.l); break;
-	case 0x86: op_add(gb_memory[cpu.wreg.hl]); break;
+	case 0x86: op_add(fetch_byte(cpu.wreg.hl)); break;
 	case 0x87: op_add(cpu.reg.a); break;
 
 	// CP OPERATIONS
@@ -988,7 +969,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0xBB: op_cp(cpu.reg.e); break;
 	case 0xBC: op_cp(cpu.reg.h); break;
 	case 0xBD: op_cp(cpu.reg.l); break;
-	case 0xBE: op_cp(gb_memory[cpu.wreg.hl]); break;
+	case 0xBE: op_cp(fetch_byte(cpu.wreg.hl)); break;
 	case 0xBF: op_cp(cpu.reg.a); break;
 
 	// OR OPERATIONS
@@ -998,7 +979,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0xB3: op_or(cpu.reg.e); break;
 	case 0xB4: op_or(cpu.reg.h); break;
 	case 0xB5: op_or(cpu.reg.l); break;
-	case 0xB6: op_or(gb_memory[cpu.wreg.hl]); break;
+	case 0xB6: op_or(fetch_byte(cpu.wreg.hl)); break;
 	case 0xB7: op_or(cpu.reg.a); break;
 
 	// OPERATIONS BETWEEN A AND AN IMMEDIATE
@@ -1104,7 +1085,6 @@ void process_opcode(uint8_t op_byte) {
 	{
 		uint8_t sub_opcode = fetch_next_byte();
 		process_extra_opcodes(sub_opcode);
-		/* increment_clock(blargg_extra_opcode_timing[sub_opcode]); */
 		break;
 	}
 
