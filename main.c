@@ -13,6 +13,7 @@
 // - Make cpu flags into separate bools
 // - Implement STOP
 // - Add bit manipulation macros
+// - Pass the memory timing test
 
 // Unions are a wonderful thing
 union {
@@ -196,13 +197,14 @@ void reset_clock() {
 	master_clock = 0;
 }
 
-uint8_t read_byte() {
-	return mmu_read(cpu.wreg.pc++);
+uint8_t fetch_byte() {
+	uint8_t value = mmu_read(cpu.wreg.pc++);
+	return value;
 }
 
-uint16_t read_word() {
-	uint8_t first_byte = read_byte();
-	uint8_t second_byte = read_byte();
+uint16_t fetch_word() {
+	uint8_t first_byte = fetch_byte();
+	uint8_t second_byte = fetch_byte();
 	return ((uint16_t)second_byte << 8) | (uint16_t)first_byte;
 }
 
@@ -485,12 +487,12 @@ void op_ret_cond(bool condition) {
 }
 
 void op_jr() {
-	int8_t relative_address = (int8_t)read_byte();
+	int8_t relative_address = (int8_t)fetch_byte();
 	cpu.wreg.pc += relative_address;
 }
 
 void op_jr_cond(bool condition) {
-	int8_t relative_address = (int8_t)read_byte();
+	int8_t relative_address = (int8_t)fetch_byte();
 	if (condition) {
 		cpu.wreg.pc += relative_address;
 		increment_clock(1);
@@ -530,13 +532,13 @@ void op_add_16bit(uint16_t value) {
 }
 
 void op_call() {
-	uint16_t address = read_word();
+	uint16_t address = fetch_word();
 	push_stack(cpu.wreg.pc);
 	cpu.wreg.pc = address;
 }
 
 void op_call_cond(bool condition) {
-	uint16_t address = read_word();
+	uint16_t address = fetch_word();
 	if (condition) {
 		push_stack(cpu.wreg.pc);
 		cpu.wreg.pc = address;
@@ -596,41 +598,44 @@ void process_opcode(uint8_t op_byte);
 void test_opcode_timing();
 
 int blargg_opcode_timing[256] = {
-	1,3,2,2,1,1,2,1,5,2,2,2,1,1,2,1,
-	0,3,2,2,1,1,2,1,3,2,2,2,1,1,2,1,
-	2,3,2,2,1,1,2,1,2,2,2,2,1,1,2,1,
-	2,3,2,2,3,3,3,1,2,2,2,2,1,1,2,1,
-	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
-	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
-	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
-	2,2,2,2,2,2,0,2,1,1,1,1,1,1,2,1,
-	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
-	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
-	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
-	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
-	2,3,3,4,3,4,2,4,2,4,3,0,3,6,2,4,
-	2,3,3,0,3,4,2,4,2,4,3,0,3,0,2,4,
-	3,3,2,0,0,4,2,4,4,1,4,0,0,0,2,4,
-	3,3,2,1,0,4,2,4,3,2,4,1,0,0,2,4
+	0,2,1,1,0,0,1,0,4,1,1,1,0,0,1,0,
+	0,2,1,1,0,0,1,0,2,1,1,1,0,0,1,0,
+	1,2,1,1,0,0,1,0,1,1,1,1,0,0,1,0,
+	1,2,1,1,2,2,2,0,1,1,1,1,0,0,1,0,
+
+	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
+	1,1,1,1,1,1,0,1,0,0,0,0,0,0,1,0,
+
+	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
+
+	1,2,2,3,2,3,1,3,1,3,2,0,2,5,1,3,
+	1,2,2,0,2,3,1,3,1,3,2,0,2,0,1,3,
+	2,2,1,0,0,3,1,3,3,0,3,0,0,0,1,3,
+	2,2,1,0,0,3,1,3,2,1,3,0,0,0,1,3
 };
 
 int blargg_extra_opcode_timing[256] = {
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,3,2,2,2,2,2,2,2,3,2,
-	2,2,2,2,2,2,3,2,2,2,2,2,2,2,3,2,
-	2,2,2,2,2,2,3,2,2,2,2,2,2,2,3,2,
-	2,2,2,2,2,2,3,2,2,2,2,2,2,2,3,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
-	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1,
+	1,1,1,1,1,1,3,1,1,1,1,1,1,1,3,1
 };
 
 int main(int argc, char *argv[]) {
@@ -679,7 +684,8 @@ int main(int argc, char *argv[]) {
 			handle_interrupts();
 		}
 
-		uint8_t op_byte = mmu_read(cpu.wreg.pc++);
+		uint8_t op_byte = fetch_byte();
+		increment_clock(1);
 		process_opcode(op_byte);
 		increment_clock(blargg_opcode_timing[op_byte]);
 	}
@@ -773,28 +779,28 @@ void process_opcode(uint8_t op_byte) {
 	case 0x7F: cpu.reg.a = cpu.reg.a; break;
 
 	// LOAD IMMEDIATE OPERATIONS
-	case 0x06: cpu.reg.b = read_byte(); break;
-	case 0x0E: cpu.reg.c = read_byte(); break;
-	case 0x16: cpu.reg.d = read_byte(); break;
-	case 0x1E: cpu.reg.e = read_byte(); break;
-	case 0x26: cpu.reg.h = read_byte(); break;
-	case 0x2E: cpu.reg.l = read_byte(); break;
-	case 0x36: mmu_write(cpu.wreg.hl, read_byte()); break;
-	case 0x3E: cpu.reg.a = read_byte(); break;
+	case 0x06: cpu.reg.b = fetch_byte(); break;
+	case 0x0E: cpu.reg.c = fetch_byte(); break;
+	case 0x16: cpu.reg.d = fetch_byte(); break;
+	case 0x1E: cpu.reg.e = fetch_byte(); break;
+	case 0x26: cpu.reg.h = fetch_byte(); break;
+	case 0x2E: cpu.reg.l = fetch_byte(); break;
+	case 0x36: mmu_write(cpu.wreg.hl, fetch_byte()); break;
+	case 0x3E: cpu.reg.a = fetch_byte(); break;
 
-	case 0x01: cpu.wreg.bc = read_word(); break;
-	case 0x11: cpu.wreg.de = read_word(); break;
-	case 0x21: cpu.wreg.hl = read_word(); break;
-	case 0x31: cpu.wreg.sp = read_word(); break;
+	case 0x01: cpu.wreg.bc = fetch_word(); break;
+	case 0x11: cpu.wreg.de = fetch_word(); break;
+	case 0x21: cpu.wreg.hl = fetch_word(); break;
+	case 0x31: cpu.wreg.sp = fetch_word(); break;
 
 	// LOAD IMMEDIATE ADDRESS
-	case 0xEA: mmu_write(read_word(), cpu.reg.a); break;
-	case 0xFA: cpu.reg.a = mmu_read(read_word()); break;
+	case 0xEA: mmu_write(fetch_word(), cpu.reg.a); break;
+	case 0xFA: cpu.reg.a = mmu_read(fetch_word()); break;
 
 	// LOAD HIGH OPERATIONS
-	case 0xE0: mmu_write(0xFF00 | read_byte(), cpu.reg.a); break;
+	case 0xE0: mmu_write(0xFF00 | fetch_byte(), cpu.reg.a); break;
 	case 0xE2: mmu_write(0xFF00 | cpu.reg.c  , cpu.reg.a); break;
-	case 0xF0: cpu.reg.a = mmu_read(0xFF00 | read_byte()); break;
+	case 0xF0: cpu.reg.a = mmu_read(0xFF00 | fetch_byte()); break;
 	case 0xF2: cpu.reg.a = mmu_read(0xFF00 | cpu.reg.c); break;
 
 	// LOAD ADDRESS AT REGISTER WITH A
@@ -820,12 +826,12 @@ void process_opcode(uint8_t op_byte) {
 	case 0xFF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x38; break;
 
 	// JP OPERATIONS
-	case 0xC3: op_jump(read_word()); break;
+	case 0xC3: op_jump(fetch_word()); break;
 	case 0xE9: op_jump(cpu.wreg.hl); break;
-	case 0xC2: op_jump_cond(!cpu.flag.zero,  read_word()); break;
-	case 0xCA: op_jump_cond(cpu.flag.zero,   read_word()); break;
-	case 0xD2: op_jump_cond(!cpu.flag.carry, read_word()); break;
-	case 0xDA: op_jump_cond(cpu.flag.carry,  read_word()); break;
+	case 0xC2: op_jump_cond(!cpu.flag.zero,  fetch_word()); break;
+	case 0xCA: op_jump_cond(cpu.flag.zero,   fetch_word()); break;
+	case 0xD2: op_jump_cond(!cpu.flag.carry, fetch_word()); break;
+	case 0xDA: op_jump_cond(cpu.flag.carry,  fetch_word()); break;
 
 	// JR OPERATIONS
 	case 0x18: op_jr(); break;
@@ -960,14 +966,14 @@ void process_opcode(uint8_t op_byte) {
 	case 0xB7: op_or(cpu.reg.a); break;
 
 	// OPERATIONS BETWEEN A AND AN IMMEDIATE
-	case 0xC6: op_add(read_byte()); break;
-	case 0xCE: op_adc(read_byte()); break;
-	case 0xD6: op_sub(read_byte()); break;
-	case 0xDE: op_sbc(read_byte()); break;
-	case 0xE6: op_and(read_byte()); break;
-	case 0xEE: op_xor(read_byte()); break;
-	case 0xF6: op_or(read_byte());  break;
-	case 0xFE: op_cp(read_byte());  break;
+	case 0xC6: op_add(fetch_byte()); break;
+	case 0xCE: op_adc(fetch_byte()); break;
+	case 0xD6: op_sub(fetch_byte()); break;
+	case 0xDE: op_sbc(fetch_byte()); break;
+	case 0xE6: op_and(fetch_byte()); break;
+	case 0xEE: op_xor(fetch_byte()); break;
+	case 0xF6: op_or(fetch_byte());  break;
+	case 0xFE: op_cp(fetch_byte());  break;
 
 	// PUSH OPERATIONS
 	case 0xC5: push_stack(cpu.wreg.bc); break;
@@ -1027,7 +1033,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0x08: // LD (u16) SP
 	{
-		uint16_t address = read_word();
+		uint16_t address = fetch_word();
 		mmu_write(address, cpu.wreg.sp & 0x00FF);
 		mmu_write(address + 1, (cpu.wreg.sp & 0xFF00) >> 8);
 		break;
@@ -1035,7 +1041,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0xF8: // LD HL SP+i8
 	{
-		uint8_t next = read_byte();
+		uint8_t next = fetch_byte();
 		cpu.reg.f = 0;
 		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
 		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
@@ -1045,7 +1051,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0xE8: // ADD SP i8
 	{
-		uint8_t next = read_byte();
+		uint8_t next = fetch_byte();
 		cpu.reg.f = 0;
 		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
 		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
@@ -1059,7 +1065,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0xCB: // Rotate, shift, and bit operations
 	{
-		uint8_t sub_opcode = read_byte();
+		uint8_t sub_opcode = fetch_byte();
 		process_extra_opcodes(sub_opcode);
 		increment_clock(blargg_extra_opcode_timing[sub_opcode]);
 		break;
@@ -1073,7 +1079,7 @@ void process_opcode(uint8_t op_byte) {
 		clock_running = false;
 		fprintf(stderr, "Warning: STOP is not fully implemented yet\n");
 		// The next byte is ignored for some reason
-		read_byte();
+		fetch_byte();
 		/* exit(EXIT_FAILURE); */
 		break;
 
