@@ -271,147 +271,171 @@ void load_rom(char* rom_name) {
 	fclose(rom_file);
 }
 
-void op_rlc(uint8_t* reg) {
-	int highest_bit = ((*reg) & 0x80) >> 7;
-	(*reg) <<= 1;
-	(*reg) += highest_bit;
+uint8_t op_rlc(uint8_t value) {
+	int highest_bit = (value & 0x80) >> 7;
+	value <<= 1;
+	value += highest_bit;
 	cpu.reg.f = 0;
-	cpu.flag.zero = !(*reg);
+	cpu.flag.zero = !value;
 	cpu.flag.carry = highest_bit;
+    return value;
 }
 
-void op_rrc(uint8_t* reg) {
-	int lowest_bit = (*reg) % 2;
-	(*reg) >>= 1;
-	(*reg) += (lowest_bit << 7);
+uint8_t op_rrc(uint8_t value) {
+	int lowest_bit = value % 2;
+	value >>= 1;
+	value += (lowest_bit << 7);
 	cpu.reg.f = 0;
-	cpu.flag.zero = !(*reg);
+	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
+    return value;
 }
 
-void op_rr(uint8_t* reg) {
-	int lowest_bit = (*reg) % 2;
-	(*reg) >>= 1;
-	(*reg) += (cpu.flag.carry << 7);
+uint8_t op_rr(uint8_t value) {
+	int lowest_bit = value % 2;
+	value >>= 1;
+	value += (cpu.flag.carry << 7);
 	cpu.reg.f = 0;
-	cpu.flag.zero = !(*reg);
+	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
+    return value;
 }
 
-void op_rl(uint8_t* reg) {
-	int highest_bit = ((*reg) & 0x80) >> 7;
-	(*reg) <<= 1;
-	(*reg) += cpu.flag.carry;
+uint8_t op_rl(uint8_t value) {
+	int highest_bit = (value & 0x80) >> 7;
+	value <<= 1;
+	value += cpu.flag.carry;
 	cpu.reg.f = 0;
-	cpu.flag.zero = !(*reg);
+	cpu.flag.zero = !value;
 	cpu.flag.carry = highest_bit;
+    return value;
 }
 
-void op_sla(uint8_t* reg) {
-	int highest_bit = ((*reg) & 0x80) >> 7;
-	(*reg) <<= 1;
+uint8_t op_sla(uint8_t value) {
+	int highest_bit = (value & 0x80) >> 7;
+	value <<= 1;
 	cpu.reg.f = 0;
-	cpu.flag.zero = !(*reg);
+	cpu.flag.zero = !value;
 	cpu.flag.carry = highest_bit;
+    return value;
 }
 
-void op_sra(uint8_t* reg) {
-	int lowest_bit = (*reg) % 2;
-	int highest_bit = ((*reg) & 0x80) >> 7;
-	(*reg) >>= 1;
-	(*reg) += (highest_bit << 7);
+uint8_t op_sra(uint8_t value) {
+	int lowest_bit = value % 2;
+	int highest_bit = (value & 0x80) >> 7;
+	value >>= 1;
+	value += (highest_bit << 7);
 	cpu.reg.f = 0;
-	cpu.flag.zero = !(*reg);
+	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
+    return value;
 }
 
-void op_srl(uint8_t* reg) {
-	cpu.flag.carry = (*reg) % 2;
-	(*reg) >>= 1;
+uint8_t op_srl(uint8_t value) {
+	cpu.flag.carry = value % 2;
+	value >>= 1;
 	cpu.flag.subtract = 0;
 	cpu.flag.half_carry = 0;
-	cpu.flag.zero = !(*reg);
+	cpu.flag.zero = !value;
+    return value;
 }
 
-void op_swap(uint8_t* reg) {
-	uint8_t lower = ((*reg) & 0x0F);
-	uint8_t upper = ((*reg) & 0xF0);
-	(*reg) = (lower << 4) | (upper >> 4);
+uint8_t op_swap(uint8_t value) {
+	uint8_t lower = (value & 0x0F);
+	uint8_t upper = (value & 0xF0);
+	value = (lower << 4) | (upper >> 4);
 	cpu.reg.f = 0;
-	cpu.flag.zero = !(*reg);
+	cpu.flag.zero = !value;
+    return value;
 }
 
-void op_bit(int bit_num, uint8_t* reg) {
+void op_bit(int bit_num, uint8_t value) {
 	cpu.flag.subtract = 0;
 	cpu.flag.half_carry = 1;
-	cpu.flag.zero = !((*reg) & (1 << bit_num));
+	cpu.flag.zero = !(value & (1 << bit_num));
 }
 
-void op_res(int bit_num, uint8_t* reg) {
-	(*reg) &= ~((uint8_t)0x01 << bit_num);
+uint8_t op_res(int bit_num, uint8_t value) {
+	value &= ~((uint8_t)0x01 << bit_num);
+    return value;
 }
 
-void op_set(int bit_num, uint8_t* reg) {
-	(*reg) |= (1 << bit_num);
+uint8_t op_set(int bit_num, uint8_t value) {
+	value |= (1 << bit_num);
+    return value;
 }
 
 void process_extra_opcodes(uint8_t opcode) {
-	// The lower 4 bits of the opcode determines the register
-	uint8_t *location;
+	// The lower 4 bits of the opcode determines the operand
+    uint8_t value = 0;
 	switch (opcode & 0x07) {
-		case 0x00: location = &cpu.reg.b; break;
-		case 0x01: location = &cpu.reg.c; break;
-		case 0x02: location = &cpu.reg.d; break;
-		case 0x03: location = &cpu.reg.e; break;
-		case 0x04: location = &cpu.reg.h; break;
-		case 0x05: location = &cpu.reg.l; break;
-		case 0x06: location = &gb_memory[cpu.wreg.hl]; break;
-		case 0x07: location = &cpu.reg.a; break;
+
+    case 0x00: value = cpu.reg.b; break;
+    case 0x01: value = cpu.reg.c; break;
+    case 0x02: value = cpu.reg.d; break;
+    case 0x03: value = cpu.reg.e; break;
+    case 0x04: value = cpu.reg.h; break;
+    case 0x05: value = cpu.reg.l; break;
+    case 0x06: value = fetch_byte(cpu.wreg.hl); break;
+    case 0x07: value = cpu.reg.a; break;
 	}
 
 	// The upper 5 bits of the opcode determines the operation
 	switch (opcode & 0xF8) {
 
-	case 0x00: op_rlc(location);    break; // ROTATE LEFT CIRCULAR
-	case 0x08: op_rrc(location);    break; // ROTATE RIGHT CIRCULAR
-	case 0x10: op_rl(location);     break; // ROTATE LEFT
-	case 0x18: op_rr(location);     break; // ROTATE RIGHT
-	case 0x20: op_sla(location);    break; // SHIFT LEFT ARITHMETIC
-	case 0x28: op_sra(location);    break; // SHIFT RIGHT ARITHEMTIC
-	case 0x30: op_swap(location);   break; // SWAP
-	case 0x38: op_srl(location);    break; // SHIFT RIGHT LOGICAL
+	case 0x00: value = op_rlc(value);  break; // ROTATE LEFT CIRCULAR
+	case 0x08: value = op_rrc(value);  break; // ROTATE RIGHT CIRCULAR
+	case 0x10: value = op_rl(value);   break; // ROTATE LEFT
+	case 0x18: value = op_rr(value);   break; // ROTATE RIGHT
+	case 0x20: value = op_sla(value);  break; // SHIFT LEFT ARITHMETIC
+	case 0x28: value = op_sra(value);  break; // SHIFT RIGHT ARITHEMTIC
+	case 0x30: value = op_swap(value); break; // SWAP
+	case 0x38: value = op_srl(value);  break; // SHIFT RIGHT LOGICAL
 
-	case 0x40: op_bit(0, location); break; // TEST BIT 0
-	case 0x48: op_bit(1, location); break; // TEST BIT 1
-	case 0x50: op_bit(2, location); break; // TEST BIT 2
-	case 0x58: op_bit(3, location); break; // TEST BIT 3
-	case 0x60: op_bit(4, location); break; // TEST BIT 4
-	case 0x68: op_bit(5, location); break; // TEST BIT 5
-	case 0x70: op_bit(6, location); break; // TEST BIT 6
-	case 0x78: op_bit(7, location); break; // TEST BIT 7
+    // Return early since we don't need to the write the data back
+	case 0x40: op_bit(0, value); return; // TEST BIT 0
+	case 0x48: op_bit(1, value); return; // TEST BIT 1
+	case 0x50: op_bit(2, value); return; // TEST BIT 2
+	case 0x58: op_bit(3, value); return; // TEST BIT 3
+	case 0x60: op_bit(4, value); return; // TEST BIT 4
+	case 0x68: op_bit(5, value); return; // TEST BIT 5
+	case 0x70: op_bit(6, value); return; // TEST BIT 6
+	case 0x78: op_bit(7, value); return; // TEST BIT 7
 
-	case 0x80: op_res(0, location); break; // RESET BIT 0
-	case 0x88: op_res(1, location); break; // RESET BIT 1
-	case 0x90: op_res(2, location); break; // RESET BIT 2
-	case 0x98: op_res(3, location); break; // RESET BIT 3
-	case 0xA0: op_res(4, location); break; // RESET BIT 4
-	case 0xA8: op_res(5, location); break; // RESET BIT 5
-	case 0xB0: op_res(6, location); break; // RESET BIT 6
-	case 0xB8: op_res(7, location); break; // RESET BIT 7
+	case 0x80: value = op_res(0, value); break; // RESET BIT 0
+	case 0x88: value = op_res(1, value); break; // RESET BIT 1
+	case 0x90: value = op_res(2, value); break; // RESET BIT 2
+	case 0x98: value = op_res(3, value); break; // RESET BIT 3
+	case 0xA0: value = op_res(4, value); break; // RESET BIT 4
+	case 0xA8: value = op_res(5, value); break; // RESET BIT 5
+	case 0xB0: value = op_res(6, value); break; // RESET BIT 6
+	case 0xB8: value = op_res(7, value); break; // RESET BIT 7
 
-	case 0xC0: op_set(0, location); break; // SET BIT 0
-	case 0xC8: op_set(1, location); break; // SET BIT 1
-	case 0xD0: op_set(2, location); break; // SET BIT 2
-	case 0xD8: op_set(3, location); break; // SET BIT 3
-	case 0xE0: op_set(4, location); break; // SET BIT 4
-	case 0xE8: op_set(5, location); break; // SET BIT 5
-	case 0xF0: op_set(6, location); break; // SET BIT 6
-	case 0xF8: op_set(7, location); break; // SET BIT 7
+	case 0xC0: value = op_set(0, value); break; // SET BIT 0
+	case 0xC8: value = op_set(1, value); break; // SET BIT 1
+	case 0xD0: value = op_set(2, value); break; // SET BIT 2
+	case 0xD8: value = op_set(3, value); break; // SET BIT 3
+	case 0xE0: value = op_set(4, value); break; // SET BIT 4
+	case 0xE8: value = op_set(5, value); break; // SET BIT 5
+	case 0xF0: value = op_set(6, value); break; // SET BIT 6
+	case 0xF8: value = op_set(7, value); break; // SET BIT 7
 
 	default:
 		printf("Error: Unknown prefixed opcode `%02X'\n", opcode);
 		exit(EXIT_FAILURE);
 		break;
+	}
+
+	switch (opcode & 0x07) {
+
+    case 0x00: cpu.reg.b = value; break;
+    case 0x01: cpu.reg.c = value; break;
+    case 0x02: cpu.reg.d = value; break;
+    case 0x03: cpu.reg.e = value; break;
+    case 0x04: cpu.reg.h = value; break;
+    case 0x05: cpu.reg.l = value; break;
+    case 0x06: write_byte(cpu.wreg.hl, value); break;
+    case 0x07: cpu.reg.a = value; break;
 	}
 }
 
@@ -463,18 +487,20 @@ void op_sbc(uint8_t value) {
 	cpu.flag.zero = !cpu.reg.a;
 }
 
-void op_inc(uint8_t *reg) {
-	(*reg)++;
-	cpu.flag.zero = !(*reg);
-	cpu.flag.half_carry = !(*reg & 0x0F);
+uint8_t op_inc(uint8_t value) {
+	value++;
+	cpu.flag.zero = !value;
+	cpu.flag.half_carry = !(value & 0x0F);
 	cpu.flag.subtract = 0;
+    return value;
 }
 
-void op_dec(uint8_t *reg) {
-	(*reg)--;
-	cpu.flag.zero = !(*reg);
-	cpu.flag.half_carry = (*reg & 0x0F) == 0x0F;
+uint8_t op_dec(uint8_t value) {
+	value--;
+	cpu.flag.zero = !value;
+	cpu.flag.half_carry = (value & 0x0F) == 0x0F;
 	cpu.flag.subtract = 1;
+    return value;
 }
 
 void op_jump(bool condition, uint16_t address) {
@@ -599,7 +625,7 @@ int blargg_opcode_timing[256] = {
 	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
 	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
 	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
-	0,0,0,1,2,2,0,0, 0,1,0,1,0,0,0,0,
+	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
 
 	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
 	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
@@ -673,7 +699,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		print_debug_blargg_test();
-		//print_debug_gameboy_doctor();
+		/* print_debug_gameboy_doctor(); */
 
 		if (master_interrupt_flag_pending) {
 			master_interrupt_flag_pending = false;
@@ -854,14 +880,20 @@ void process_opcode(uint8_t op_byte) {
 	case 0xDC: op_call(cpu.flag.carry);  break;
 
 	// INC OPERATIONS
-	case 0x04: op_inc(&cpu.reg.b); break;
-	case 0x0C: op_inc(&cpu.reg.c); break;
-	case 0x14: op_inc(&cpu.reg.d); break;
-	case 0x1C: op_inc(&cpu.reg.e); break;
-	case 0x24: op_inc(&cpu.reg.h); break;
-	case 0x2C: op_inc(&cpu.reg.l); break;
-	case 0x34: op_inc(gb_memory + cpu.wreg.hl); break;
-	case 0x3C: op_inc(&cpu.reg.a); break;
+	case 0x04: cpu.reg.b = op_inc(cpu.reg.b); break;
+	case 0x0C: cpu.reg.c = op_inc(cpu.reg.c); break;
+	case 0x14: cpu.reg.d = op_inc(cpu.reg.d); break;
+	case 0x1C: cpu.reg.e = op_inc(cpu.reg.e); break;
+	case 0x24: cpu.reg.h = op_inc(cpu.reg.h); break;
+	case 0x2C: cpu.reg.l = op_inc(cpu.reg.l); break;
+	case 0x3C: cpu.reg.a = op_inc(cpu.reg.a); break;
+	case 0x34:
+    {
+        uint8_t value = fetch_byte(cpu.wreg.hl);
+        value = op_inc(value);
+        write_byte(cpu.wreg.hl, value);
+        break;
+    }
 
 	case 0x03: cpu.wreg.bc++; break;
 	case 0x13: cpu.wreg.de++; break;
@@ -869,14 +901,20 @@ void process_opcode(uint8_t op_byte) {
 	case 0x33: cpu.wreg.sp++; break;
 
 	// DEC OPERATIONS
-	case 0x05: op_dec(&cpu.reg.b); break;
-	case 0x0D: op_dec(&cpu.reg.c); break;
-	case 0x15: op_dec(&cpu.reg.d); break;
-	case 0x1D: op_dec(&cpu.reg.e); break;
-	case 0x25: op_dec(&cpu.reg.h); break;
-	case 0x2D: op_dec(&cpu.reg.l); break;
-	case 0x35: op_dec(gb_memory + cpu.wreg.hl); break;
-	case 0x3D: op_dec(&cpu.reg.a); break;
+	case 0x05: cpu.reg.b = op_dec(cpu.reg.b); break;
+	case 0x0D: cpu.reg.c = op_dec(cpu.reg.c); break;
+	case 0x15: cpu.reg.d = op_dec(cpu.reg.d); break;
+	case 0x1D: cpu.reg.e = op_dec(cpu.reg.e); break;
+	case 0x25: cpu.reg.h = op_dec(cpu.reg.h); break;
+	case 0x2D: cpu.reg.l = op_dec(cpu.reg.l); break;
+	case 0x3D: cpu.reg.a = op_dec(cpu.reg.a); break;
+	case 0x35:
+    {
+        uint8_t value = fetch_byte(cpu.wreg.hl);
+        value = op_dec(value);
+        write_byte(cpu.wreg.hl, value);
+        break;
+    }
 
 	case 0x0B: cpu.wreg.bc--; break;
 	case 0x1B: cpu.wreg.de--; break;
@@ -995,10 +1033,10 @@ void process_opcode(uint8_t op_byte) {
 	case 0x39: op_add_16bit(cpu.wreg.sp); break;
 
 	// ROTATIONS ON REGISTER A
-	case 0x07: op_rlc(&cpu.reg.a); cpu.flag.zero = 0; break;
-	case 0x0F: op_rrc(&cpu.reg.a); cpu.flag.zero = 0; break;
-	case 0x17: op_rl(&cpu.reg.a);  cpu.flag.zero = 0; break;
-	case 0x1F: op_rr(&cpu.reg.a);  cpu.flag.zero = 0; break;
+	case 0x07: cpu.reg.a = op_rlc(cpu.reg.a); cpu.flag.zero = 0; break;
+	case 0x0F: cpu.reg.a = op_rrc(cpu.reg.a); cpu.flag.zero = 0; break;
+	case 0x17: cpu.reg.a = op_rl(cpu.reg.a);  cpu.flag.zero = 0; break;
+	case 0x1F: cpu.reg.a = op_rr(cpu.reg.a);  cpu.flag.zero = 0; break;
 
 	// FLAG OPERATIONS
 	case 0xF3: // DE
@@ -1066,7 +1104,7 @@ void process_opcode(uint8_t op_byte) {
 	{
 		uint8_t sub_opcode = fetch_next_byte();
 		process_extra_opcodes(sub_opcode);
-		increment_clock(blargg_extra_opcode_timing[sub_opcode]);
+		/* increment_clock(blargg_extra_opcode_timing[sub_opcode]); */
 		break;
 	}
 
