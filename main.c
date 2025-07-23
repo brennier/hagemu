@@ -203,6 +203,11 @@ uint8_t fetch_byte() {
 	return value;
 }
 
+void write_byte(uint16_t address, uint8_t value) {
+    mmu_write(address, value);
+    increment_clock(1);
+}
+
 uint16_t fetch_word() {
 	uint8_t first_byte = fetch_byte();
 	uint8_t second_byte = fetch_byte();
@@ -219,9 +224,9 @@ void push_stack(uint16_t reg16) {
 	uint8_t lower = (reg16 & 0x00FF);
 	uint8_t upper = (reg16 & 0xFF00) >> 8;
 	cpu.wreg.sp--;
-	mmu_write(cpu.wreg.sp, upper);
+	write_byte(cpu.wreg.sp, upper);
 	cpu.wreg.sp--;
-	mmu_write(cpu.wreg.sp, lower);
+	write_byte(cpu.wreg.sp, lower);
 }
 
 void load_rom(char* rom_name) {
@@ -543,7 +548,7 @@ void op_call_cond(bool condition) {
 	if (condition) {
 		push_stack(cpu.wreg.pc);
 		cpu.wreg.pc = address;
-		increment_clock(3);
+		increment_clock(1);
 	}
 }
 
@@ -599,25 +604,25 @@ void process_opcode(uint8_t op_byte);
 void test_opcode_timing();
 
 int blargg_opcode_timing[256] = {
-	0,0,1,1,0,0,0,0, 2,1,1,1,0,0,0,0,
-	0,0,1,1,0,0,0,0, 1,1,1,1,0,0,0,0,
-	0,0,1,1,0,0,0,0, 0,1,1,1,0,0,0,0,
-	0,0,1,1,2,2,1,0, 0,1,1,1,0,0,0,0,
+	0,0,0,1,0,0,0,0, 0,1,1,1,0,0,0,0,
+	0,0,0,1,0,0,0,0, 1,1,1,1,0,0,0,0,
+	0,0,0,1,0,0,0,0, 0,1,1,1,0,0,0,0,
+	0,0,0,1,2,2,0,0, 0,1,1,1,0,0,0,0,
 
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
-	1,1,1,1,1,1,0,1, 0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,1,0,
 
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 
-	1,2,0,1,0,3,0,3, 1,3,0,0,0,3,0,3,
-	1,2,0,0,0,3,0,3, 1,3,0,0,0,0,0,3,
-	1,2,1,0,0,3,0,3, 2,0,1,0,0,0,0,3,
-	1,2,1,0,0,3,0,3, 1,1,1,0,0,0,0,3
+	1,2,0,1,0,1,0,1, 1,3,0,0,0,1,0,1,
+	1,2,0,0,0,1,0,1, 1,3,0,0,0,0,0,1,
+	0,2,0,0,0,1,0,1, 2,0,0,0,0,0,0,1,
+	1,2,1,0,0,1,0,1, 1,1,1,0,0,0,0,1
 };
 
 int blargg_extra_opcode_timing[256] = {
@@ -761,13 +766,13 @@ void process_opcode(uint8_t op_byte) {
 	case 0x6E: cpu.reg.l = mmu_read(cpu.wreg.hl); break;
 	case 0x6F: cpu.reg.l = cpu.reg.a; break;
 
-	case 0x70: mmu_write(cpu.wreg.hl, cpu.reg.b); break;
-	case 0x71: mmu_write(cpu.wreg.hl, cpu.reg.c); break;
-	case 0x72: mmu_write(cpu.wreg.hl, cpu.reg.d); break;
-	case 0x73: mmu_write(cpu.wreg.hl, cpu.reg.e); break;
-	case 0x74: mmu_write(cpu.wreg.hl, cpu.reg.h); break;
-	case 0x75: mmu_write(cpu.wreg.hl, cpu.reg.l); break;
-	case 0x77: mmu_write(cpu.wreg.hl, cpu.reg.a); break;
+	case 0x70: write_byte(cpu.wreg.hl, cpu.reg.b); break;
+	case 0x71: write_byte(cpu.wreg.hl, cpu.reg.c); break;
+	case 0x72: write_byte(cpu.wreg.hl, cpu.reg.d); break;
+	case 0x73: write_byte(cpu.wreg.hl, cpu.reg.e); break;
+	case 0x74: write_byte(cpu.wreg.hl, cpu.reg.h); break;
+	case 0x75: write_byte(cpu.wreg.hl, cpu.reg.l); break;
+	case 0x77: write_byte(cpu.wreg.hl, cpu.reg.a); break;
 
 	case 0x78: cpu.reg.a = cpu.reg.b; break;
 	case 0x79: cpu.reg.a = cpu.reg.c; break;
@@ -785,7 +790,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0x1E: cpu.reg.e = fetch_byte(); break;
 	case 0x26: cpu.reg.h = fetch_byte(); break;
 	case 0x2E: cpu.reg.l = fetch_byte(); break;
-	case 0x36: mmu_write(cpu.wreg.hl, fetch_byte()); break;
+	case 0x36: write_byte(cpu.wreg.hl, fetch_byte()); break;
 	case 0x3E: cpu.reg.a = fetch_byte(); break;
 
 	case 0x01: cpu.wreg.bc = fetch_word(); break;
@@ -794,25 +799,25 @@ void process_opcode(uint8_t op_byte) {
 	case 0x31: cpu.wreg.sp = fetch_word(); break;
 
 	// LOAD IMMEDIATE ADDRESS
-	case 0xEA: mmu_write(fetch_word(), cpu.reg.a); break;
+	case 0xEA: write_byte(fetch_word(), cpu.reg.a); break;
 	case 0xFA: cpu.reg.a = mmu_read(fetch_word()); break;
 
 	// LOAD HIGH OPERATIONS
-	case 0xE0: mmu_write(0xFF00 | fetch_byte(), cpu.reg.a); break;
-	case 0xE2: mmu_write(0xFF00 | cpu.reg.c  , cpu.reg.a); break;
+	case 0xE0: write_byte(0xFF00 | fetch_byte(), cpu.reg.a); break;
+	case 0xE2: write_byte(0xFF00 | cpu.reg.c  , cpu.reg.a); break;
 	case 0xF0: cpu.reg.a = mmu_read(0xFF00 | fetch_byte()); break;
 	case 0xF2: cpu.reg.a = mmu_read(0xFF00 | cpu.reg.c); break;
 
 	// LOAD ADDRESS AT REGISTER WITH A
-	case 0x02: mmu_write(cpu.wreg.bc, cpu.reg.a); break;
+	case 0x02: write_byte(cpu.wreg.bc, cpu.reg.a); break;
 	case 0x0A: cpu.reg.a = mmu_read(cpu.wreg.bc); break;
-	case 0x12: mmu_write(cpu.wreg.de, cpu.reg.a); break;
+	case 0x12: write_byte(cpu.wreg.de, cpu.reg.a); break;
 	case 0x1A: cpu.reg.a = mmu_read(cpu.wreg.de); break;
 
 	// LOAD AND INCREMENT / DECREMENT OPERATIONS
-	case 0x22: mmu_write(cpu.wreg.hl++, cpu.reg.a); break;
+	case 0x22: write_byte(cpu.wreg.hl++, cpu.reg.a); break;
 	case 0x2A: cpu.reg.a = mmu_read(cpu.wreg.hl++); break;
-	case 0x32: mmu_write(cpu.wreg.hl--, cpu.reg.a); break;
+	case 0x32: write_byte(cpu.wreg.hl--, cpu.reg.a); break;
 	case 0x3A: cpu.reg.a = mmu_read(cpu.wreg.hl--); break;
 
 	// RST OPERATIONS
@@ -1034,8 +1039,8 @@ void process_opcode(uint8_t op_byte) {
 	case 0x08: // LD (u16) SP
 	{
 		uint16_t address = fetch_word();
-		mmu_write(address, cpu.wreg.sp & 0x00FF);
-		mmu_write(address + 1, (cpu.wreg.sp & 0xFF00) >> 8);
+		write_byte(address, cpu.wreg.sp & 0x00FF);
+		write_byte(address + 1, (cpu.wreg.sp & 0xFF00) >> 8);
 		break;
 	}
 
