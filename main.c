@@ -199,6 +199,7 @@ void reset_clock() {
 
 uint8_t fetch_byte() {
 	uint8_t value = mmu_read(cpu.wreg.pc++);
+	increment_clock(1);
 	return value;
 }
 
@@ -598,25 +599,25 @@ void process_opcode(uint8_t op_byte);
 void test_opcode_timing();
 
 int blargg_opcode_timing[256] = {
-	0,2,1,1,0,0,1,0,4,1,1,1,0,0,1,0,
-	0,2,1,1,0,0,1,0,2,1,1,1,0,0,1,0,
-	1,2,1,1,0,0,1,0,1,1,1,1,0,0,1,0,
-	1,2,1,1,2,2,2,0,1,1,1,1,0,0,1,0,
+	0,0,1,1,0,0,0,0, 2,1,1,1,0,0,0,0,
+	0,0,1,1,0,0,0,0, 1,1,1,1,0,0,0,0,
+	0,0,1,1,0,0,0,0, 0,1,1,1,0,0,0,0,
+	0,0,1,1,2,2,1,0, 0,1,1,1,0,0,0,0,
 
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	1,1,1,1,1,1,0,1,0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
+	1,1,1,1,1,1,0,1, 0,0,0,0,0,0,1,0,
 
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
-	0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
+	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 
-	1,2,2,3,2,3,1,3,1,3,2,0,2,5,1,3,
-	1,2,2,0,2,3,1,3,1,3,2,0,2,0,1,3,
-	2,2,1,0,0,3,1,3,3,0,3,0,0,0,1,3,
-	2,2,1,0,0,3,1,3,2,1,3,0,0,0,1,3
+	1,2,0,1,0,3,0,3, 1,3,0,0,0,3,0,3,
+	1,2,0,0,0,3,0,3, 1,3,0,0,0,0,0,3,
+	1,2,1,0,0,3,0,3, 2,0,1,0,0,0,0,3,
+	1,2,1,0,0,3,0,3, 1,1,1,0,0,0,0,3
 };
 
 int blargg_extra_opcode_timing[256] = {
@@ -685,7 +686,6 @@ int main(int argc, char *argv[]) {
 		}
 
 		uint8_t op_byte = fetch_byte();
-		increment_clock(1);
 		process_opcode(op_byte);
 		increment_clock(blargg_opcode_timing[op_byte]);
 	}
@@ -1041,7 +1041,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0xF8: // LD HL SP+i8
 	{
-		uint8_t next = fetch_byte();
+		int8_t next = fetch_byte();
 		cpu.reg.f = 0;
 		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
 		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
@@ -1051,7 +1051,7 @@ void process_opcode(uint8_t op_byte) {
 
 	case 0xE8: // ADD SP i8
 	{
-		uint8_t next = fetch_byte();
+		int8_t next = fetch_byte();
 		cpu.reg.f = 0;
 		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
 		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
@@ -1066,7 +1066,6 @@ void process_opcode(uint8_t op_byte) {
 	case 0xCB: // Rotate, shift, and bit operations
 	{
 		uint8_t sub_opcode = fetch_byte();
-        increment_clock(1);
 		process_extra_opcodes(sub_opcode);
 		increment_clock(blargg_extra_opcode_timing[sub_opcode]);
 		break;
