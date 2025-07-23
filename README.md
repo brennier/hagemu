@@ -1,6 +1,6 @@
-## LameBoy is a GameBoy emulator (but lamer)
+## Hagemu is a GameBoy emulator
 
-This is an attempt to write a GameBoy emulator in C99. Raylib is used to write the pixels and handle input. The end goal is to compile this project into WebAssembly using Emscripten. At the moment, this project is still a work in progress.
+This is an attempt to write a GameBoy emulator in C99. This is a personal project to learn more about computers and emulation. Raylib is used to write the pixels and handle input. The end goal is to compile this project into WebAssembly using Emscripten. At the moment, this project is still a work in progress.
 
 - [ ] Pass Blargg's CPU test roms
   - [x] cpu_instrs test

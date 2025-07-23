@@ -6,10 +6,10 @@ LIBS = lib
 ifeq ($(OS),Windows_NT)
 	LFLAGS = -lraylib -lopengl32 -lgdi32 -lwinmm
 # Maybe add -mwindows later
-	OUTPUT = game.exe
+	OUTPUT = hagemu.exe
 else
 	LFLAGS = -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
-	OUTPUT = game
+	OUTPUT = hagemu
 endif
 
 ${OUTPUT}: build/main.o build/libraylib.a
