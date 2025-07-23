@@ -476,34 +476,21 @@ void op_dec(uint8_t *reg) {
 	cpu.flag.subtract = 1;
 }
 
-void op_jump(uint16_t address) {
-	cpu.wreg.pc = address;
-}
-
-void op_jump_cond(bool condition, uint16_t address) {
+void op_jump(bool condition, uint16_t address) {
 	if (condition) {
 		cpu.wreg.pc = address;
 		increment_clock(1);
 	}
 }
 
-void op_ret() {
-	cpu.wreg.pc = pop_stack();
-}
-
-void op_ret_cond(bool condition) {
+void op_ret(bool condition) {
 	if (condition) {
 		cpu.wreg.pc = pop_stack();
 		increment_clock(1);
 	}
 }
 
-void op_jr() {
-	int8_t relative_address = (int8_t)fetch_next_byte();
-	cpu.wreg.pc += relative_address;
-}
-
-void op_jr_cond(bool condition) {
+void op_jr(bool condition) {
 	int8_t relative_address = (int8_t)fetch_next_byte();
 	if (condition) {
 		cpu.wreg.pc += relative_address;
@@ -543,13 +530,7 @@ void op_add_16bit(uint16_t value) {
 	cpu.flag.subtract = 0;
 }
 
-void op_call() {
-	uint16_t address = fetch_word();
-	push_stack(cpu.wreg.pc);
-	cpu.wreg.pc = address;
-}
-
-void op_call_cond(bool condition) {
+void op_call(bool condition) {
 	uint16_t address = fetch_word();
 	if (condition) {
 		push_stack(cpu.wreg.pc);
@@ -611,7 +592,7 @@ void test_opcode_timing();
 
 int blargg_opcode_timing[256] = {
 	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
-	0,0,0,1,0,0,0,0, 1,1,0,1,0,0,0,0,
+	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
 	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
 	0,0,0,1,2,2,0,0, 0,1,0,1,0,0,0,0,
 
@@ -625,8 +606,8 @@ int blargg_opcode_timing[256] = {
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 
-	1,0,0,1,0,1,0,1, 1,1,0,0,0,1,0,1,
-	1,0,0,0,0,1,0,1, 1,1,0,0,0,0,0,1,
+	1,0,0,0,0,1,0,1, 1,0,0,0,0,0,0,1,
+	1,0,0,0,0,1,0,1, 1,0,0,0,0,0,0,1,
 	0,0,0,0,0,1,0,1, 2,0,0,0,0,0,0,1,
 	0,0,0,0,0,1,0,1, 1,1,0,0,0,0,0,1
 };
@@ -837,34 +818,35 @@ void process_opcode(uint8_t op_byte) {
 	case 0xFF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x38; break;
 
 	// JP OPERATIONS
-	case 0xC3: op_jump(fetch_word()); break;
-	case 0xE9: op_jump(cpu.wreg.hl); break;
-	case 0xC2: op_jump_cond(!cpu.flag.zero,  fetch_word()); break;
-	case 0xCA: op_jump_cond(cpu.flag.zero,   fetch_word()); break;
-	case 0xD2: op_jump_cond(!cpu.flag.carry, fetch_word()); break;
-	case 0xDA: op_jump_cond(cpu.flag.carry,  fetch_word()); break;
+	case 0xC3: op_jump(true ,fetch_word()); break;
+	case 0xC2: op_jump(!cpu.flag.zero,  fetch_word()); break;
+	case 0xCA: op_jump(cpu.flag.zero,   fetch_word()); break;
+	case 0xD2: op_jump(!cpu.flag.carry, fetch_word()); break;
+	case 0xDA: op_jump(cpu.flag.carry,  fetch_word()); break;
+    // This one is separate because it doesn't increment the clock after jumping
+	case 0xE9: cpu.wreg.pc = cpu.wreg.hl; break;
 
 	// JR OPERATIONS
-	case 0x18: op_jr(); break;
-	case 0x20: op_jr_cond(!cpu.flag.zero);  break;
-	case 0x28: op_jr_cond(cpu.flag.zero);   break;
-	case 0x30: op_jr_cond(!cpu.flag.carry); break;
-	case 0x38: op_jr_cond(cpu.flag.carry);  break;
+	case 0x18: op_jr(true); break;
+	case 0x20: op_jr(!cpu.flag.zero);  break;
+	case 0x28: op_jr(cpu.flag.zero);   break;
+	case 0x30: op_jr(!cpu.flag.carry); break;
+	case 0x38: op_jr(cpu.flag.carry);  break;
 
 	// RET OPERATIONS
-	case 0xC9: op_ret(); break;
-	case 0xD9: op_ret(); master_interrupt_flag = true; break;
-	case 0xC0: op_ret_cond(!cpu.flag.zero);  break;
-	case 0xC8: op_ret_cond(cpu.flag.zero);   break;
-	case 0xD0: op_ret_cond(!cpu.flag.carry); break;
-	case 0xD8: op_ret_cond(cpu.flag.carry);  break;
+	case 0xC9: op_ret(true); break;
+	case 0xD9: op_ret(true); master_interrupt_flag = true; break;
+	case 0xC0: op_ret(!cpu.flag.zero);  break;
+	case 0xC8: op_ret(cpu.flag.zero);   break;
+	case 0xD0: op_ret(!cpu.flag.carry); break;
+	case 0xD8: op_ret(cpu.flag.carry);  break;
 
 	// CALL OPERATIONS
-	case 0xCD: op_call(); break;
-	case 0xC4: op_call_cond(!cpu.flag.zero);  break;
-	case 0xCC: op_call_cond(cpu.flag.zero);   break;
-	case 0xD4: op_call_cond(!cpu.flag.carry); break;
-	case 0xDC: op_call_cond(cpu.flag.carry);  break;
+	case 0xCD: op_call(true); break;
+	case 0xC4: op_call(!cpu.flag.zero);  break;
+	case 0xCC: op_call(cpu.flag.zero);   break;
+	case 0xD4: op_call(!cpu.flag.carry); break;
+	case 0xDC: op_call(cpu.flag.carry);  break;
 
 	// INC OPERATIONS
 	case 0x04: op_inc(&cpu.reg.b); break;
