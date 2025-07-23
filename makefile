@@ -1,7 +1,6 @@
 CC = gcc
 CFLAGS = -O3 -std=c99 -Wall -pedantic
 LIBS = lib
-INCLUDES = include
 
 # Use different linker libraries and output names depending on the OS
 ifeq ($(OS),Windows_NT)
@@ -13,23 +12,25 @@ else
 	OUTPUT = game
 endif
 
-${OUTPUT}: main.o lib/libraylib.a
-	${CC} $^ -o ${OUTPUT} -L ${LIBS} ${LFLAGS}
+${OUTPUT}: build/main.o build/libraylib.a
+	${CC} $^ -o $@ -L ${LIBS} ${LFLAGS}
+	@echo "Make sucessful!"
 
-main.o: main.c
-	${CC} ${CFLAGS} -c -I ${INCLUDES} $^
+build/main.o: src/main.c
+	mkdir -p build
+	${CC} ${CFLAGS} -o $@ -c $^
 
-lib/libraylib.a:
+build/libraylib.a:
+	mkdir -p build
 	make -C lib/raylib/src
-	cp lib/raylib/src/libraylib.a lib/libraylib.a
+	cp lib/raylib/src/libraylib.a $@
 
 clean:
 	@echo "Cleaning up all files.."
-	rm *.o ${OUTPUT}
+	rm build/* ${OUTPUT}
 
 run: ${OUTPUT}
 	./${OUTPUT}
-	rm *.o ${OUTPUT}
 
 test-mem-timing: ${OUTPUT}
 	./${OUTPUT} lib/gb-test-roms/mem_timing/mem_timing.gb
