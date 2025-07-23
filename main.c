@@ -227,6 +227,7 @@ uint16_t pop_stack() {
 }
 
 void push_stack(uint16_t reg16) {
+    increment_clock(1); // internal increment (reason unknown)
 	uint8_t lower = (reg16 & 0x00FF);
 	uint8_t upper = (reg16 & 0xFF00) >> 8;
 	cpu.wreg.sp--;
@@ -490,6 +491,11 @@ void op_ret(bool condition) {
 	}
 }
 
+void op_rst(uint16_t address) {
+    push_stack(cpu.wreg.pc);
+    cpu.wreg.pc = address;
+}
+
 void op_jr(bool condition) {
 	int8_t relative_address = (int8_t)fetch_next_byte();
 	if (condition) {
@@ -535,7 +541,6 @@ void op_call(bool condition) {
 	if (condition) {
 		push_stack(cpu.wreg.pc);
 		cpu.wreg.pc = address;
-		increment_clock(1);
 	}
 }
 
@@ -606,10 +611,10 @@ int blargg_opcode_timing[256] = {
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0, 0,0,0,0,0,0,1,0,
 
-	1,0,0,0,0,1,0,1, 1,0,0,0,0,0,0,1,
-	1,0,0,0,0,1,0,1, 1,0,0,0,0,0,0,1,
-	0,0,0,0,0,1,0,1, 2,0,0,0,0,0,0,1,
-	0,0,0,0,0,1,0,1, 1,1,0,0,0,0,0,1
+	1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
+	1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0
 };
 
 int blargg_extra_opcode_timing[256] = {
@@ -808,14 +813,14 @@ void process_opcode(uint8_t op_byte) {
 	case 0x3A: cpu.reg.a = fetch_byte(cpu.wreg.hl--); break;
 
 	// RST OPERATIONS
-	case 0xC7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x00; break;
-	case 0xCF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x08; break;
-	case 0xD7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x10; break;
-	case 0xDF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x18; break;
-	case 0xE7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x20; break;
-	case 0xEF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x28; break;
-	case 0xF7: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x30; break;
-	case 0xFF: push_stack(cpu.wreg.pc); cpu.wreg.pc = 0x38; break;
+	case 0xC7: op_rst(0x00); break;
+	case 0xCF: op_rst(0x08); break;
+	case 0xD7: op_rst(0x10); break;
+	case 0xDF: op_rst(0x18); break;
+	case 0xE7: op_rst(0x20); break;
+	case 0xEF: op_rst(0x28); break;
+	case 0xF7: op_rst(0x30); break;
+	case 0xFF: op_rst(0x38); break;
 
 	// JP OPERATIONS
 	case 0xC3: op_jump(true ,fetch_word()); break;
@@ -1021,6 +1026,7 @@ void process_opcode(uint8_t op_byte) {
 
 	// SPECIAL STACK POINTER OPERATIONS
 	case 0xF9: // LD SP HL
+        increment_clock(1); // internal increment reason unknown
 		cpu.wreg.sp = cpu.wreg.hl;
 		break;
 
