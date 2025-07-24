@@ -92,6 +92,25 @@ void mmu_write(uint16_t address, uint8_t value) {
 	gb_memory[address] = value;
 }
 
+
+void mmu_set_bit(enum special_bit bit) {
+	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
+	int bit_position = bit & 0xF;
+	gb_memory[bit_address] |= (1 << bit_position);
+}
+
+bool mmu_get_bit(enum special_bit bit) {
+	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
+	int bit_position = bit & 0xF;
+	return (gb_memory[bit_address] >> bit_position) & 0x01;
+}
+
+void mmu_clear_bit(enum special_bit bit) {
+	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
+	int bit_position = bit & 0xF;
+	gb_memory[bit_address] &= ~(1 << bit_position);
+}
+
 void mmu_load_rom(char* rom_name) {
 	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
 	if (rom_file == NULL) {

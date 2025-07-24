@@ -49,14 +49,6 @@ void cpu_reset() {
 	cpu_halted = false;
 }
 
-enum interrupt_type {
-	VBLANK_INTERRUPT_BIT = (1 << 0),
-	LCD_INTERRUPT_BIT    = (1 << 1),
-	TIMER_INTERRUPT_BIT  = (1 << 2),
-	SERIAL_INTERRUPT_BIT = (1 << 3),
-	JOYPAD_INTERRUPT_BIT = (1 << 4),
-};
-
 void increment_clock_once() {
 	if (clock_is_running())
 		clock_update(4);
@@ -87,11 +79,10 @@ void increment_clock_once() {
 	if (increment_counter && mmu_read(TIMER_COUNTER) == 0xFF)
 	{
 		mmu_write(TIMER_COUNTER, mmu_read(TIMER_MODULO));
-		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) | TIMER_INTERRUPT_BIT);
+		mmu_set_bit(TIMER_INTERRUPT_FLAG_BIT);
 	} else if (increment_counter) {
 		mmu_write(TIMER_COUNTER, mmu_read(TIMER_COUNTER) + 1);
 	}
-
 }
 
 void increment_clock(int m_cycles) {
@@ -463,25 +454,21 @@ void handle_interrupts() {
 	master_interrupt_flag = false;
 	push_stack(cpu.wreg.pc);
 
-	if (interrupts & VBLANK_INTERRUPT_BIT) {
+	if (interrupts & 0x01) {
 		cpu.wreg.pc = 0x0040;
-		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~VBLANK_INTERRUPT_BIT);
-	}
-	if (interrupts & LCD_INTERRUPT_BIT) {
+		mmu_clear_bit(VBLANK_INTERRUPT_FLAG_BIT);
+	} else if (interrupts & 0x02) {
 		cpu.wreg.pc = 0x0048;
-		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~LCD_INTERRUPT_BIT);
-	}
-	if (interrupts & TIMER_INTERRUPT_BIT) {
+		mmu_clear_bit(LCD_INTERRUPT_FLAG_BIT);
+	} else if (interrupts & 0x04) {
 		cpu.wreg.pc = 0x0050;
-		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~TIMER_INTERRUPT_BIT);
-	}
-	if (interrupts & SERIAL_INTERRUPT_BIT) {
+		mmu_clear_bit(TIMER_INTERRUPT_FLAG_BIT);
+	} else if (interrupts & 0x08) {
 		cpu.wreg.pc = 0x0058;
-		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~SERIAL_INTERRUPT_BIT);
-	}
-	if (interrupts & JOYPAD_INTERRUPT_BIT) {
+		mmu_clear_bit(SERIAL_INTERRUPT_FLAG_BIT);
+	} else if (interrupts & 0x10) {
 		cpu.wreg.pc = 0x0060;
-		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~JOYPAD_INTERRUPT_BIT);
+		mmu_clear_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 	}
 }
 

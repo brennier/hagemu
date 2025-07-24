@@ -10,14 +10,6 @@
 #define SCREENWIDTH 166
 #define SCREENHEIGHT 144
 
-// TODO:
-// - Display LCD
-// - Complete MMU functions for reading and writing memory
-// - Make cpu flags into separate bools
-// - Implement STOP
-// - Add bit manipulation macros
-// - Pass the memory timing test
-
 int main(int argc, char *argv[]) {
 	cpu_reset();
 
@@ -36,8 +28,8 @@ int main(int argc, char *argv[]) {
 	mmu_load_rom(argv[1]);
 
 	while (true) {
-		int t_cycles = cpu_do_next_instruction();
-		printf("Last instruction took %d t-cycles...\n", t_cycles);
+		cpu_do_next_instruction();
+		//int t_cycles = cpu_do_next_instruction();
 	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
