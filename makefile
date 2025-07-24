@@ -13,22 +13,28 @@ else
 	OUTPUT = hagemu
 endif
 
-${OUTPUT}: ${OBJ} build/libraylib.a
-	${CC} $^ -o $@ -L ${LIBS} ${LFLAGS}
-	@echo "Make sucessful!"
+${OUTPUT}: build/libraylib.a ${OBJ}
+	@printf %s "Linking object files..."
+	@${CC} $^ -o $@ -L ${LIBS} ${LFLAGS} >/dev/null
+	@echo sucessful!
+	@echo ${OUTPUT} was sucessfully created!
 
 build/%.o: src/%.c
-	mkdir -p build
-	${CC} ${CFLAGS} -o $@ -c $^
+	@mkdir -p build
+	@printf %s "Compiling $(notdir $^) into object code..."
+	@${CC} ${CFLAGS} -o $@ -c $^ >/dev/null
+	@echo sucessfull!
 
 build/libraylib.a:
-	mkdir -p build
-	make -C lib/raylib/src
-	cp lib/raylib/src/libraylib.a $@
+	@mkdir -p build
+	@printf %s "Building Raylib..."
+	@make -C lib/raylib/src >/dev/null
+	@cp lib/raylib/src/libraylib.a $@
+	@echo sucessful!
 
 clean:
-	@echo "Cleaning up all files.."
-	rm -r build ${OUTPUT}
+	@echo Cleaning up build files and executables...
+	@rm -rf build ${OUTPUT}
 
 run: ${OUTPUT}
 	./${OUTPUT}
@@ -41,16 +47,3 @@ test-cpu-instrs: ${OUTPUT}
 
 test-instr-timing: ${OUTPUT}
 	./${OUTPUT} lib/gb-test-roms/instr_timing/instr_timing.gb
-
-test-gameboy-doctor: ${OUTPUT}
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/01* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 01
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/02* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 02
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/03* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 03
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/04* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 04
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/05* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 05
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/06* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 06
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/07* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 07
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/08* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 08
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/09* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 09
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/10* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 10
-	-./${OUTPUT} lib/gb-test-roms/cpu_instrs/individual/11* | ./lib/gameboy-doctor/gameboy-doctor - cpu_instrs 11

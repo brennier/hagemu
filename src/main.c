@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
 
 	while (true) {
 		int t_cycles = cpu_do_next_instruction();
-		// printf("Last instruction took %d t-cycles...\n", t_cycles);
+		printf("Last instruction took %d t-cycles...\n", t_cycles);
 	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
