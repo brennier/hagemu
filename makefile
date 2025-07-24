@@ -1,6 +1,7 @@
 CC = gcc
 CFLAGS = -O3 -std=c99 -Wall -pedantic
 LIBS = lib
+OBJ = build/main.o build/mmu.o build/clock.o
 
 # Use different linker libraries and output names depending on the OS
 ifeq ($(OS),Windows_NT)
@@ -12,11 +13,11 @@ else
 	OUTPUT = hagemu
 endif
 
-${OUTPUT}: build/main.o build/libraylib.a
+${OUTPUT}: ${OBJ} build/libraylib.a
 	${CC} $^ -o $@ -L ${LIBS} ${LFLAGS}
 	@echo "Make sucessful!"
 
-build/main.o: src/main.c
+build/%.o: src/%.c
 	mkdir -p build
 	${CC} ${CFLAGS} -o $@ -c $^
 
@@ -27,7 +28,7 @@ build/libraylib.a:
 
 clean:
 	@echo "Cleaning up all files.."
-	rm build/* ${OUTPUT}
+	rm -r build ${OUTPUT}
 
 run: ${OUTPUT}
 	./${OUTPUT}

@@ -1,0 +1,132 @@
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "mmu.h"
+#include "clock.h"
+
+uint8_t *rom_memory;
+// The GB has 64kb of mapped memory
+uint8_t gb_memory[64 * 1024]  = { 0 };
+
+int rom_bank_index = 0;
+
+uint8_t mmu_read(uint16_t address) {
+	// Handle special cases first
+	switch (address) {
+
+	case TIMER_DIVIDER:
+		return ((clock_get() & 0xFF00) >> 8);
+	}
+
+	switch (address & 0xF000) {
+
+	// Read from ROM bank 00 (16 KiB)
+	case 0x0000: case 0x1000: case 0x2000: case 0x3000:
+		return rom_memory[address];
+
+	// Read from switchable ROM bank (16 KiB)
+	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
+		if (rom_bank_index == 0)
+			return rom_memory[address];
+		return rom_memory[address + (rom_bank_index - 1) * 0x4000];
+
+	// Video Ram (8 KiB)
+	case 0x8000: case 0x9000:
+		return gb_memory[address];
+
+	// External switchable RAM from cartridge (8 KiB)
+	case 0xA000: case 0xB000:
+		return gb_memory[address];
+
+	// Work RAM (8 KiB)
+	case 0xC000: case 0xD000:
+		return gb_memory[address];
+
+	case 0xE000: case 0xF000:
+		// Echo RAM (about 8 KiB)
+		if (address < 0xFE00)
+			return gb_memory[address - 0x2000];
+		// Object Attribute Memory
+		else if (address < 0xFEA0)
+			return gb_memory[address];
+		// Unusable memory
+		else if (address < 0xFEFF)
+			return 0;
+		// TODO: IO Registers and High RAM
+		else
+			return gb_memory[address];
+	}
+
+	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
+	exit(EXIT_FAILURE);
+}
+
+void mmu_write(uint16_t address, uint8_t value) {
+	// Handle special cases first
+	switch (address) {
+
+	case TIMER_DIVIDER:
+		clock_reset();
+		return;
+
+	case TIMER_CONTROL:
+		value &= 0x07; // Mask all but the lowest 3 bits
+		break;
+	}
+
+	switch (address & 0xF000) {
+
+	// ROM BANK 0
+	case 0x0000: case 0x1000:
+		fprintf(stderr, "WARNING: Attempt to write value %d at address %02X\n", value, address);
+		return;
+
+	// ROM BANK SWITCH
+	case 0x2000: case 0x3000:
+		//fprintf(stderr, "ROM BANK SWITCHED TO %d\n", value & 0x1F);
+		rom_bank_index = value & 0x1F;
+		return;
+	}
+
+	// Else just write the value normally
+	gb_memory[address] = value;
+}
+
+void mmu_load_rom(char* rom_name) {
+	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
+	if (rom_file == NULL) {
+		fprintf(stderr, "Error: Failed to find the rom file `%s'\n", rom_name);
+		exit(EXIT_FAILURE);
+	}
+
+	uint8_t *rom_size_byte = malloc(1);
+	// Skip up until the cartridge size byte in the header
+	fseek(rom_file, CARTRIDGE_SIZE, SEEK_SET);
+	size_t bytes_read = fread(rom_size_byte, 1, 1, rom_file);
+
+	if (bytes_read != 1) {
+		fprintf(stderr, "Error: Couldn't read the cartridge size from the ROM file\n");
+		exit(EXIT_FAILURE);
+	}
+
+	int rom_size = 32 * 1024 * (1 << *rom_size_byte);
+	free(rom_size_byte);
+	printf("Allocating %d bytes for the rom...\n", rom_size);
+	rom_memory = malloc(rom_size);
+	if (rom_memory == NULL) {
+		fprintf(stderr, "Error: Couldn't allocate the space for the rom\n");
+		exit(EXIT_FAILURE);
+	}
+
+	fseek(rom_file, 0, SEEK_SET);
+	bytes_read = fread(rom_memory, 1, rom_size, rom_file);
+	if (bytes_read != rom_size) {
+		fprintf(stderr, "Error: Rom was expected to be %d bytes, but was actually %d bytes\n", rom_size, (int)bytes_read);
+		exit(EXIT_FAILURE);
+	}
+	fclose(rom_file);
+}
+
+void mmu_free_rom() {
+	free(rom_memory);
+}

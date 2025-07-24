@@ -1,4 +1,6 @@
 #include "raylib.h"
+#include "mmu.h"
+#include "clock.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,25 +40,7 @@ union {
 
 bool master_interrupt_flag = false;
 bool master_interrupt_flag_pending = false;
-
 bool cpu_halted = false;
-uint16_t master_clock = 0; // measured in t-cycles
-bool clock_running = true;
-
-enum special_addresses {
-	CARTRIDGE_TYPE = 0x0147,
-	CARTRIDGE_SIZE = 0x0148,
-	JOYPAD_INPUT = 0xFF00,
-	SERIAL_DATA = 0xFF01,
-	SERIAL_CONTROL = 0xFF02,
-	TIMER_DIVIDER = 0xFF04,
-	TIMER_COUNTER = 0xFF05,
-	TIMER_MODULO = 0xFF06,
-	TIMER_CONTROL = 0xFF07,
-	INTERRUPT_FLAGS = 0xFF0F,
-	BOOT_ROM_CONTROL = 0xFF50,
-	INTERRUPT_ENABLE = 0xFFFF,
-};
 
 enum interrupt_type {
 	VBLANK_INTERRUPT_BIT = (1 << 0),
@@ -66,124 +50,39 @@ enum interrupt_type {
 	JOYPAD_INTERRUPT_BIT = (1 << 4),
 };
 
-uint8_t *rom_memory;
-// The GB has 64kb of mapped memory
-uint8_t gb_memory[64 * 1024]  = { 0 };
-
-int rom_bank_index = 0;
-
-uint8_t mmu_read(uint16_t address) {
-	// Handle special cases first
-	switch (address) {
-
-	case TIMER_DIVIDER:
-		return ((master_clock & 0xFF00) >> 8);
-	}
-
-	switch (address & 0xF000) {
-
-	// Read from ROM bank 00 (16 KiB)
-	case 0x0000: case 0x1000: case 0x2000: case 0x3000:
-		return rom_memory[address];
-
-	// Read from switchable ROM bank (16 KiB)
-	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
-		if (rom_bank_index == 0)
-			return rom_memory[address];
-		return rom_memory[address + (rom_bank_index - 1) * 0x4000];
-
-	// Video Ram (8 KiB)
-	case 0x8000: case 0x9000:
-		return gb_memory[address];
-
-	// External switchable RAM from cartridge (8 KiB)
-	case 0xA000: case 0xB000:
-		return gb_memory[address];
-
-	// Work RAM (8 KiB)
-	case 0xC000: case 0xD000:
-		return gb_memory[address];
-
-	case 0xE000: case 0xF000:
-		// Echo RAM (about 8 KiB)
-		if (address < 0xFE00)
-			return gb_memory[address - 0x2000];
-		// Object Attribute Memory
-		else if (address < 0xFEA0)
-			return gb_memory[address];
-		// Unusable memory
-		else if (address < 0xFEFF)
-			return 0;
-		// TODO: IO Registers and High RAM
-		else
-			return gb_memory[address];
-	}
-
-	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
-	exit(EXIT_FAILURE);
-}
-
-void mmu_write(uint16_t address, uint8_t value) {
-	// Handle special cases first
-	switch (address) {
-
-	case TIMER_DIVIDER:
-		master_clock = 0;
-		return;
-
-	case TIMER_CONTROL:
-		value &= 0x07; // Mask all but the lowest 3 bits
-		break;
-	}
-
-	switch (address & 0xF000) {
-
-	// ROM BANK 0
-	case 0x0000: case 0x1000:
-		fprintf(stderr, "WARNING: Attempt to write value %d at address %02X\n", value, address);
-		return;
-
-	// ROM BANK SWITCH
-	case 0x2000: case 0x3000:
-		//fprintf(stderr, "ROM BANK SWITCHED TO %d\n", value & 0x1F);
-		rom_bank_index = value & 0x1F;
-		return;
-	}
-
-	// Else just write the value normally
-	gb_memory[address] = value;
-}
-
 void increment_clock_once() {
-	if (clock_running) master_clock += 4;
+	if (clock_is_running())
+		clock_update(4);
+	uint16_t clock_time = clock_get();
+
 	bool increment_counter = false;
-	switch (gb_memory[TIMER_CONTROL]) {
+	switch (mmu_read(TIMER_CONTROL)) {
 
 	case 0x00: case 0x01: case 0x02: case 0x03:
 		break;
         case 0x04:
-		if (master_clock % 1024 == 0) increment_counter = true;
+		if (clock_time % 1024 == 0) increment_counter = true;
 		break;
 	case 0x05:
-		if (master_clock % 16 == 0) increment_counter = true;
+		if (clock_time % 16 == 0) increment_counter = true;
 		break;
 	case 0x06:
-		if (master_clock % 64 == 0) increment_counter = true;
+		if (clock_time % 64 == 0) increment_counter = true;
 		break;
 	case 0x07:
-		if (master_clock % 256 == 0) increment_counter = true;
+		if (clock_time % 256 == 0) increment_counter = true;
 		break;
 	default:
 		fprintf(stderr, "Unreachable case in TIMER CONTROL");
 		exit(EXIT_FAILURE);
 	}
 
-	if (increment_counter && gb_memory[TIMER_COUNTER] == 0xFF)
+	if (increment_counter && mmu_read(TIMER_COUNTER) == 0xFF)
 	{
-		gb_memory[TIMER_COUNTER] = gb_memory[TIMER_MODULO];
-		gb_memory[INTERRUPT_FLAGS] |= TIMER_INTERRUPT_BIT;
+		mmu_write(TIMER_COUNTER, mmu_read(TIMER_MODULO));
+		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) | TIMER_INTERRUPT_BIT);
 	} else if (increment_counter) {
-		gb_memory[TIMER_COUNTER]++;
+		mmu_write(TIMER_COUNTER, mmu_read(TIMER_COUNTER) + 1);
 	}
 
 }
@@ -191,10 +90,6 @@ void increment_clock_once() {
 void increment_clock(int m_cycles) {
 	for (int i = 0; i < m_cycles; i++)
 		increment_clock_once();
-}
-
-void reset_clock() {
-	master_clock = 0;
 }
 
 uint8_t fetch_next_byte() {
@@ -234,41 +129,6 @@ void push_stack(uint16_t reg16) {
 	write_byte(cpu.wreg.sp, upper);
 	cpu.wreg.sp--;
 	write_byte(cpu.wreg.sp, lower);
-}
-
-void load_rom(char* rom_name) {
-	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
-	if (rom_file == NULL) {
-		fprintf(stderr, "Error: Failed to find the rom file `%s'\n", rom_name);
-		exit(EXIT_FAILURE);
-	}
-
-	uint8_t *rom_size_byte = malloc(1);
-	// Skip up until the cartridge size byte in the header
-	fseek(rom_file, CARTRIDGE_SIZE, SEEK_SET);
-	size_t bytes_read = fread(rom_size_byte, 1, 1, rom_file);
-
-	if (bytes_read != 1) {
-		fprintf(stderr, "Error: Couldn't read the cartridge size from the ROM file\n");
-		exit(EXIT_FAILURE);
-	}
-
-	int rom_size = 32 * 1024 * (1 << *rom_size_byte);
-	free(rom_size_byte);
-	printf("Allocating %d bytes for the rom...\n", rom_size);
-	rom_memory = malloc(rom_size);
-	if (rom_memory == NULL) {
-		fprintf(stderr, "Error: Couldn't allocate the space for the rom\n");
-		exit(EXIT_FAILURE);
-	}
-
-	fseek(rom_file, 0, SEEK_SET);
-	bytes_read = fread(rom_memory, 1, rom_size, rom_file);
-	if (bytes_read != rom_size) {
-		fprintf(stderr, "Error: Rom was expected to be %d bytes, but was actually %d bytes\n", rom_size, (int)bytes_read);
-		exit(EXIT_FAILURE);
-	}
-	fclose(rom_file);
 }
 
 uint8_t op_rlc(uint8_t value) {
@@ -598,23 +458,23 @@ void handle_interrupts() {
 
 	if (interrupts & VBLANK_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0040;
-		gb_memory[INTERRUPT_FLAGS] &= ~VBLANK_INTERRUPT_BIT;
+		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~VBLANK_INTERRUPT_BIT);
 	}
 	if (interrupts & LCD_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0048;
-		gb_memory[INTERRUPT_FLAGS] &= ~LCD_INTERRUPT_BIT;
+		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~LCD_INTERRUPT_BIT);
 	}
 	if (interrupts & TIMER_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0050;
-		gb_memory[INTERRUPT_FLAGS] &= ~TIMER_INTERRUPT_BIT;
+		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~TIMER_INTERRUPT_BIT);
 	}
 	if (interrupts & SERIAL_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0058;
-		gb_memory[INTERRUPT_FLAGS] &= ~SERIAL_INTERRUPT_BIT;
+		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~SERIAL_INTERRUPT_BIT);
 	}
 	if (interrupts & JOYPAD_INTERRUPT_BIT) {
 		cpu.wreg.pc = 0x0060;
-		gb_memory[INTERRUPT_FLAGS] &= ~JOYPAD_INTERRUPT_BIT;
+		mmu_write(INTERRUPT_FLAGS, mmu_read(INTERRUPT_FLAGS) & ~JOYPAD_INTERRUPT_BIT);
 	}
 }
 
@@ -645,14 +505,14 @@ int blargg_opcode_timing[256] = {
 
 // Returns the number of t-cycles it took to complete the next instruction
 int cpu_do_next_instruction() {
-	int old_clock = master_clock;
+	int old_clock = clock_get();
 
-	if (gb_memory[INTERRUPT_FLAGS] & gb_memory[INTERRUPT_ENABLE])
+	if (mmu_read(INTERRUPT_FLAGS) & mmu_read(INTERRUPT_ENABLE))
 		cpu_halted = false;
 
 	if (cpu_halted) {
 		increment_clock(1);
-		return (master_clock - old_clock);
+		return (clock_get() - old_clock);
 	}
 
 	print_debug_blargg_test();
@@ -668,7 +528,7 @@ int cpu_do_next_instruction() {
 	uint8_t op_byte = fetch_next_byte();
 	process_opcode(op_byte);
 	increment_clock(blargg_opcode_timing[op_byte]);
-	return (master_clock - old_clock);
+	return (clock_get() - old_clock);
 }
 
 int main(int argc, char *argv[]) {
@@ -685,7 +545,7 @@ int main(int argc, char *argv[]) {
 	cpu.wreg.pc = 0x0100;
 
 	// The gameboy doctor test suite requires that the LY register always returns 0x90
-	gb_memory[0xFF44] = 0x90;
+	mmu_write(0xFF44, 0x90);
 
 	if (argc == 1) {
 		fprintf(stderr, "Error: No rom file specified\n");
@@ -696,11 +556,11 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	load_rom(argv[1]);
+	mmu_load_rom(argv[1]);
 
 	while (true) {
 		int t_cycles = cpu_do_next_instruction();
-		printf("Last instruction took %d t-cycles...\n", t_cycles);
+		// printf("Last instruction took %d t-cycles...\n", t_cycles);
 	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
@@ -712,7 +572,6 @@ int main(int argc, char *argv[]) {
 	/* } */
 	/* CloseWindow(); */
 
-	free(rom_memory);
 	return 0;
 }
 
@@ -1101,8 +960,8 @@ void process_opcode(uint8_t op_byte) {
 		break;
 
 	case 0x10: // STOP: Implement later
-		reset_clock();
-		clock_running = false;
+		clock_reset();
+		clock_stop();
 		fprintf(stderr, "Warning: STOP is not fully implemented yet\n");
 		// The next byte is ignored for some reason
 		fetch_next_byte();
