@@ -54,26 +54,26 @@ void increment_clock_once() {
 		clock_update(4);
 	uint16_t clock_time = clock_get();
 
-	bool increment_counter = false;
-	switch (mmu_read(TIMER_CONTROL)) {
+	// Return early if timer control is off
+	if (!mmu_get_bit(TIMER_CONTROL_ENABLE_BIT))
+		return;
 
-	case 0x00: case 0x01: case 0x02: case 0x03:
-		break;
-        case 0x04:
+	bool increment_counter = false;
+
+	switch (mmu_read(TIMER_CONTROL) & 0x3) {
+
+        case 0x00:
 		if (clock_time % 1024 == 0) increment_counter = true;
 		break;
-	case 0x05:
+	case 0x01:
 		if (clock_time % 16 == 0) increment_counter = true;
 		break;
-	case 0x06:
+	case 0x02:
 		if (clock_time % 64 == 0) increment_counter = true;
 		break;
-	case 0x07:
+	case 0x03:
 		if (clock_time % 256 == 0) increment_counter = true;
 		break;
-	default:
-		fprintf(stderr, "Unreachable case in TIMER CONTROL");
-		exit(EXIT_FAILURE);
 	}
 
 	if (increment_counter && mmu_read(TIMER_COUNTER) == 0xFF)
