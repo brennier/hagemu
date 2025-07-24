@@ -1,6 +1,5 @@
 CC = gcc
 CFLAGS = -O3 -std=c99 -Wall -pedantic
-LIBS = lib
 OBJ = build/main.o build/mmu.o build/clock.o build/cpu.o
 
 # Use different linker libraries and output names depending on the OS
@@ -15,14 +14,19 @@ endif
 
 ${OUTPUT}: build/libraylib.a ${OBJ}
 	@printf %s "Linking object files..."
-	@${CC} $^ -o $@ -L ${LIBS} ${LFLAGS} >/dev/null
+	@${CC} $^ -o $@ -L build ${LFLAGS} >/dev/null
 	@echo sucessful!
 	@echo ${OUTPUT} was sucessfully created!
 
-build/%.o: src/%.c
+build/raylib.h:
+	@printf %s "Copying $(notdir $@) into build folder..."
+	@cp lib/raylib/src/raylib.h $@
+	@echo sucessfull!
+
+build/%.o: src/%.c build/raylib.h
 	@mkdir -p build
-	@printf %s "Compiling $(notdir $^) into object code..."
-	@${CC} ${CFLAGS} -o $@ -c $^ >/dev/null
+	@printf %s "Compiling $(notdir $<) into object code..."
+	@${CC} ${CFLAGS} -o $@ -I build -c $< >/dev/null
 	@echo sucessfull!
 
 build/libraylib.a:
