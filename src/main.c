@@ -10,6 +10,14 @@
 #define SCREENWIDTH 166
 #define SCREENHEIGHT 144
 
+void print_debug_blargg_test() {
+	if (mmu_read(SERIAL_CONTROL) == 0x81)
+	{
+		printf("%c", mmu_read(SERIAL_DATA));
+		mmu_write(SERIAL_CONTROL, 0);
+	}
+}
+
 int main(int argc, char *argv[]) {
 	cpu_reset();
 
@@ -28,6 +36,7 @@ int main(int argc, char *argv[]) {
 	mmu_load_rom(argv[1]);
 
 	while (true) {
+		print_debug_blargg_test();
 		cpu_do_next_instruction();
 		//int t_cycles = cpu_do_next_instruction();
 	}

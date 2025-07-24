@@ -103,8 +103,8 @@ uint8_t fetch_byte(uint16_t address) {
 }
 
 void write_byte(uint16_t address, uint8_t value) {
-    mmu_write(address, value);
-    increment_clock(1);
+	mmu_write(address, value);
+	increment_clock(1);
 }
 
 uint16_t fetch_word() {
@@ -120,7 +120,7 @@ uint16_t pop_stack() {
 }
 
 void push_stack(uint16_t reg16) {
-    increment_clock(1); // internal increment (reason unknown)
+	increment_clock(1); // internal increment (reason unknown)
 	uint8_t lower = (reg16 & 0x00FF);
 	uint8_t upper = (reg16 & 0xFF00) >> 8;
 	cpu.wreg.sp--;
@@ -136,7 +136,7 @@ uint8_t op_rlc(uint8_t value) {
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = highest_bit;
-    return value;
+	return value;
 }
 
 uint8_t op_rrc(uint8_t value) {
@@ -146,7 +146,7 @@ uint8_t op_rrc(uint8_t value) {
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
-    return value;
+	return value;
 }
 
 uint8_t op_rr(uint8_t value) {
@@ -156,7 +156,7 @@ uint8_t op_rr(uint8_t value) {
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
-    return value;
+	return value;
 }
 
 uint8_t op_rl(uint8_t value) {
@@ -166,7 +166,7 @@ uint8_t op_rl(uint8_t value) {
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = highest_bit;
-    return value;
+	return value;
 }
 
 uint8_t op_sla(uint8_t value) {
@@ -175,7 +175,7 @@ uint8_t op_sla(uint8_t value) {
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = highest_bit;
-    return value;
+	return value;
 }
 
 uint8_t op_sra(uint8_t value) {
@@ -186,7 +186,7 @@ uint8_t op_sra(uint8_t value) {
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
-    return value;
+	return value;
 }
 
 uint8_t op_srl(uint8_t value) {
@@ -195,7 +195,7 @@ uint8_t op_srl(uint8_t value) {
 	cpu.flag.subtract = 0;
 	cpu.flag.half_carry = 0;
 	cpu.flag.zero = !value;
-    return value;
+	return value;
 }
 
 uint8_t op_swap(uint8_t value) {
@@ -204,7 +204,7 @@ uint8_t op_swap(uint8_t value) {
 	value = (lower << 4) | (upper >> 4);
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
-    return value;
+	return value;
 }
 
 void op_bit(int bit_num, uint8_t value) {
@@ -215,12 +215,12 @@ void op_bit(int bit_num, uint8_t value) {
 
 uint8_t op_res(int bit_num, uint8_t value) {
 	value &= ~((uint8_t)0x01 << bit_num);
-    return value;
+	return value;
 }
 
 uint8_t op_set(int bit_num, uint8_t value) {
 	value |= (1 << bit_num);
-    return value;
+	return value;
 }
 
 void process_extra_opcodes(uint8_t opcode) {
@@ -228,14 +228,14 @@ void process_extra_opcodes(uint8_t opcode) {
     uint8_t value = 0;
 	switch (opcode & 0x07) {
 
-    case 0x00: value = cpu.reg.b; break;
-    case 0x01: value = cpu.reg.c; break;
-    case 0x02: value = cpu.reg.d; break;
-    case 0x03: value = cpu.reg.e; break;
-    case 0x04: value = cpu.reg.h; break;
-    case 0x05: value = cpu.reg.l; break;
-    case 0x06: value = fetch_byte(cpu.wreg.hl); break;
-    case 0x07: value = cpu.reg.a; break;
+	case 0x00: value = cpu.reg.b; break;
+	case 0x01: value = cpu.reg.c; break;
+	case 0x02: value = cpu.reg.d; break;
+	case 0x03: value = cpu.reg.e; break;
+	case 0x04: value = cpu.reg.h; break;
+	case 0x05: value = cpu.reg.l; break;
+	case 0x06: value = fetch_byte(cpu.wreg.hl); break;
+	case 0x07: value = cpu.reg.a; break;
 	}
 
 	// The upper 5 bits of the opcode determines the operation
@@ -250,7 +250,7 @@ void process_extra_opcodes(uint8_t opcode) {
 	case 0x30: value = op_swap(value); break; // SWAP
 	case 0x38: value = op_srl(value);  break; // SHIFT RIGHT LOGICAL
 
-    // Return early since we don't need to the write the data back
+	// Return early since we don't need to the write the data back
 	case 0x40: op_bit(0, value); return; // TEST BIT 0
 	case 0x48: op_bit(1, value); return; // TEST BIT 1
 	case 0x50: op_bit(2, value); return; // TEST BIT 2
@@ -286,28 +286,14 @@ void process_extra_opcodes(uint8_t opcode) {
 
 	switch (opcode & 0x07) {
 
-    case 0x00: cpu.reg.b = value; break;
-    case 0x01: cpu.reg.c = value; break;
-    case 0x02: cpu.reg.d = value; break;
-    case 0x03: cpu.reg.e = value; break;
-    case 0x04: cpu.reg.h = value; break;
-    case 0x05: cpu.reg.l = value; break;
-    case 0x06: write_byte(cpu.wreg.hl, value); break;
-    case 0x07: cpu.reg.a = value; break;
-	}
-}
-
-void print_debug_gameboy_doctor() {
-	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
-	cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l,
-	       cpu.wreg.sp, cpu.wreg.pc, mmu_read(cpu.wreg.pc), mmu_read(cpu.wreg.pc+1), mmu_read(cpu.wreg.pc+2), mmu_read(cpu.wreg.pc+3));
-}
-
-void print_debug_blargg_test() {
-	if (mmu_read(SERIAL_CONTROL) == 0x81)
-	{
-		printf("%c", mmu_read(SERIAL_DATA));
-		mmu_write(SERIAL_CONTROL, 0);
+	case 0x00: cpu.reg.b = value; break;
+	case 0x01: cpu.reg.c = value; break;
+	case 0x02: cpu.reg.d = value; break;
+	case 0x03: cpu.reg.e = value; break;
+	case 0x04: cpu.reg.h = value; break;
+	case 0x05: cpu.reg.l = value; break;
+	case 0x06: write_byte(cpu.wreg.hl, value); break;
+	case 0x07: cpu.reg.a = value; break;
 	}
 }
 
@@ -473,7 +459,6 @@ void handle_interrupts() {
 }
 
 void process_opcode(uint8_t op_byte);
-void test_opcode_timing();
 
 int blargg_opcode_timing[256] = {
 	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
@@ -496,36 +481,6 @@ int blargg_opcode_timing[256] = {
 	0,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0,
 	0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0
 };
-
-// Returns the number of t-cycles it took to complete the next instruction
-int cpu_do_next_instruction() {
-	int old_clock = clock_get();
-
-	if (mmu_read(INTERRUPT_FLAGS) & mmu_read(INTERRUPT_ENABLE))
-		cpu_halted = false;
-
-	if (cpu_halted) {
-		increment_clock(1);
-		return (clock_get() - old_clock);
-	}
-
-	print_debug_blargg_test();
-	/* print_debug_gameboy_doctor(); */
-
-	if (master_interrupt_flag_pending) {
-		master_interrupt_flag_pending = false;
-		master_interrupt_flag = true;
-	} else if (master_interrupt_flag) {
-		handle_interrupts();
-	}
-
-	uint8_t op_byte = fetch_next_byte();
-	process_opcode(op_byte);
-	increment_clock(blargg_opcode_timing[op_byte]);
-	return (clock_get() - old_clock);
-}
-
-
 
 void process_opcode(uint8_t op_byte) {
 	switch (op_byte) {
@@ -655,7 +610,7 @@ void process_opcode(uint8_t op_byte) {
 	case 0xCA: op_jump(cpu.flag.zero,   fetch_word()); break;
 	case 0xD2: op_jump(!cpu.flag.carry, fetch_word()); break;
 	case 0xDA: op_jump(cpu.flag.carry,  fetch_word()); break;
-    // This one is separate because it doesn't increment the clock after jumping
+	// This one is separate because it doesn't increment the clock after jumping
 	case 0xE9: cpu.wreg.pc = cpu.wreg.hl; break;
 
 	// JR OPERATIONS
@@ -689,12 +644,12 @@ void process_opcode(uint8_t op_byte) {
 	case 0x2C: cpu.reg.l = op_inc(cpu.reg.l); break;
 	case 0x3C: cpu.reg.a = op_inc(cpu.reg.a); break;
 	case 0x34:
-    {
-        uint8_t value = fetch_byte(cpu.wreg.hl);
-        value = op_inc(value);
-        write_byte(cpu.wreg.hl, value);
-        break;
-    }
+	{
+		uint8_t value = fetch_byte(cpu.wreg.hl);
+		value = op_inc(value);
+		write_byte(cpu.wreg.hl, value);
+		break;
+	}
 
 	case 0x03: cpu.wreg.bc++; break;
 	case 0x13: cpu.wreg.de++; break;
@@ -710,12 +665,12 @@ void process_opcode(uint8_t op_byte) {
 	case 0x2D: cpu.reg.l = op_dec(cpu.reg.l); break;
 	case 0x3D: cpu.reg.a = op_dec(cpu.reg.a); break;
 	case 0x35:
-    {
-        uint8_t value = fetch_byte(cpu.wreg.hl);
-        value = op_dec(value);
-        write_byte(cpu.wreg.hl, value);
-        break;
-    }
+	{
+		uint8_t value = fetch_byte(cpu.wreg.hl);
+		value = op_dec(value);
+		write_byte(cpu.wreg.hl, value);
+		break;
+	}
 
 	case 0x0B: cpu.wreg.bc--; break;
 	case 0x1B: cpu.wreg.de--; break;
@@ -929,4 +884,29 @@ void process_opcode(uint8_t op_byte) {
 		exit(EXIT_FAILURE);
 		break;
 	}
+}
+
+// Returns the number of t-cycles it took to complete the next instruction
+int cpu_do_next_instruction() {
+	int old_clock = clock_get();
+
+	if (mmu_read(INTERRUPT_FLAGS) & mmu_read(INTERRUPT_ENABLE))
+		cpu_halted = false;
+
+	if (cpu_halted) {
+		increment_clock(1);
+		return (clock_get() - old_clock);
+	}
+
+	if (master_interrupt_flag_pending) {
+		master_interrupt_flag_pending = false;
+		master_interrupt_flag = true;
+	} else if (master_interrupt_flag) {
+		handle_interrupts();
+	}
+
+	uint8_t op_byte = fetch_next_byte();
+	process_opcode(op_byte);
+	increment_clock(blargg_opcode_timing[op_byte]);
+	return (clock_get() - old_clock);
 }
