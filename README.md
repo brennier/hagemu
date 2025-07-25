@@ -6,7 +6,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] cpu_instrs test
   - [x] instr_timing test
   - [x] mem_timing test
-  - [ ] mem_timing_2 test
+  - [x] mem_timing_2 test
   - [ ] interrupt_time test
 - [ ] Implement a basic PPU
   - [ ] Display tiles from VRAM
