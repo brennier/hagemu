@@ -69,13 +69,11 @@ int main(int argc, char *argv[]) {
 
 	mmu_load_rom(argv[1]);
 
-	debug_blargg_test_memory();
-
-	//while (true) {
-	//	debug_blargg_check_serial();
-	//	cpu_do_next_instruction();
-	//	//int t_cycles = cpu_do_next_instruction();
-	//}
+	while (true) {
+		debug_blargg_check_serial();
+		cpu_do_next_instruction();
+		//int t_cycles = cpu_do_next_instruction();
+	}
 
 	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
 	/* while (WindowShouldClose() != true) { */

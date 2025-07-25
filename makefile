@@ -40,14 +40,12 @@ clean:
 	@echo Cleaning up build files and executables...
 	@rm -rf build ${OUTPUT}
 
-run: ${OUTPUT}
-	./${OUTPUT}
-
-test-mem-timing: ${OUTPUT}
-	./${OUTPUT} lib/gb-test-roms/mem_timing/mem_timing.gb
-
-test-cpu-instrs: ${OUTPUT}
-	./${OUTPUT} lib/gb-test-roms/cpu_instrs/cpu_instrs.gb
-
-test-instr-timing: ${OUTPUT}
-	./${OUTPUT} lib/gb-test-roms/instr_timing/instr_timing.gb
+test: ${OUTPUT}
+	@echo "Testing CPU instructions..."
+	@./${OUTPUT} lib/gb-test-roms/cpu_instrs/cpu_instrs.gb
+	@echo ""
+	@echo "Testing instruction timing..."
+	@./${OUTPUT} lib/gb-test-roms/instr_timing/instr_timing.gb
+	@echo ""
+	@echo "Testing memory timing..."
+	@./${OUTPUT} lib/gb-test-roms/mem_timing/mem_timing.gb
