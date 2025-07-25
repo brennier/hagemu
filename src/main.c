@@ -7,8 +7,11 @@
 #include "clock.h"
 #include "cpu.h"
 
-#define SCREENWIDTH 166
-#define SCREENHEIGHT 144
+#define SCALE_FACTOR 4
+#define SCREENWIDTH 166 * SCALE_FACTOR
+#define SCREENHEIGHT 144 * SCALE_FACTOR
+#define SPEED_FACTOR 10
+#define CLOCK_SPEED 4194304 * SPEED_FACTOR
 
 void debug_blargg_check_serial() {
 	// Check for the word "Passed" and exit successfuly if detected
@@ -38,10 +41,10 @@ void debug_blargg_test_memory() {
 		cpu_do_next_instruction();
 
 	printf("Signature: %02X %02X %02X",
-		mmu_read(address + 1),
-		mmu_read(address + 2),
-		mmu_read(address + 3));
-	
+	       mmu_read(address + 1),
+	       mmu_read(address + 2),
+	       mmu_read(address + 3));
+
 	address = 0xA004;
 	printf("%s", "Test Result: ");
 	while (mmu_read(address) != 0) {
@@ -69,20 +72,22 @@ int main(int argc, char *argv[]) {
 
 	mmu_load_rom(argv[1]);
 
-	while (true) {
-		debug_blargg_check_serial();
-		cpu_do_next_instruction();
-		//int t_cycles = cpu_do_next_instruction();
-	}
+	InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator");
+	SetWindowState(FLAG_VSYNC_HINT);
 
-	/* InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator"); */
-	/* while (WindowShouldClose() != true) { */
-	/*	   BeginDrawing(); */
-	/*	   ClearBackground(BLACK); */
-	/*	   DrawFPS(10, 10); */
-	/*	   EndDrawing(); */
-	/* } */
-	/* CloseWindow(); */
+	while (WindowShouldClose() != true) {
+		int cycles_since_last_frame = 0;
+		float delta_time = GetFrameTime();
+
+		while (cycles_since_last_frame < delta_time * CLOCK_SPEED)
+			cycles_since_last_frame += cpu_do_next_instruction();
+
+		BeginDrawing();
+		ClearBackground(BLACK);
+		DrawFPS(10, 10);
+		EndDrawing();
+	}
+	CloseWindow();
 
 	return 0;
 }

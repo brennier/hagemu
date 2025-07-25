@@ -895,7 +895,10 @@ int cpu_do_next_instruction() {
 
 	if (cpu_halted) {
 		increment_clock(1);
-		return (clock_get() - old_clock);
+		if (clock_get() - old_clock > 0)
+			return clock_get() - old_clock;
+		else
+			return 0xFFFF - (old_clock - clock_get());
 	}
 
 	if (master_interrupt_flag_pending) {
@@ -908,5 +911,8 @@ int cpu_do_next_instruction() {
 	uint8_t op_byte = fetch_next_byte();
 	process_opcode(op_byte);
 	increment_clock(blargg_opcode_timing[op_byte]);
-	return (clock_get() - old_clock);
+	if (clock_get() - old_clock > 0)
+		return clock_get() - old_clock;
+	else
+		return 0xFFFF - (old_clock - clock_get());
 }
