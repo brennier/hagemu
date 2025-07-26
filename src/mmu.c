@@ -16,6 +16,12 @@ uint8_t mmu_read(uint16_t address) {
 
 	case TIMER_DIVIDER:
 		return ((clock_get() & 0xFF00) >> 8);
+
+	case JOYPAD_INPUT:
+		return 0xFF;
+
+	case DMA_START:
+		printf("DMA Transfer requested\n");
 	}
 
 	switch (address & 0xF000) {

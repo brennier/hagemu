@@ -16,6 +16,8 @@ enum special_address {
 	INTERRUPT_FLAGS = 0xFF0F,
 	BOOT_ROM_CONTROL = 0xFF50,
 	INTERRUPT_ENABLE = 0xFFFF,
+	LCD_CONTROL = 0xFF40,
+	DMA_START = 0xFF46
 };
 
 // The first four nibbles represents the byte address,
@@ -34,6 +36,9 @@ enum special_bit {
 	JOYPAD_INTERRUPT_ENABLE_BIT = 0xFFFF4,
 
 	TIMER_CONTROL_ENABLE_BIT = 0xFF072,
+
+	BG_TILE_DATA_AREA = 0xFF404,
+	BG_TILE_MAP_AREA  = 0xFF403
 };
 
 void mmu_load_rom(char* rom_name);
