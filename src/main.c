@@ -16,7 +16,7 @@
 #define SCALE_FACTOR 5
 #define SCREENWIDTH 166 * SCALE_FACTOR
 #define SCREENHEIGHT 144 * SCALE_FACTOR
-#define SPEED_FACTOR 10
+#define SPEED_FACTOR 1
 #define CLOCK_SPEED 4194304 * SPEED_FACTOR
 
 void debug_blargg_check_serial() {
@@ -61,6 +61,33 @@ void debug_blargg_test_memory() {
 	printf("\n%s", "Blargg Test Finished");
 }
 
+void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
+	uint16_t address_end = address_start + 0x0800;
+	Color *raw_tile_data = (Color*)malloc(128 * 8 * 8 * sizeof(Color));
+	Color *raw_tile_data_pos = raw_tile_data;
+
+	for (int pos = address_start; pos < address_end; pos += 2) {
+		uint8_t byte1 = mmu_read(pos);
+		uint8_t byte2 = mmu_read(pos+1);
+
+		for (int bit_num = 0; bit_num < 8; bit_num++) {
+			int byte1_bit = (byte1 >> (7 - bit_num)) & 0x01;
+			int byte2_bit = (byte2 >> (7 - bit_num)) & 0x01;
+
+			switch ((byte2_bit << 1) | byte1_bit) {
+
+			case 0: *(raw_tile_data_pos++) = GREEN4; break;
+			case 1: *(raw_tile_data_pos++) = GREEN3; break;
+			case 2: *(raw_tile_data_pos++) = GREEN2; break;
+			case 3: *(raw_tile_data_pos++) = GREEN1; break;
+			}
+		}
+	}
+	UpdateTexture(*tile_data_block, raw_tile_data);
+	free(raw_tile_data);
+
+}
+
 int main(int argc, char *argv[]) {
 	cpu_reset();
 
@@ -81,8 +108,10 @@ int main(int argc, char *argv[]) {
 	InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator");
 	SetWindowState(FLAG_VSYNC_HINT);
 
-	Image tile_image = GenImageColor(8, 3072, BLACK);
-	Texture2D tile_data = LoadTextureFromImage(tile_image);
+	Image tile_image = GenImageColor(8, 1024, BLACK);
+	Texture2D tile_data_block_1 = LoadTextureFromImage(tile_image);
+	Texture2D tile_data_block_2 = LoadTextureFromImage(tile_image);
+	Texture2D tile_data_block_3 = LoadTextureFromImage(tile_image);
 	UnloadImage(tile_image);
 
 	while (WindowShouldClose() != true) {
@@ -91,58 +120,25 @@ int main(int argc, char *argv[]) {
 		while (cycles_since_last_frame < delta_time * CLOCK_SPEED)
 			cycles_since_last_frame += cpu_do_next_instruction();
 
-		uint16_t tile_data_start = 0x8000;
-		uint16_t tile_data_end = 0x9800;
-		Color *raw_tile_data = (Color*)malloc(384 * 8 * 8 * sizeof(Color));
-		Color *raw_tile_data_pos = raw_tile_data;
-
-		mmu_write(tile_data_start, 0x3C);
-		mmu_write(tile_data_start + 1, 0x7E);
-		mmu_write(tile_data_start + 2, 0x42);
-		mmu_write(tile_data_start + 3, 0x42);
-		mmu_write(tile_data_start + 4, 0x42);
-		mmu_write(tile_data_start + 5, 0x42);
-		mmu_write(tile_data_start + 6, 0x42);
-		mmu_write(tile_data_start + 7, 0x42);
-		mmu_write(tile_data_start + 8, 0x7E);
-		mmu_write(tile_data_start + 9, 0x5E);
-		mmu_write(tile_data_start + 10, 0x7E);
-		mmu_write(tile_data_start + 11, 0x0A);
-		mmu_write(tile_data_start + 12, 0x7C);
-		mmu_write(tile_data_start + 13, 0x56);
-		mmu_write(tile_data_start + 14, 0x38);
-		mmu_write(tile_data_start + 15, 0x7C);
-
-		for (int pos = tile_data_start; pos < tile_data_end; pos += 2) {
-			uint8_t byte1 = mmu_read(pos);
-			uint8_t byte2 = mmu_read(pos+1);
-
-			for (int bit_num = 0; bit_num < 8; bit_num++) {
-				int byte1_bit = (byte1 >> (7 - bit_num)) & 0x01;
-				int byte2_bit = (byte2 >> (7 - bit_num)) & 0x01;
-
-				switch ((byte2_bit << 1) | byte1_bit) {
-
-				case 0: *(raw_tile_data_pos++) = GREEN4; break;
-				case 1: *(raw_tile_data_pos++) = GREEN3; break;
-				case 2: *(raw_tile_data_pos++) = GREEN2; break;
-				case 3: *(raw_tile_data_pos++) = GREEN1; break;
-				}
-			}
-		}
-		UpdateTexture(tile_data, raw_tile_data);
-		free(raw_tile_data);
+		load_tile_data_block(&tile_data_block_1, 0x8000);
+		load_tile_data_block(&tile_data_block_2, 0x8800);
+		load_tile_data_block(&tile_data_block_3, 0x9000);
 
 		BeginDrawing();
 		ClearBackground(BLACK);
-		DrawRectangle(0, 0, 32 * 8 + 10, 512 + 10, BLUE);
-		DrawRectangle(32 * 8, 0, 32 * 8 + 10, 512 + 10, RED);
-		DrawRectangle(64 * 8, 0, 32 * 8 + 10, 512 + 10, YELLOW);
-		for (int i = 0; i < 24; i++)
-			DrawTexturePro(tile_data, (Rectangle){ .x = 0, .y = 128 * i, .width = 8, .height = 128 }, (Rectangle){ .x = 32 * i, .y = 0, .width = 32, .height = 512 }, (Vector2){ 0, 0 }, 0.0, WHITE);
+		for (int i = 0; i < 8; i++)
+			DrawTexturePro(tile_data_block_1, (Rectangle){ .x = 0, .y = 128 * i, .width = 8, .height = 128 }, (Rectangle){ .x = 32 * i, .y = 0, .width = 32, .height = 512 }, (Vector2){ 0, 0 }, 0.0, WHITE);
+		for (int i = 0; i < 8; i++)
+			DrawTexturePro(tile_data_block_2, (Rectangle){ .x = 0, .y = 128 * i, .width = 8, .height = 128 }, (Rectangle){ .x = 32 * i + 256 + 32, .y = 0, .width = 32, .height = 512 }, (Vector2){ 0, 0 }, 0.0, WHITE);
+		for (int i = 0; i < 8; i++)
+			DrawTexturePro(tile_data_block_3, (Rectangle){ .x = 0, .y = 128 * i, .width = 8, .height = 128 }, (Rectangle){ .x = 32 * i + 512 + 64, .y = 0, .width = 32, .height = 512 }, (Vector2){ 0, 0 }, 0.0, WHITE);
 		DrawFPS(10, 10);
 		EndDrawing();
 	}
+
+	UnloadTexture(tile_data_block_1);
+	UnloadTexture(tile_data_block_2);
+	UnloadTexture(tile_data_block_3);
 	CloseWindow();
 
 	return 0;
