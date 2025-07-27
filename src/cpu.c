@@ -437,6 +437,7 @@ void handle_interrupts() {
 	interrupts &= mmu_read(INTERRUPT_ENABLE);
 	if (!interrupts) return;
 
+	increment_clock(2);
 	master_interrupt_flag = false;
 	push_stack(cpu.wreg.pc);
 
@@ -456,6 +457,7 @@ void handle_interrupts() {
 		cpu.wreg.pc = 0x0060;
 		mmu_clear_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 	}
+	increment_clock(1);
 }
 
 void process_opcode(uint8_t op_byte);
