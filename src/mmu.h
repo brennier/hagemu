@@ -17,7 +17,8 @@ enum special_address {
 	BOOT_ROM_CONTROL = 0xFF50,
 	INTERRUPT_ENABLE = 0xFFFF,
 	LCD_CONTROL = 0xFF40,
-	DMA_START = 0xFF46
+	DMA_START = 0xFF46,
+	LCD_Y_COORDINATE = 0xFF44,
 };
 
 // The first four nibbles represents the byte address,

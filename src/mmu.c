@@ -10,6 +10,8 @@ uint8_t gb_memory[64 * 1024]  = { 0 };
 
 int rom_bank_index = 0;
 
+int lcd_y_coordinate = 0;
+
 uint8_t mmu_read(uint16_t address) {
 	// Handle special cases first
 	switch (address) {
@@ -18,10 +20,18 @@ uint8_t mmu_read(uint16_t address) {
 		return ((clock_get() & 0xFF00) >> 8);
 
 	case JOYPAD_INPUT:
-		return 0xFF;
+		return 0x0F;
 
 	case DMA_START:
 		printf("DMA Transfer requested\n");
+		break;
+
+	case LCD_Y_COORDINATE:
+		printf("Reading LCD_Y_COORDINATE. Returning '%d'...\n", lcd_y_coordinate);
+		lcd_y_coordinate++;
+		if (lcd_y_coordinate == 154)
+			lcd_y_coordinate = 0;
+		return lcd_y_coordinate;
 	}
 
 	switch (address & 0xF000) {
@@ -78,6 +88,14 @@ void mmu_write(uint16_t address, uint8_t value) {
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits
 		break;
+
+	case JOYPAD_INPUT:
+		printf("Value '%02X' written to JOYPAD_INPUT\n", value);
+		break;
+
+	case LCD_CONTROL:
+		printf("Value '%02X' written to LCD_CONTROL\n", value);
+		break;
 	}
 
 	switch (address & 0xF000) {
@@ -92,6 +110,29 @@ void mmu_write(uint16_t address, uint8_t value) {
 		//fprintf(stderr, "ROM BANK SWITCHED TO %d\n", value & 0x1F);
 		rom_bank_index = value & 0x1F;
 		return;
+
+	case 0xE000: case 0xF000:
+		// Echo RAM (about 8 KiB)
+		if (address < 0xFE00) {
+			gb_memory[address - 0x2000] = value;
+			return;
+		}
+		// Object Attribute Memory
+		else if (address < 0xFEA0) {
+			printf("Write to OAM at '%02X'", address);
+			gb_memory[address] = value;
+			return;
+		}
+		// Unusable memory
+		else if (address < 0xFEFF) {
+			/* fprintf(stderr, "Error: Attempted write at the forbidden address '%02X'", address); */
+			/* exit(EXIT_FAILURE); */
+		}
+		// TODO: IO Registers and High RAM
+		else {
+			gb_memory[address] = value;
+			return;
+		}
 	}
 
 	// Else just write the value normally
