@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "mmu.h"
 #include "clock.h"
+#include "raylib.h"
 
 uint8_t *rom_memory;
 // The GB has 64kb of mapped memory
@@ -12,6 +13,42 @@ int rom_bank_index = 0;
 
 int lcd_y_coordinate = 0;
 
+uint8_t get_joypad_input() {
+	mmu_set_bit(JOYPAD_BUTTON0);
+	mmu_set_bit(JOYPAD_BUTTON1);
+	mmu_set_bit(JOYPAD_BUTTON2);
+	mmu_set_bit(JOYPAD_BUTTON3);
+
+	if (mmu_get_bit(JOYPAD_SELECT_DPAD) == 0) {
+		if (IsKeyDown(KEY_RIGHT))
+			mmu_clear_bit(JOYPAD_BUTTON0);
+		if (IsKeyDown(KEY_LEFT))
+			mmu_clear_bit(JOYPAD_BUTTON1);
+		if (IsKeyDown(KEY_UP))
+			mmu_clear_bit(JOYPAD_BUTTON2);
+		if (IsKeyDown(KEY_DOWN))
+			mmu_clear_bit(JOYPAD_BUTTON3);
+	}
+
+	if (mmu_get_bit(JOYPAD_SELECT_BUTTONS) == 0) {
+		// A Button
+		if (IsKeyDown(KEY_K))
+			mmu_clear_bit(JOYPAD_BUTTON0);
+		// B Button
+		if (IsKeyDown(KEY_J))
+			mmu_clear_bit(JOYPAD_BUTTON1);
+		// SELECT
+		if (IsKeyDown(KEY_Z))
+			mmu_clear_bit(JOYPAD_BUTTON2);
+		// START
+		if (IsKeyDown(KEY_X))
+			mmu_clear_bit(JOYPAD_BUTTON3);
+	}
+
+	return gb_memory[JOYPAD_INPUT];
+}
+
+
 uint8_t mmu_read(uint16_t address) {
 	// Handle special cases first
 	switch (address) {
@@ -20,7 +57,7 @@ uint8_t mmu_read(uint16_t address) {
 		return ((clock_get() & 0xFF00) >> 8);
 
 	case JOYPAD_INPUT:
-		return 0x0F;
+		return get_joypad_input();
 
 	case DMA_START:
 		printf("DMA Transfer requested\n");
@@ -84,6 +121,10 @@ void mmu_write(uint16_t address, uint8_t value) {
 	case TIMER_DIVIDER:
 		clock_reset();
 		return;
+
+	case INTERRUPT_ENABLE:
+		printf("Value '%02X' written to INTERRUPT_ENABLE\n", value);
+		break;
 
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits

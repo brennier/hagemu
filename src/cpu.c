@@ -442,18 +442,23 @@ void handle_interrupts() {
 	push_stack(cpu.wreg.pc);
 
 	if (interrupts & 0x01) {
+		printf("VBLANK INTERRUPT OCCURED\n");
 		cpu.wreg.pc = 0x0040;
 		mmu_clear_bit(VBLANK_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x02) {
+		printf("LCD INTERRUPT OCCURED\n");
 		cpu.wreg.pc = 0x0048;
 		mmu_clear_bit(LCD_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x04) {
+		printf("TIMER INTERRUPT OCCURED\n");
 		cpu.wreg.pc = 0x0050;
 		mmu_clear_bit(TIMER_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x08) {
+		printf("SERIAL INTERRUPT OCCURED\n");
 		cpu.wreg.pc = 0x0058;
 		mmu_clear_bit(SERIAL_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x10) {
+		printf("JOYPAD INTERRUPT OCCURED\n");
 		cpu.wreg.pc = 0x0060;
 		mmu_clear_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 	}

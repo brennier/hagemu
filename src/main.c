@@ -16,7 +16,7 @@
 #define SCALE_FACTOR 5
 #define SCREENWIDTH 166 * SCALE_FACTOR
 #define SCREENHEIGHT 144 * SCALE_FACTOR
-#define SPEED_FACTOR 20
+#define SPEED_FACTOR 5
 #define CLOCK_SPEED 4194304L * SPEED_FACTOR
 
 void debug_blargg_check_serial() {
@@ -76,10 +76,10 @@ void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 
 			switch ((byte2_bit << 1) | byte1_bit) {
 
-			case 0: *(raw_tile_data_pos++) = GREEN4; break;
-			case 1: *(raw_tile_data_pos++) = GREEN3; break;
-			case 2: *(raw_tile_data_pos++) = GREEN2; break;
-			case 3: *(raw_tile_data_pos++) = GREEN1; break;
+			case 0: *(raw_tile_data_pos++) = GREEN1; break;
+			case 1: *(raw_tile_data_pos++) = GREEN2; break;
+			case 2: *(raw_tile_data_pos++) = GREEN3; break;
+			case 3: *(raw_tile_data_pos++) = GREEN4; break;
 			}
 		}
 	}
@@ -111,6 +111,12 @@ int main(int argc, char *argv[]) {
 	UnloadImage(tile_image);
 
 	while (WindowShouldClose() != true) {
+		if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_LEFT) ||
+		    IsKeyDown(KEY_UP)    || IsKeyDown(KEY_DOWN) ||
+		    IsKeyDown(KEY_J)     || IsKeyDown(KEY_K)    ||
+		    IsKeyDown(KEY_Z)     || IsKeyDown(KEY_X)     )
+			mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
+
 		long cycles_since_last_frame = 0;
 		float delta_time = GetFrameTime();
 
@@ -143,6 +149,7 @@ int main(int argc, char *argv[]) {
 			/* DrawTexturePro(tile_data_block_3, (Rectangle){ .x = 0, .y = 128 * i, .width = 8, .height = 128 }, (Rectangle){ .x = 32 * i + 512 + 64, .y = 0, .width = 32, .height = 512 }, (Vector2){ 0, 0 }, 0.0, WHITE); */
 		DrawFPS(10, 10);
 		EndDrawing();
+		mmu_set_bit(VBLANK_INTERRUPT_FLAG_BIT);
 	}
 
 	UnloadTexture(tile_data_block_1);
