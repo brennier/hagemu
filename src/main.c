@@ -14,9 +14,9 @@
 #define GREEN4 (Color){ 36, 76, 64, 255 }
 
 #define SCALE_FACTOR 5
-#define SCREENWIDTH 166 * SCALE_FACTOR
+#define SCREENWIDTH 160 * SCALE_FACTOR
 #define SCREENHEIGHT 144 * SCALE_FACTOR
-#define SPEED_FACTOR 5
+#define SPEED_FACTOR 1
 #define CLOCK_SPEED 4194304L * SPEED_FACTOR
 
 void debug_blargg_check_serial() {
