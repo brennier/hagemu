@@ -30,6 +30,12 @@ bool master_interrupt_flag = false;
 bool master_interrupt_flag_pending = false;
 bool cpu_halted = false;
 
+void cpu_print_state() {
+	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
+		cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l, cpu.wreg.sp,
+		cpu.wreg.pc, mmu_read(cpu.wreg.pc), mmu_read(cpu.wreg.pc+1), mmu_read(cpu.wreg.pc+2), mmu_read(cpu.wreg.pc+3));
+}
+
 void cpu_reset() {
 	// Inital state of registers
 	cpu.reg.a = 0x01;

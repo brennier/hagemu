@@ -4,14 +4,7 @@
 #include <stdbool.h>
 #include "raylib.h"
 #include "mmu.h"
-#include "clock.h"
 #include "cpu.h"
-
-// Green color palatte from lighest to darkest
-#define GREEN1 (Color){ 138, 189, 76, 255 }
-#define GREEN2 (Color){ 64, 133, 109, 255 }
-#define GREEN3 (Color){ 48, 102, 87, 255 }
-#define GREEN4 (Color){ 36, 76, 64, 255 }
 
 #define SCALE_FACTOR 5
 #define SCREENWIDTH 160 * SCALE_FACTOR
@@ -19,47 +12,11 @@
 #define SPEED_FACTOR 1
 #define CLOCK_SPEED 4194304L * SPEED_FACTOR
 
-void debug_blargg_check_serial() {
-	// Check for the word "Passed" and exit successfuly if detected
-	char *sucessful_string = "Passed";
-	static int current_char = 0;
-
-	if (mmu_read(SERIAL_CONTROL) == 0x81) {
-		char character = (char)mmu_read(SERIAL_DATA);
-		printf("%c", character);
-		mmu_write(SERIAL_CONTROL, 0);
-		if (character == sucessful_string[current_char])
-			current_char++;
-		else
-			current_char = 0;
-
-		if (sucessful_string[current_char] == '\0') {
-			printf("\n");
-			exit(EXIT_SUCCESS);
-		}
-	}
-}
-
-void debug_blargg_test_memory() {
-	uint16_t address = 0xA000;
-	mmu_write(address, 0x80);
-	while (mmu_read(address) == 0x80)
-		cpu_do_next_instruction();
-
-	printf("Signature: %02X %02X %02X",
-	       mmu_read(address + 1),
-	       mmu_read(address + 2),
-	       mmu_read(address + 3));
-
-	address = 0xA004;
-	printf("%s", "Test Result: ");
-	while (mmu_read(address) != 0) {
-		printf("%c", (char)mmu_read(address));
-		address++;
-	}
-
-	printf("\n%s", "Blargg Test Finished");
-}
+// Green color palatte from lighest to darkest
+#define GREEN1 (Color){ 138, 189, 76, 255 }
+#define GREEN2 (Color){ 64, 133, 109, 255 }
+#define GREEN3 (Color){ 48, 102, 87, 255 }
+#define GREEN4 (Color){ 36, 76, 64, 255 }
 
 void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 	uint16_t address_end = address_start + 0x0800;
