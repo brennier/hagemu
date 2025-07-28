@@ -44,19 +44,51 @@ void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 	free(raw_tile_data);
 }
 
+char* ask_for_file_drop() {
+	InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator");
+	while (!WindowShouldClose()) {
+		if (IsFileDropped()) {
+			FilePathList dropped_files = LoadDroppedFiles();
+			unsigned int length = TextLength(dropped_files.paths[0]);
+			char *rom_path = malloc(length + 1);
+			if (length != TextCopy(rom_path, dropped_files.paths[0])) {
+				fprintf(stderr, "There was an error getting the filename");
+				exit(EXIT_FAILURE);
+			}
+			UnloadDroppedFiles(dropped_files);
+			return rom_path;
+		}
+		BeginDrawing();
+		ClearBackground(GREEN1);
+		int text_width = MeasureText("Please drop a .gb file onto this window", 7 * SCALE_FACTOR);
+		DrawText("Please drop a .gb file onto this window",
+			 SCREENWIDTH / 2 - text_width / 2,
+			 SCREENHEIGHT / 2 - 3.5 * SCALE_FACTOR,
+			 7 * SCALE_FACTOR,
+			 GREEN3);
+		EndDrawing();
+	}
+
+	printf("Drop file window closed");
+	exit(EXIT_SUCCESS);
+}
+
 int main(int argc, char *argv[]) {
 	cpu_reset();
+	char *rom_path;
 
 	if (argc == 1) {
-		fprintf(stderr, "Error: No rom file specified\n");
-		exit(EXIT_FAILURE);
+		rom_path = ask_for_file_drop();
 	}
 	else if (argc > 2) {
 		fprintf(stderr, "Error: Too many arguments\n");
 		exit(EXIT_FAILURE);
+	} else {
+		rom_path = argv[1];
 	}
 
-	mmu_load_rom(argv[1]);
+	mmu_load_rom(rom_path);
+	free(rom_path);
 
 	InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator");
 	SetWindowState(FLAG_VSYNC_HINT);

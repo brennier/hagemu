@@ -26,6 +26,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [ ] Real Time Clock support
 - [ ] Add the APU (Audio Processing Unit)
 - [ ] Get the WebAssembly version working
+- [ ] Finish the UI
+  - [x] Drag and drop rom files onto the window
 - [ ] Add save states
-- [ ] Add a UI
 - [ ] Add GBC functionality
