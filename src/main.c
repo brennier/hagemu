@@ -46,11 +46,25 @@ void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 
 char* ask_for_file_drop() {
 	InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator");
+	BeginDrawing();
+	ClearBackground(GREEN1);
+	int text_width = MeasureText("Please drop a .gb file onto this window", 7 * SCALE_FACTOR);
+	DrawText("Please drop a .gb file onto this window",
+		 SCREENWIDTH / 2 - text_width / 2,
+		 SCREENHEIGHT / 2 - 3.5 * SCALE_FACTOR,
+		 7 * SCALE_FACTOR,
+		 GREEN3);
+	EndDrawing();
+
 	while (!WindowShouldClose()) {
 		if (IsFileDropped()) {
 			FilePathList dropped_files = LoadDroppedFiles();
 			unsigned int length = TextLength(dropped_files.paths[0]);
-			char *rom_path = malloc(length + 1);
+			char *rom_path = calloc(length + 1, sizeof(dropped_files.paths[0]));
+			if (rom_path == NULL) {
+				fprintf(stderr, "Couldn't malloc space for the rom_path");
+				exit(EXIT_FAILURE);
+			}
 			if (length != TextCopy(rom_path, dropped_files.paths[0])) {
 				fprintf(stderr, "There was an error getting the filename");
 				exit(EXIT_FAILURE);
@@ -58,15 +72,6 @@ char* ask_for_file_drop() {
 			UnloadDroppedFiles(dropped_files);
 			return rom_path;
 		}
-		BeginDrawing();
-		ClearBackground(GREEN1);
-		int text_width = MeasureText("Please drop a .gb file onto this window", 7 * SCALE_FACTOR);
-		DrawText("Please drop a .gb file onto this window",
-			 SCREENWIDTH / 2 - text_width / 2,
-			 SCREENHEIGHT / 2 - 3.5 * SCALE_FACTOR,
-			 7 * SCALE_FACTOR,
-			 GREEN3);
-		EndDrawing();
 	}
 
 	printf("Drop file window closed");
