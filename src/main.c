@@ -44,56 +44,29 @@ void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 	free(raw_tile_data);
 }
 
-char* ask_for_file_drop() {
-	InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator");
-	BeginDrawing();
-	ClearBackground(GREEN1);
-	int text_width = MeasureText("Please drop a .gb file onto this window", 7 * SCALE_FACTOR);
-	DrawText("Please drop a .gb file onto this window",
-		 SCREENWIDTH / 2 - text_width / 2,
-		 SCREENHEIGHT / 2 - 3.5 * SCALE_FACTOR,
-		 7 * SCALE_FACTOR,
-		 GREEN3);
-	EndDrawing();
-
-	while (!WindowShouldClose()) {
-		if (IsFileDropped()) {
-			FilePathList dropped_files = LoadDroppedFiles();
-			unsigned int length = TextLength(dropped_files.paths[0]);
-			char *rom_path = calloc(length + 1, sizeof(dropped_files.paths[0]));
-			if (rom_path == NULL) {
-				fprintf(stderr, "Couldn't malloc space for the rom_path");
-				exit(EXIT_FAILURE);
-			}
-			if (length != TextCopy(rom_path, dropped_files.paths[0])) {
-				fprintf(stderr, "There was an error getting the filename");
-				exit(EXIT_FAILURE);
-			}
-			UnloadDroppedFiles(dropped_files);
-			return rom_path;
-		}
-	}
-
-	printf("Drop file window closed");
-	exit(EXIT_SUCCESS);
+void DrawCenteredText(char* text, int font_size, Color color) {
+	int text_width = MeasureText(text, font_size);
+	DrawText(text,
+		SCREENWIDTH / 2 - text_width / 2,
+		SCREENHEIGHT / 2 - font_size / 2,
+		font_size,
+		color
+	);
 }
 
 int main(int argc, char *argv[]) {
-	cpu_reset();
-	char *rom_path;
+	bool rom_loaded = false;
 
-	if (argc == 1) {
-		rom_path = ask_for_file_drop();
+	if (argc == 2) {
+		printf("Loading the rom path '%s'\n", argv[1]);
+		mmu_load_rom(argv[1]);
+		rom_loaded = true;
+		cpu_reset();
 	}
 	else if (argc > 2) {
 		fprintf(stderr, "Error: Too many arguments\n");
 		exit(EXIT_FAILURE);
-	} else {
-		rom_path = argv[1];
 	}
-
-	mmu_load_rom(rom_path);
-	free(rom_path);
 
 	InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator");
 	SetWindowState(FLAG_VSYNC_HINT);
@@ -105,6 +78,23 @@ int main(int argc, char *argv[]) {
 	UnloadImage(tile_image);
 
 	while (WindowShouldClose() != true) {
+		if (IsFileDropped()) {
+			FilePathList dropped_files = LoadDroppedFiles();
+			printf("Loading the rom path '%s'\n", dropped_files.paths[0]);
+			mmu_load_rom(dropped_files.paths[0]);
+			UnloadDroppedFiles(dropped_files);
+			rom_loaded = true;
+			cpu_reset();
+		}
+
+		if (rom_loaded == false) {
+			BeginDrawing();
+			ClearBackground(GREEN1);
+			DrawCenteredText("Please drop a .gb file onto this window", 7 * SCALE_FACTOR, GREEN3);
+			EndDrawing();
+			continue;
+		}
+
 		if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_LEFT) ||
 		    IsKeyDown(KEY_UP)    || IsKeyDown(KEY_DOWN) ||
 		    IsKeyDown(KEY_J)     || IsKeyDown(KEY_K)    ||
@@ -123,8 +113,6 @@ int main(int argc, char *argv[]) {
 		load_tile_data_block(&tile_data_block_3, 0x9000);
 
 		BeginDrawing();
-		ClearBackground(BLACK);
-
 		uint16_t tile_map_start = 0x9800;
 		for (int row = 0; row < 32; row++)
 			for (int col = 0; col < 32; col++) {
