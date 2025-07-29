@@ -27,17 +27,20 @@ void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 		uint8_t byte1 = mmu_read(pos);
 		uint8_t byte2 = mmu_read(pos+1);
 
-		for (int bit_num = 0; bit_num < 8; bit_num++) {
-			int byte1_bit = (byte1 >> (7 - bit_num)) & 0x01;
-			int byte2_bit = (byte2 >> (7 - bit_num)) & 0x01;
+		for (int i = 0; i < 8; i++) {
+			bool bit1 = (byte1 & 0x80) >> 7;
+			bool bit2 = (byte2 & 0x80) >> 7;
 
-			switch ((byte2_bit << 1) | byte1_bit) {
+			switch ((bit2 << 1) | bit1) {
 
 			case 0: *(raw_tile_data_pos++) = GREEN1; break;
 			case 1: *(raw_tile_data_pos++) = GREEN2; break;
 			case 2: *(raw_tile_data_pos++) = GREEN3; break;
 			case 3: *(raw_tile_data_pos++) = GREEN4; break;
 			}
+
+			byte1 <<= 1;
+			byte2 <<= 1;
 		}
 	}
 	UpdateTexture(*tile_data_block, raw_tile_data);
@@ -54,6 +57,16 @@ void DrawCenteredText(char* text, int font_size, Color color) {
 	);
 }
 
+void DrawTile(Texture2D *tile_block, int tile_index, int row, int col) {
+	Rectangle source = (Rectangle){ .x = 0, .y = 8 * tile_index, .width = 8, .height = 8 };
+	Rectangle destination = (Rectangle){ .x = col * 8, .y = row * 8, .width = 8, .height = 8 };
+	destination.x *= SCALE_FACTOR;
+	destination.y *= SCALE_FACTOR;
+	destination.width *= SCALE_FACTOR;
+	destination.height *= SCALE_FACTOR;
+	DrawTexturePro(*tile_block, source, destination, (Vector2){ 0, 0}, 0.0, WHITE);
+}
+
 int main(int argc, char *argv[]) {
 	bool rom_loaded = false;
 
@@ -68,8 +81,8 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	InitWindow(SCREENWIDTH, SCREENHEIGHT, "GameBoy Emulator");
 	SetWindowState(FLAG_VSYNC_HINT);
+	InitWindow(SCREENWIDTH, SCREENHEIGHT, "Hagemu GameBoy Emulator");
 
 	Image tile_image = GenImageColor(8, 1024, BLACK);
 	Texture2D tile_data_block_1 = LoadTextureFromImage(tile_image);
@@ -113,22 +126,24 @@ int main(int argc, char *argv[]) {
 		load_tile_data_block(&tile_data_block_3, 0x9000);
 
 		BeginDrawing();
-		uint16_t tile_map_start = 0x9800;
+		ClearBackground(GREEN1);
+
+		uint16_t tile_map_start;
+		if (mmu_get_bit(BG_TILE_MAP_AREA))
+			tile_map_start = 0x9C00;
+		else
+			tile_map_start = 0x9800;
+
 		for (int row = 0; row < 32; row++)
 			for (int col = 0; col < 32; col++) {
-				int tile_pos = mmu_read(tile_map_start + row * 32 + col);
-				if (tile_pos < 128)
-					DrawTexturePro(tile_data_block_1, (Rectangle){ .x = 0, .y = 8 * tile_pos, .width = 8, .height = 8 }, (Rectangle){ .x = col * 40, .y = row * 40, .width = 40, .height = 40}, (Vector2){ 0, 0}, 0.0, WHITE);
+				int tile_index = mmu_read(tile_map_start + row * 32 + col);
+				if (tile_index < 128 && mmu_get_bit(BG_TILE_DATA_AREA))
+					DrawTile(&tile_data_block_1, tile_index, row, col);
+				else if (tile_index < 128)
+					DrawTile(&tile_data_block_3, tile_index, row, col);
 				else
-					DrawTexturePro(tile_data_block_2, (Rectangle){ .x = 0, .y = 8 * (tile_pos - 128), .width = 8, .height = 8 }, (Rectangle){ .x = col * 40, .y = row * 40, .width = 40, .height = 40}, (Vector2){ 0, 0}, 0.0, WHITE);
+					DrawTile(&tile_data_block_2, tile_index - 128, row, col);
 			}
-
-		/* for (int i = 0; i < 8; i++) */
-			/* DrawTexturePro(tile_data_block_1, (Rectangle){ .x = 0, .y = 128 * i, .width = 8, .height = 128 }, (Rectangle){ .x = 32 * i, .y = 0, .width = 32, .height = 512 }, (Vector2){ 0, 0 }, 0.0, WHITE); */
-		/* for (int i = 0; i < 8; i++) */
-			/* DrawTexturePro(tile_data_block_2, (Rectangle){ .x = 0, .y = 128 * i, .width = 8, .height = 128 }, (Rectangle){ .x = 32 * i + 256 + 32, .y = 0, .width = 32, .height = 512 }, (Vector2){ 0, 0 }, 0.0, WHITE); */
-		/* for (int i = 0; i < 8; i++) */
-			/* DrawTexturePro(tile_data_block_3, (Rectangle){ .x = 0, .y = 128 * i, .width = 8, .height = 128 }, (Rectangle){ .x = 32 * i + 512 + 64, .y = 0, .width = 32, .height = 512 }, (Vector2){ 0, 0 }, 0.0, WHITE); */
 		DrawFPS(10, 10);
 		EndDrawing();
 		mmu_set_bit(VBLANK_INTERRUPT_FLAG_BIT);
