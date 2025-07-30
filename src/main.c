@@ -13,10 +13,30 @@
 #define CLOCK_SPEED 4194304L * SPEED_FACTOR
 
 // Green color palatte from lighest to darkest
-#define GREEN1 (Color){ 138, 189, 76, 255 }
-#define GREEN2 (Color){ 64, 133, 109, 255 }
-#define GREEN3 (Color){ 48, 102, 87, 255 }
-#define GREEN4 (Color){ 36, 76, 64, 255 }
+#define GREEN1 (Color){ 138, 189, 76,  255 }
+#define GREEN2 (Color){ 64,  133, 109, 255 }
+#define GREEN3 (Color){ 48,  102, 87,  255 }
+#define GREEN4 (Color){ 36,  76,  64,  255 }
+
+void DrawCenteredText(char* text, int font_size, Color color) {
+	int text_width = MeasureText(text, font_size);
+	DrawText(text,
+		SCREENWIDTH / 2 - text_width / 2,
+		SCREENHEIGHT / 2 - font_size / 2,
+		font_size,
+		color
+	);
+}
+
+void DrawTile(Texture2D *tile_block, int tile_index, int row, int col) {
+	Rectangle source = (Rectangle){ .x = 0, .y = 8 * tile_index, .width = 8, .height = 8 };
+	Rectangle destination = (Rectangle){ .x = col * 8, .y = row * 8, .width = 8, .height = 8 };
+	destination.x *= SCALE_FACTOR;
+	destination.y *= SCALE_FACTOR;
+	destination.width *= SCALE_FACTOR;
+	destination.height *= SCALE_FACTOR;
+	DrawTexturePro(*tile_block, source, destination, (Vector2){ 0, 0}, 0.0, WHITE);
+}
 
 void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 	uint16_t address_end = address_start + 0x0800;
@@ -47,24 +67,75 @@ void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 	free(raw_tile_data);
 }
 
-void DrawCenteredText(char* text, int font_size, Color color) {
-	int text_width = MeasureText(text, font_size);
-	DrawText(text,
-		SCREENWIDTH / 2 - text_width / 2,
-		SCREENHEIGHT / 2 - font_size / 2,
-		font_size,
-		color
-	);
+struct Tile {
+	uint8_t pixel[8][8];
+};
+typedef struct Tile Tile;
+
+struct ColoredTile {
+	Color pixel[8][8];
+};
+typedef struct ColoredTile ColoredTile;
+
+struct Palette {
+	Color color[4];
+};
+typedef struct Palette Palette;
+
+Palette standard_palette = {
+	.color = { GREEN1, GREEN2, GREEN3, GREEN4 }
+};
+
+ColoredTile colorize_tile(Tile tile, Palette palette) {
+	ColoredTile result;
+	for (int row = 0; row < 8; row++)
+		for (int col = 0; col < 8; col++)
+			result.pixel[row][col] = palette.color[tile.pixel[row][col]];
+}	
+
+Tile read_tile(uint16_t address) {
+	Tile result;
+	for (int row = 0; row < 8; row++) {
+		uint8_t byte1 = mmu_read(address + 2 * row);
+		uint8_t byte2 = mmu_read(address + 2 * row + 1);
+
+		for (int col = 0; col < 8; col++) {
+			bool bit1 = (byte1 & 0x80) >> 7;
+			bool bit2 = (byte2 & 0x80) >> 7;
+
+			result.pixel[row][col] = (bit2 << 1) | bit1;
+		}
+	}
+	return result;
 }
 
-void DrawTile(Texture2D *tile_block, int tile_index, int row, int col) {
-	Rectangle source = (Rectangle){ .x = 0, .y = 8 * tile_index, .width = 8, .height = 8 };
-	Rectangle destination = (Rectangle){ .x = col * 8, .y = row * 8, .width = 8, .height = 8 };
-	destination.x *= SCALE_FACTOR;
-	destination.y *= SCALE_FACTOR;
-	destination.width *= SCALE_FACTOR;
-	destination.height *= SCALE_FACTOR;
-	DrawTexturePro(*tile_block, source, destination, (Vector2){ 0, 0}, 0.0, WHITE);
+typedef struct {
+	int red : 5;
+	int green : 5;
+	int blue : 5;
+	int alpha : 1;
+} Color16bit;
+
+Color16bit screen_buffer[144][160];
+
+int render_scanline(int line_num) {
+	uint16_t tile_map_address;
+	if (mmu_get_bit(BG_TILE_MAP_AREA))
+		tile_map_address = 0x9C00;
+	else
+		tile_map_address = 0x9800;
+	
+	int bg_map_row    = (line_num + mmu_read(SCROLL_Y)) / 8;
+	int bg_map_col    = (col      + mmu_read(SCROLL_X)) / 8;
+	int tile_offset_y = (line_num + mmu_read(SCROLL_Y)) % 8;
+	int tile_offset_x = (col      + mmu_read(SCROLL_X)) % 8;
+	int col = 8 - tile_offset_x;
+
+	int tile_index = mmu_read(tile_map_address + 32 * bg_map_row + bg_map_col);
+	uint16_t tile_bank_address = 0x8000;
+	uint8_t tile_row_byte1 = mmu_read(tile_bank_address + 16 * tile_index + 2 * tile_offset_y);
+	uint8_t tile_row_byte2 = mmu_read(tile_bank_address + 16 * tile_index + 2 * tile_offset_y + 1);
+	for (int )
 }
 
 int main(int argc, char *argv[]) {
