@@ -136,9 +136,9 @@ void push_stack(uint16_t reg16) {
 }
 
 uint8_t op_rlc(uint8_t value) {
-	int highest_bit = (value & 0x80) >> 7;
+	int highest_bit = value >> 7;
 	value <<= 1;
-	value += highest_bit;
+	value |= highest_bit;
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = highest_bit;
@@ -146,9 +146,9 @@ uint8_t op_rlc(uint8_t value) {
 }
 
 uint8_t op_rrc(uint8_t value) {
-	int lowest_bit = value % 2;
+	int lowest_bit = value & 0x01;
 	value >>= 1;
-	value += (lowest_bit << 7);
+	value |= (lowest_bit << 7);
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
@@ -156,9 +156,9 @@ uint8_t op_rrc(uint8_t value) {
 }
 
 uint8_t op_rr(uint8_t value) {
-	int lowest_bit = value % 2;
+	int lowest_bit = value & 0x01;
 	value >>= 1;
-	value += (cpu.flag.carry << 7);
+	value |= (cpu.flag.carry << 7);
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
@@ -166,9 +166,9 @@ uint8_t op_rr(uint8_t value) {
 }
 
 uint8_t op_rl(uint8_t value) {
-	int highest_bit = (value & 0x80) >> 7;
+	int highest_bit = value >> 7;
 	value <<= 1;
-	value += cpu.flag.carry;
+	value |= cpu.flag.carry;
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = highest_bit;
@@ -176,7 +176,7 @@ uint8_t op_rl(uint8_t value) {
 }
 
 uint8_t op_sla(uint8_t value) {
-	int highest_bit = (value & 0x80) >> 7;
+	int highest_bit = value >> 7;
 	value <<= 1;
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
@@ -185,10 +185,10 @@ uint8_t op_sla(uint8_t value) {
 }
 
 uint8_t op_sra(uint8_t value) {
-	int lowest_bit = value % 2;
-	int highest_bit = (value & 0x80) >> 7;
+	int lowest_bit = value & 0x01;
+	int highest_bit = value & 0x80;
 	value >>= 1;
-	value += (highest_bit << 7);
+	value |= highest_bit;
 	cpu.reg.f = 0;
 	cpu.flag.zero = !value;
 	cpu.flag.carry = lowest_bit;
@@ -196,7 +196,7 @@ uint8_t op_sra(uint8_t value) {
 }
 
 uint8_t op_srl(uint8_t value) {
-	cpu.flag.carry = value % 2;
+	cpu.flag.carry = value & 0x01;
 	value >>= 1;
 	cpu.flag.subtract = 0;
 	cpu.flag.half_carry = 0;
@@ -312,9 +312,9 @@ void op_add(uint8_t value) {
 }
 
 void op_adc(uint8_t value) {
-	int oldcarry = cpu.flag.carry;
+	bool oldcarry = cpu.flag.carry;
 	cpu.flag.half_carry = (((cpu.reg.a & 0x0F) + (value & 0x0F) + oldcarry) & 0x10) == 0x10;
-	cpu.flag.carry = (value == 0xFF && oldcarry == 1) || ((0xFF - cpu.reg.a) < value + oldcarry);
+	cpu.flag.carry = ((unsigned)oldcarry + (unsigned)cpu.reg.a + (unsigned)value) > 0xFF;
 	cpu.flag.subtract = 0;
 	cpu.reg.a += value + oldcarry;
 	cpu.flag.zero = !cpu.reg.a;
@@ -329,9 +329,9 @@ void op_sub(uint8_t value) {
 }
 
 void op_sbc(uint8_t value) {
-	int oldcarry = cpu.flag.carry;
+	bool oldcarry = cpu.flag.carry;
 	cpu.flag.half_carry = (((cpu.reg.a & 0x0F) - (value & 0x0F) - oldcarry) & 0x10) == 0x10;
-	cpu.flag.carry = (value == 0xFF && oldcarry == 1) || (cpu.reg.a < value + oldcarry);
+	cpu.flag.carry = ((unsigned)oldcarry - (unsigned)cpu.reg.a - (unsigned)value) > 0xFF;
 	cpu.flag.subtract = 1;
 	cpu.reg.a -= value + oldcarry;
 	cpu.flag.zero = !cpu.reg.a;
@@ -421,7 +421,7 @@ void op_call(bool condition) {
 }
 
 void op_daa() {
-	int offset = 0;
+	unsigned offset = 0;
 	if (!cpu.flag.subtract) {
 		if (cpu.flag.half_carry || (cpu.reg.a & 0x0F) > 0x09)
 			offset |= 0x06;
