@@ -18,6 +18,33 @@
 #define GREEN3 (Color){ 48, 102, 87, 255 }
 #define GREEN4 (Color){ 36, 76, 64, 255 }
 
+typedef uint16_t R5G5B5A1;
+
+// Data pipeline
+// set_background_map ->
+uint8_t background_index_map[32][32];
+// set_raw_background_layer ->
+// each row/col contains 2-bit color information
+uint8_t raw_background_layer[256][256];
+// render scanline (144 times) ->
+R5G5B5A1 screen_buffer[144][160];
+// add_sprites ->
+// -- back to screen_buffer
+// update_texture - >
+Texture2D screen_texture;
+
+void set_background_index_map() {
+	uint16_t tile_map_start;
+	if (mmu_get_bit(BG_TILE_MAP_AREA))
+		tile_map_start = 0x9C00;
+	else
+		tile_map_start = 0x9800;
+
+	for (int row = 0; row < 32; row++)
+		for (int col = 0; col < 32; col++)
+			background_index_map[row][col] = mmu_read(tile_map_start + 32 * row + col);
+}
+
 void load_tile_data_block(Texture2D *tile_data_block, uint16_t address_start) {
 	uint16_t address_end = address_start + 0x0800;
 	Color *raw_tile_data = (Color*)malloc(128 * 8 * 8 * sizeof(Color));
@@ -124,25 +151,18 @@ int main(int argc, char *argv[]) {
 		load_tile_data_block(&tile_data_block_1, 0x8000);
 		load_tile_data_block(&tile_data_block_2, 0x8800);
 		load_tile_data_block(&tile_data_block_3, 0x9000);
+		set_background_index_map();
 
 		BeginDrawing();
 		ClearBackground(GREEN1);
-
-		uint16_t tile_map_start;
-		if (mmu_get_bit(BG_TILE_MAP_AREA))
-			tile_map_start = 0x9C00;
-		else
-			tile_map_start = 0x9800;
-
 		for (int row = 0; row < 32; row++)
 			for (int col = 0; col < 32; col++) {
-				int tile_index = mmu_read(tile_map_start + row * 32 + col);
-				if (tile_index < 128 && mmu_get_bit(BG_TILE_DATA_AREA))
-					DrawTile(&tile_data_block_1, tile_index, row, col);
-				else if (tile_index < 128)
-					DrawTile(&tile_data_block_3, tile_index, row, col);
+				if (background_index_map[row][col] < 128 && mmu_get_bit(BG_TILE_DATA_AREA))
+					DrawTile(&tile_data_block_1, background_index_map[row][col], row, col);
+				else if (background_index_map[row][col] < 128)
+					DrawTile(&tile_data_block_3, background_index_map[row][col], row, col);
 				else
-					DrawTile(&tile_data_block_2, tile_index - 128, row, col);
+					DrawTile(&tile_data_block_2, background_index_map[row][col] - 128, row, col);
 			}
 		DrawFPS(10, 10);
 		EndDrawing();
