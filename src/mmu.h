@@ -19,8 +19,10 @@ enum special_address {
 	LCD_CONTROL = 0xFF40,
 	DMA_START = 0xFF46,
 	LCD_Y_COORDINATE = 0xFF44,
-	SCROLL_Y = 0xFF42,
-	SCROLL_X = 0xFF43,
+	BG_SCROLL_Y = 0xFF42,
+	BG_SCROLL_X = 0xFF43,
+	WIN_SCROLL_Y = 0xFF4A,
+	WIN_SCROLL_X = 0xFF4B,
 };
 
 // The first four nibbles represents the byte address,
@@ -42,6 +44,8 @@ enum special_bit {
 
 	BG_TILE_DATA_AREA = 0xFF404,
 	BG_TILE_MAP_AREA  = 0xFF403,
+	WINDOW_ENABLE_BIT = 0xFF405,
+	WINDOW_TILE_MAP_AREA = 0xFF406,
 
 	JOYPAD_BUTTON0        = 0xFF000,
 	JOYPAD_BUTTON1        = 0xFF001,

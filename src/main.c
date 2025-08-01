@@ -31,25 +31,25 @@ R5G5B5A1 convert_color(Color color) {
 
 // Data pipeline
 // set_background_map ->
-uint8_t background_index_map[32][32];
+uint8_t ppu_index_map[32][32];
 // set_raw_background_layer ->
 // add_sprites ->
-uint8_t raw_background_layer[256][256];
+uint8_t ppu_data_layer[256][256];
 // draw_background_layer ->
 R5G5B5A1 screen_buffer[144][160];
 // update_texture - >
 Texture2D screen_texture;
 
-void set_background_index_map() {
+void set_ppu_index_map(bool index_map_area) {
 	uint16_t tile_map_start;
-	if (mmu_get_bit(BG_TILE_MAP_AREA))
+	if (index_map_area)
 		tile_map_start = 0x9C00;
 	else
 		tile_map_start = 0x9800;
 
 	for (int row = 0; row < 32; row++)
 		for (int col = 0; col < 32; col++)
-			background_index_map[row][col] = mmu_read(tile_map_start + 32 * row + col);
+			ppu_index_map[row][col] = mmu_read(tile_map_start + 32 * row + col);
 }
 
 void set_raw_tile(uint16_t tile_data_start, int row_start, int col_start) {
@@ -60,7 +60,7 @@ void set_raw_tile(uint16_t tile_data_start, int row_start, int col_start) {
 		for (int col = col_start; col < col_start + 8; col++) {
 			bool bit1 = (byte1 & 0x80) >> 7;
 			bool bit2 = (byte2 & 0x80) >> 7;
-			raw_background_layer[row][col] = (bit2 << 1) | bit1;
+			ppu_data_layer[row][col] = (bit2 << 1) | bit1;
 			byte1 <<= 1;
 			byte2 <<= 1;
 		}
@@ -73,7 +73,7 @@ void set_raw_background() {
 
 	for (int row = 0; row < 32; row++)
 		for (int col = 0; col < 32; col++) {
-			uint8_t tile_index = background_index_map[row][col];
+			uint8_t tile_index = ppu_index_map[row][col];
 			uint16_t tile_data_start;
 			if (tile_index < 128)
 				tile_data_start = data_block_1 + 16 * tile_index;
@@ -84,12 +84,12 @@ void set_raw_background() {
 		}
 }
 
-void draw_background_layer() {
-	int row_offset = mmu_read(SCROLL_Y);
-	int col_offset = mmu_read(SCROLL_X);
+void draw_background_layer(int scroll_x, int scroll_y) {
+	int row_offset = scroll_y;
+	int col_offset = scroll_x;
 	for (int row = 0; row < 144; row++)
 		for (int col = 0; col < 160; col++)
-			switch (raw_background_layer[(row + row_offset) % 256][(col + col_offset) % 256]) {
+			switch (ppu_data_layer[(row + row_offset) % 256][(col + col_offset) % 256]) {
 
 			case 0: screen_buffer[row][col] = convert_color(GREEN1); break;
 			case 1: screen_buffer[row][col] = convert_color(GREEN2); break;
@@ -108,8 +108,8 @@ void set_sprites() {
 		uint8_t tile_index = mmu_read(sprite_start + 2);
 		uint8_t attributes = mmu_read(sprite_start + 3);
 
-		y_position += mmu_read(SCROLL_Y);
-		x_position += mmu_read(SCROLL_X);
+		y_position += mmu_read(BG_SCROLL_Y);
+		x_position += mmu_read(BG_SCROLL_X);
 
 		if (attributes) {
 			fprintf(stderr, "Attributes not implemented yet\n");
@@ -199,10 +199,16 @@ int main(int argc, char *argv[]) {
 			cycles_since_last_frame += cpu_do_next_instruction();
 		}
 
-		set_background_index_map();
+		set_ppu_index_map(mmu_get_bit(BG_TILE_MAP_AREA));
 		set_raw_background();
 		set_sprites();
-		draw_background_layer();
+		draw_background_layer(mmu_read(BG_SCROLL_X), mmu_read(BG_SCROLL_Y));
+
+		if (mmu_get_bit(WINDOW_ENABLE_BIT)) {
+			set_ppu_index_map(mmu_get_bit(WINDOW_TILE_MAP_AREA));
+			set_raw_background();
+			draw_background_layer(mmu_read(BG_SCROLL_X) + mmu_read(WIN_SCROLL_X) - 7, mmu_read(BG_SCROLL_Y) + mmu_read(WIN_SCROLL_Y));
+		}
 
 		UpdateTexture(background_texture, &screen_buffer);
 

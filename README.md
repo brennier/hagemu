@@ -19,7 +19,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Draw the background layer
   - [x] Implement the scroll registers SCX and SCY
   - [ ] Update the scroll registers per scanline
-  - [ ] Add window overlay
+  - [x] Add window overlay
   - [x] Add sprites
   - [ ] Implement sprite attributes
   - [x] Implement DMA transfers
