@@ -4,3 +4,6 @@
 [submodule "lib/gb-test-roms"]
 	path = lib/gb-test-roms
 	url = https://github.com/retrio/gb-test-roms
+[submodule "lib/dmg-acid2"]
+	path = lib/dmg-acid2
+	url = https://github.com/mattcurrie/dmg-acid2
