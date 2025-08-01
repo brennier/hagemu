@@ -91,6 +91,26 @@ void set_background_layer() {
 			}
 }
 
+void set_sprites() {
+	uint16_t oam_start = 0xFE00;
+	uint16_t oam_end   = 0xFE9F;
+
+	for (int sprite_start = oam_start; sprite_start < oam_end; sprite_start += 4) {
+		uint8_t y_position = mmu_read(sprite_start);
+		uint8_t x_position = mmu_read(sprite_start + 1);
+		uint8_t tile_index = mmu_read(sprite_start + 2);
+		uint8_t attributes = mmu_read(sprite_start + 3);
+
+		if (attributes) {
+			fprintf(stderr, "Attributes not implemented yet");
+		}
+
+		uint16_t tile_data_start = 0x8000 + 16 * tile_index;
+
+		set_raw_tile(tile_data_start, y_position - 16, x_position - 8);
+	}
+}
+
 void DrawCenteredText(char* text, int font_size, Color color) {
 	int text_width = MeasureText(text, font_size);
 	DrawText(text,
@@ -171,6 +191,7 @@ int main(int argc, char *argv[]) {
 
 		set_background_index_map();
 		set_raw_background();
+		set_sprites();
 		set_background_layer();
 
 		UpdateTexture(background_texture, &background_layer);
