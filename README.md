@@ -4,6 +4,10 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
 
 ### Progress Report
 
+Playable Games (perhaps minor glitches)
+  - Tetris
+  - Dr. Mario
+
 - [ ] Pass Blargg's CPU test roms
   - [x] cpu_instrs test
   - [x] instr_timing test
@@ -14,10 +18,13 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Display tiles from VRAM
   - [x] Write tiles to window with Raylib
   - [x] Draw the background layer
-  - [ ] Implement the scroll registers SCX and SCY
+  - [x] Implement the scroll registers SCX and SCY
+  - [ ] Update the scroll registers per scanline
   - [ ] Add window overlay
-  - [ ] Add sprites
-  - [ ] Implement DMA transfers
+  - [x] Add sprites
+  - [ ] Implement sprite attributes
+  - [x] Implement DMA transfers
+  - [ ] Emulate the timing of the DMA
   - [ ] Switch to a scanline based renderer
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
   - [x] MCB1 (Basic support)
