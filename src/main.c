@@ -12,11 +12,22 @@
 #define SPEED_FACTOR 1
 #define CLOCK_SPEED 4194304L * SPEED_FACTOR
 
+typedef uint16_t R5G5B5A1;
+
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
 #define GREEN2 (Color){ 64, 133, 109, 255 }
 #define GREEN3 (Color){ 48, 102, 87, 255 }
 #define GREEN4 (Color){ 36, 76, 64, 255 }
+
+R5G5B5A1 convert_color(Color color) {
+	uint16_t result = 0;
+	result |= ((color.r >> 3) << 11);
+	result |= ((color.g >> 3) << 6);
+	result |= ((color.b >> 3) << 1);
+	result |= 1;
+	return result;
+}
 
 // Data pipeline
 // set_background_map ->
@@ -25,7 +36,7 @@ uint8_t background_index_map[32][32];
 // add_sprites ->
 uint8_t raw_background_layer[256][256];
 // draw_background_layer ->
-Color screen_buffer[144][160];
+R5G5B5A1 screen_buffer[144][160];
 // update_texture - >
 Texture2D screen_texture;
 
@@ -68,7 +79,7 @@ void set_raw_background() {
 				tile_data_start = data_block_1 + 16 * tile_index;
 			else
 				tile_data_start = data_block_2 + (16 * (tile_index - 128));
-			
+
 			set_raw_tile(tile_data_start, row * 8, col * 8);
 		}
 }
@@ -80,10 +91,10 @@ void draw_background_layer() {
 		for (int col = 0; col < 160; col++)
 			switch (raw_background_layer[(row + row_offset) % 256][(col + col_offset) % 256]) {
 
-			case 0: screen_buffer[row][col] = GREEN1; break;
-			case 1: screen_buffer[row][col] = GREEN2; break;
-			case 2: screen_buffer[row][col] = GREEN3; break;
-			case 3: screen_buffer[row][col] = GREEN4; break;
+			case 0: screen_buffer[row][col] = convert_color(GREEN1); break;
+			case 1: screen_buffer[row][col] = convert_color(GREEN2); break;
+			case 2: screen_buffer[row][col] = convert_color(GREEN3); break;
+			case 3: screen_buffer[row][col] = convert_color(GREEN4); break;
 			}
 }
 
@@ -152,7 +163,7 @@ int main(int argc, char *argv[]) {
 		.width = 160,
 		.height = 144,
 		.mipmaps = 1,
-		.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+		.format = PIXELFORMAT_UNCOMPRESSED_R5G5B5A1,
 	};
 	Texture2D background_texture = LoadTextureFromImage(background_image);
 	UnloadImage(background_image);
