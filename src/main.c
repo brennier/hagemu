@@ -80,9 +80,11 @@ void set_raw_background() {
 }
 
 void set_background_layer() {
+	int row_offset = mmu_read(SCROLL_Y);
+	int col_offset = mmu_read(SCROLL_X);
 	for (int row = 0; row < 144; row++)
 		for (int col = 0; col < 160; col++)
-			switch (raw_background_layer[row % 256][col % 256]) {
+			switch (raw_background_layer[(row + row_offset) % 256][(col + col_offset) % 256]) {
 
 			case 0: background_layer[row][col] = GREEN1; break;
 			case 1: background_layer[row][col] = GREEN2; break;
@@ -101,8 +103,11 @@ void set_sprites() {
 		uint8_t tile_index = mmu_read(sprite_start + 2);
 		uint8_t attributes = mmu_read(sprite_start + 3);
 
+		y_position += mmu_read(SCROLL_Y);
+		x_position += mmu_read(SCROLL_X);
+
 		if (attributes) {
-			fprintf(stderr, "Attributes not implemented yet");
+			fprintf(stderr, "Attributes not implemented yet\n");
 		}
 
 		uint16_t tile_data_start = 0x8000 + 16 * tile_index;

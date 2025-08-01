@@ -19,6 +19,8 @@ enum special_address {
 	LCD_CONTROL = 0xFF40,
 	DMA_START = 0xFF46,
 	LCD_Y_COORDINATE = 0xFF44,
+	SCROLL_Y = 0xFF42,
+	SCROLL_X = 0xFF43,
 };
 
 // The first four nibbles represents the byte address,
