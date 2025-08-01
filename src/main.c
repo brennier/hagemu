@@ -27,7 +27,7 @@ uint8_t background_index_map[32][32];
 // each row/col contains 2-bit color information
 uint8_t raw_background_layer[256][256];
 
-Color background_layer[256][256];
+Color background_layer[144][160];
 // render scanline (144 times) ->
 R5G5B5A1 screen_buffer[144][160];
 // add_sprites ->
@@ -47,19 +47,18 @@ void set_background_index_map() {
 			background_index_map[row][col] = mmu_read(tile_map_start + 32 * row + col);
 }
 
-void set_raw_tile(uint16_t tile_data_start, int row, int col) {
+void set_raw_tile(uint16_t tile_data_start, int row_start, int col_start) {
 	uint16_t current_address = tile_data_start;
-	for (int current_row = row; current_row < row + 8; current_row++) {
+	for (int row = row_start; row < row_start + 8; row++) {
 		uint8_t byte1 = mmu_read(current_address++);
 		uint8_t byte2 = mmu_read(current_address++);
-		for (int i = 0; i < 8; i++) {
+		for (int col = col_start; col < col_start + 8; col++) {
 			bool bit1 = (byte1 & 0x80) >> 7;
 			bool bit2 = (byte2 & 0x80) >> 7;
-			raw_background_layer[current_row][col++] = (bit2 << 1) | bit1;
+			raw_background_layer[row][col] = (bit2 << 1) | bit1;
 			byte1 <<= 1;
 			byte2 <<= 1;
 		}
-		col -= 8;
 	}
 }
 
@@ -81,9 +80,9 @@ void set_raw_background() {
 }
 
 void set_background_layer() {
-	for (int row = 0; row < 256; row++)
-		for (int col = 0; col < 256; col++)
-			switch (raw_background_layer[row][col]) {
+	for (int row = 0; row < 144; row++)
+		for (int col = 0; col < 160; col++)
+			switch (raw_background_layer[row % 256][col % 256]) {
 
 			case 0: background_layer[row][col] = GREEN1; break;
 			case 1: background_layer[row][col] = GREEN2; break;
@@ -129,7 +128,13 @@ int main(int argc, char *argv[]) {
 	SetWindowState(FLAG_VSYNC_HINT);
 	InitWindow(SCREENWIDTH, SCREENHEIGHT, "Hagemu GameBoy Emulator");
 
-	Image background_image = GenImageColor(256, 256, BLACK);
+	Image background_image = (Image){
+		.data = NULL,
+		.width = 160,
+		.height = 144,
+		.mipmaps = 1,
+		.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+	};
 	Texture2D background_texture = LoadTextureFromImage(background_image);
 	UnloadImage(background_image);
 
@@ -173,8 +178,8 @@ int main(int argc, char *argv[]) {
 		BeginDrawing();
 		ClearBackground(GREEN1);
 		DrawTexturePro(background_texture,
-			(Rectangle){ .x = 0, .y = 0, .width = 256, .height = 256},
-			(Rectangle){ .x = 0, .y = 0, .width = 256 * SCALE_FACTOR, .height = 256 * SCALE_FACTOR},
+			(Rectangle){ .x = 0, .y = 0, .width = 160, .height = 144},
+			(Rectangle){ .x = 0, .y = 0, .width = 160 * SCALE_FACTOR, .height = 144 * SCALE_FACTOR},
 			(Vector2){ 0, 0 },
 			0.0,
 			WHITE);
