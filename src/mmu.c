@@ -59,10 +59,6 @@ uint8_t mmu_read(uint16_t address) {
 	case JOYPAD_INPUT:
 		return get_joypad_input();
 
-	case DMA_START:
-		printf("DMA Transfer requested\n");
-		break;
-
 	case LCD_Y_COORDINATE:
 		printf("Reading LCD_Y_COORDINATE. Returning '%d'...\n", lcd_y_coordinate);
 		lcd_y_coordinate++;
@@ -129,6 +125,16 @@ void mmu_write(uint16_t address, uint8_t value) {
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits
 		break;
+
+	case DMA_START:
+		if (value > 0xDF) {
+			fprintf(stderr, "Illegal DMA Request!");
+			exit(EXIT_FAILURE);
+		}
+		for (int i = 0; i < 0xA0; i++)
+			gb_memory[0xFE00 + i] = gb_memory[(value << 8) + i];
+		fprintf(stderr, "DMA Transfer Complete!!\n");
+		return;
 
 	case JOYPAD_INPUT:
 		printf("Value '%02X' written to JOYPAD_INPUT\n", value);
