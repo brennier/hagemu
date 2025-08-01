@@ -18,20 +18,14 @@
 #define GREEN3 (Color){ 48, 102, 87, 255 }
 #define GREEN4 (Color){ 36, 76, 64, 255 }
 
-typedef uint16_t R5G5B5A1;
-
 // Data pipeline
 // set_background_map ->
 uint8_t background_index_map[32][32];
 // set_raw_background_layer ->
-// each row/col contains 2-bit color information
-uint8_t raw_background_layer[256][256];
-
-Color background_layer[144][160];
-// render scanline (144 times) ->
-R5G5B5A1 screen_buffer[144][160];
 // add_sprites ->
-// -- back to screen_buffer
+uint8_t raw_background_layer[256][256];
+// draw_background_layer ->
+Color screen_buffer[144][160];
 // update_texture - >
 Texture2D screen_texture;
 
@@ -79,17 +73,17 @@ void set_raw_background() {
 		}
 }
 
-void set_background_layer() {
+void draw_background_layer() {
 	int row_offset = mmu_read(SCROLL_Y);
 	int col_offset = mmu_read(SCROLL_X);
 	for (int row = 0; row < 144; row++)
 		for (int col = 0; col < 160; col++)
 			switch (raw_background_layer[(row + row_offset) % 256][(col + col_offset) % 256]) {
 
-			case 0: background_layer[row][col] = GREEN1; break;
-			case 1: background_layer[row][col] = GREEN2; break;
-			case 2: background_layer[row][col] = GREEN3; break;
-			case 3: background_layer[row][col] = GREEN4; break;
+			case 0: screen_buffer[row][col] = GREEN1; break;
+			case 1: screen_buffer[row][col] = GREEN2; break;
+			case 2: screen_buffer[row][col] = GREEN3; break;
+			case 3: screen_buffer[row][col] = GREEN4; break;
 			}
 }
 
@@ -197,9 +191,9 @@ int main(int argc, char *argv[]) {
 		set_background_index_map();
 		set_raw_background();
 		set_sprites();
-		set_background_layer();
+		draw_background_layer();
 
-		UpdateTexture(background_texture, &background_layer);
+		UpdateTexture(background_texture, &screen_buffer);
 
 		BeginDrawing();
 		ClearBackground(GREEN1);
