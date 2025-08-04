@@ -11,8 +11,6 @@ uint8_t gb_memory[64 * 1024]  = { 0 };
 
 int rom_bank_index = 0;
 
-int lcd_y_coordinate = 0;
-
 uint8_t get_joypad_input() {
 	mmu_set_bit(JOYPAD_BUTTON0);
 	mmu_set_bit(JOYPAD_BUTTON1);
@@ -58,13 +56,6 @@ uint8_t mmu_read(uint16_t address) {
 
 	case JOYPAD_INPUT:
 		return get_joypad_input();
-
-	case LCD_Y_COORDINATE:
-		printf("Reading LCD_Y_COORDINATE. Returning '%d'...\n", lcd_y_coordinate);
-		lcd_y_coordinate++;
-		if (lcd_y_coordinate == 154)
-			lcd_y_coordinate = 0;
-		return lcd_y_coordinate;
 	}
 
 	switch (address & 0xF000) {
