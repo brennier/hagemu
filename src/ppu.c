@@ -11,7 +11,7 @@ R5G5B5A1 screen_buffer[144][160];
 int current_line = 0;
 void ppu_draw_scanline();
 void ppu_draw_sprites();
-void ppu_draw_background();
+void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y);
 
 enum PPUMode {
 	HBLANK,
@@ -67,19 +67,30 @@ bool ppu_frame_finished(int current_cycle) {
 }
 
 void ppu_draw_scanline() {
-	ppu_draw_background();
+	bool tile_map_mode = mmu_get_bit(BG_TILE_MAP_AREA);
+	uint8_t scroll_x = mmu_read(BG_SCROLL_X);
+	uint8_t scroll_y = mmu_read(BG_SCROLL_Y);
+	if (mmu_get_bit(BG_ENABLE))
+		ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
+
+	tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
+	scroll_x += mmu_read(WIN_SCROLL_X) - 7;
+	scroll_y += mmu_read(WIN_SCROLL_Y);
+	if (mmu_get_bit(WINDOW_ENABLE))
+		ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
+
 	ppu_draw_sprites();
 }
 
-void ppu_draw_background() {
-	int background_row = current_line + mmu_read(BG_SCROLL_Y);
+void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y) {
+	int background_row = current_line + scroll_y;
 
 	// Get tile indices
 	uint8_t tile_indices[32];
 	int tile_index_row = background_row / 8;
 	int tile_pixel_row = background_row % 8;
 	uint16_t tile_map_start;
-	if (mmu_get_bit(BG_TILE_MAP_AREA))
+	if (tile_map_mode)
 		tile_map_start = 0x9C00;
 	else
 		tile_map_start = 0x9800;
@@ -132,7 +143,7 @@ void ppu_draw_background() {
 		}
 
 	// Copy scanline to screen_buffer
-	int x_offset = mmu_read(BG_SCROLL_X);
+	int x_offset = scroll_x;
 	for (int i = 0; i < 160; i++)
 		screen_buffer[current_line][i] = colored_tile_data[(x_offset + i) % 256];
 }
