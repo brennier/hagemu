@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -O3 -std=c99 -Wall -pedantic
-OBJ = build/main.o build/mmu.o build/clock.o build/cpu.o
+OBJ = build/main.o build/mmu.o build/clock.o build/cpu.o build/ppu.o
 
 # Use different linker libraries and output names depending on the OS
 ifeq ($(OS),Windows_NT)
