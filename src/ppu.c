@@ -7,6 +7,7 @@
 #define PIXEL_DRAW_LENGTH 200
 
 R5G5B5A1 screen_buffer[144][160];
+int current_line = 0;
 void ppu_draw_scanline();
 
 enum PPUMode {
@@ -15,6 +16,10 @@ enum PPUMode {
 	OAM_SCAN,
 	PIXEL_DRAW,
 } PPU_mode;
+
+int ppu_get_current_line() {
+	return current_line;
+}
 
 void ppu_update(int current_cycle) {
 	int scanline_cycle = current_cycle % 456;
@@ -31,7 +36,7 @@ void ppu_update(int current_cycle) {
 	else
 		PPU_mode = HBLANK;
 
-	mmu_write(LCD_Y_COORDINATE, current_cycle / 456);
+	current_line = current_cycle / 456;
 
 	if (PPU_mode == old_mode)
 		return;
@@ -59,7 +64,7 @@ bool ppu_frame_finished(int current_cycle) {
 }
 
 void ppu_draw_scanline() {
-	int background_row = mmu_read(LCD_Y_COORDINATE) + mmu_read(BG_SCROLL_Y);
+	int background_row = current_line + mmu_read(BG_SCROLL_Y);
 
 	// Get tile indices
 	uint8_t tile_indices[32];
@@ -120,9 +125,8 @@ void ppu_draw_scanline() {
 
 	// Copy scanline to screen_buffer
 	int x_offset = mmu_read(BG_SCROLL_X);
-	int current_row = mmu_read(LCD_Y_COORDINATE);
 	for (int i = 0; i < 160; i++)
-		screen_buffer[current_row][i] = colored_tile_data[(x_offset + i) % 256];
+		screen_buffer[current_line][i] = colored_tile_data[(x_offset + i) % 256];
 }
 
 R5G5B5A1* ppu_get_frame() {

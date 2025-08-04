@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		UpdateTexture(background_texture, ppu_get_frame());
-k
+
 		BeginDrawing();
 		DrawTexturePro(background_texture,
 			(Rectangle){ .x = 0, .y = 0, .width = 160, .height = 144},

@@ -4,6 +4,7 @@
 #include "mmu.h"
 #include "clock.h"
 #include "raylib.h"
+#include "ppu.h"
 
 uint8_t *rom_memory;
 // The GB has 64kb of mapped memory
@@ -56,6 +57,9 @@ uint8_t mmu_read(uint16_t address) {
 
 	case JOYPAD_INPUT:
 		return get_joypad_input();
+
+	case LCD_Y_COORDINATE:
+		return ppu_get_current_line();
 	}
 
 	switch (address & 0xF000) {
@@ -134,6 +138,10 @@ void mmu_write(uint16_t address, uint8_t value) {
 	case LCD_CONTROL:
 		printf("Value '%02X' written to LCD_CONTROL\n", value);
 		break;
+
+	case LCD_Y_COORDINATE:
+		printf("Illegal write to LCD Y Coordinate. Ignoring...\n");
+		return;
 	}
 
 	switch (address & 0xF000) {
@@ -157,7 +165,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 		}
 		// Object Attribute Memory
 		else if (address < 0xFEA0) {
-			printf("Write to OAM at '%02X'", address);
+			printf("Write to OAM at '%02X'\n", address);
 			gb_memory[address] = value;
 			return;
 		}
