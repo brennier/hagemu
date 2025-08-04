@@ -5,6 +5,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
 ### Playable games (perhaps minor glitches)
 - Tetris
 - Dr. Mario
+- Super Mario Land
 
 ### Progress Report
 - [ ] Pass Blargg's CPU test roms

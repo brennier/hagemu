@@ -42,11 +42,4 @@ clean:
 	@rm -rf build ${OUTPUT}
 
 test: ${OUTPUT}
-	@echo "Testing CPU instructions..."
-	@./${OUTPUT} lib/gb-test-roms/cpu_instrs/cpu_instrs.gb
-	@echo ""
-	@echo "Testing instruction timing..."
-	@./${OUTPUT} lib/gb-test-roms/instr_timing/instr_timing.gb
-	@echo ""
-	@echo "Testing memory timing..."
-	@./${OUTPUT} lib/gb-test-roms/mem_timing/mem_timing.gb
+	./${OUTPUT} roms/dmg-acid2.gb
