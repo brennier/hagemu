@@ -60,6 +60,9 @@ uint8_t mmu_read(uint16_t address) {
 
 	case LCD_Y_COORDINATE:
 		return ppu_get_current_line();
+
+	case LCD_STATUS:
+		return gb_memory[LCD_STATUS] | ppu_get_lcd_status();
 	}
 
 	switch (address & 0xF000) {
@@ -150,6 +153,10 @@ void mmu_write(uint16_t address, uint8_t value) {
 	case 0x2000: case 0x3000:
 		//fprintf(stderr, "ROM BANK SWITCHED TO %d\n", value & 0x1F);
 		rom_bank_index = value & 0x1F;
+		return;
+
+	case 0x6000: case 0x7000:
+		fprintf(stderr, "Attempt to write value %d to the banking mode select address '%02X'. This is not implemented yet.\n", value, address);
 		return;
 
 	case 0xE000: case 0xF000:

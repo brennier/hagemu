@@ -24,6 +24,13 @@ int ppu_get_current_line() {
 	return current_line;
 }
 
+int ppu_get_lcd_status() {
+	int result = 0;
+	result |= PPU_mode;
+	result |= (current_line == mmu_read(LY_COMPARE)) << 2;
+	return result;
+}
+
 void ppu_update(int current_cycle) {
 	int scanline_cycle = current_cycle % 456;
 	enum PPUMode old_mode = PPU_mode;
@@ -39,7 +46,11 @@ void ppu_update(int current_cycle) {
 	else
 		PPU_mode = HBLANK;
 
-	current_line = current_cycle / 456;
+	if (current_line != current_cycle / 456) {
+		current_line = current_cycle / 456;
+		if (current_line == mmu_read(LY_COMPARE) && mmu_get_bit(LYC_INTERRUPT_SELECT))
+			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
+	}
 
 	if (PPU_mode == old_mode)
 		return;
@@ -47,13 +58,19 @@ void ppu_update(int current_cycle) {
 	switch (PPU_mode) {
 
 	case OAM_SCAN:
+		if (mmu_get_bit(OAM_SCAN_INTERRUPT_SELECT))
+			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		break;
 	case PIXEL_DRAW:
 		break;
 	case HBLANK:
 		ppu_draw_scanline();
+		if (mmu_get_bit(HBLANK_INTERRUPT_SELECT))
+			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		break;
 	case VBLANK:
+		if (mmu_get_bit(VBLANK_INTERRUPT_SELECT))
+			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		mmu_set_bit(VBLANK_INTERRUPT_FLAG_BIT);
 		break;
 	}
@@ -70,8 +87,7 @@ void ppu_draw_scanline() {
 	bool tile_map_mode = mmu_get_bit(BG_TILE_MAP_AREA);
 	uint8_t scroll_x = mmu_read(BG_SCROLL_X);
 	uint8_t scroll_y = mmu_read(BG_SCROLL_Y);
-	if (mmu_get_bit(BG_ENABLE))
-		ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
+	ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
 
 	tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
 	scroll_x += mmu_read(WIN_SCROLL_X) - 7;

@@ -23,6 +23,8 @@ enum special_address {
 	BG_SCROLL_X = 0xFF43,
 	WIN_SCROLL_Y = 0xFF4A,
 	WIN_SCROLL_X = 0xFF4B,
+	LCD_STATUS = 0xFF41,
+	LY_COMPARE = 0xFF45,
 };
 
 // The first four nibbles represents the byte address,
@@ -54,6 +56,12 @@ enum special_bit {
 	JOYPAD_BUTTON3        = 0xFF003,
 	JOYPAD_SELECT_DPAD    = 0xFF004,
 	JOYPAD_SELECT_BUTTONS = 0xFF005,
+
+	LY_EQUALS_LYC = 0xFF412,
+	HBLANK_INTERRUPT_SELECT = 0xFF413,
+	VBLANK_INTERRUPT_SELECT = 0xFF414,
+	OAM_SCAN_INTERRUPT_SELECT = 0xFF415,
+	LYC_INTERRUPT_SELECT = 0xFF416,
 };
 
 void mmu_load_rom(char* rom_name);
