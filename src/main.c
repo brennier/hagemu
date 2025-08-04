@@ -30,97 +30,8 @@ R5G5B5A1 convert_color(Color color) {
 	return result;
 }
 
-// Data pipeline
-// set_background_map ->
-uint8_t ppu_index_map[32][32];
-// set_raw_background_layer ->
-// add_sprites ->
-uint8_t ppu_data_layer[256][256];
-// draw_background_layer ->
 R5G5B5A1 screen_buffer[144][160];
-// update_texture - >
 Texture2D screen_texture;
-
-void set_ppu_index_map(bool index_map_area) {
-	uint16_t tile_map_start;
-	if (index_map_area)
-		tile_map_start = 0x9C00;
-	else
-		tile_map_start = 0x9800;
-
-	for (int row = 0; row < 32; row++)
-		for (int col = 0; col < 32; col++)
-			ppu_index_map[row][col] = mmu_read(tile_map_start + 32 * row + col);
-}
-
-void set_raw_tile(uint16_t tile_data_start, int row_start, int col_start) {
-	uint16_t current_address = tile_data_start;
-	for (int row = row_start; row < row_start + 8; row++) {
-		uint8_t byte1 = mmu_read(current_address++);
-		uint8_t byte2 = mmu_read(current_address++);
-		for (int col = col_start; col < col_start + 8; col++) {
-			bool bit1 = (byte1 & 0x80) >> 7;
-			bool bit2 = (byte2 & 0x80) >> 7;
-			ppu_data_layer[row][col] = (bit2 << 1) | bit1;
-			byte1 <<= 1;
-			byte2 <<= 1;
-		}
-	}
-}
-
-void set_raw_background() {
-	uint16_t data_block_1 = mmu_get_bit(BG_TILE_DATA_AREA) ? 0x8000 : 0x9000;
-	uint16_t data_block_2 = 0x8800;
-
-	for (int row = 0; row < 32; row++)
-		for (int col = 0; col < 32; col++) {
-			uint8_t tile_index = ppu_index_map[row][col];
-			uint16_t tile_data_start;
-			if (tile_index < 128)
-				tile_data_start = data_block_1 + 16 * tile_index;
-			else
-				tile_data_start = data_block_2 + (16 * (tile_index - 128));
-
-			set_raw_tile(tile_data_start, row * 8, col * 8);
-		}
-}
-
-void draw_background_layer(int scroll_x, int scroll_y) {
-	int row_offset = scroll_y;
-	int col_offset = scroll_x;
-	for (int row = 0; row < 144; row++)
-		for (int col = 0; col < 160; col++)
-			switch (ppu_data_layer[(row + row_offset) % 256][(col + col_offset) % 256]) {
-
-			case 0: screen_buffer[row][col] = convert_color(GREEN1); break;
-			case 1: screen_buffer[row][col] = convert_color(GREEN2); break;
-			case 2: screen_buffer[row][col] = convert_color(GREEN3); break;
-			case 3: screen_buffer[row][col] = convert_color(GREEN4); break;
-			}
-}
-
-void set_sprites() {
-	uint16_t oam_start = 0xFE00;
-	uint16_t oam_end   = 0xFE9F;
-
-	for (int sprite_start = oam_start; sprite_start < oam_end; sprite_start += 4) {
-		uint8_t y_position = mmu_read(sprite_start);
-		uint8_t x_position = mmu_read(sprite_start + 1);
-		uint8_t tile_index = mmu_read(sprite_start + 2);
-		uint8_t attributes = mmu_read(sprite_start + 3);
-
-		y_position += mmu_read(BG_SCROLL_Y);
-		x_position += mmu_read(BG_SCROLL_X);
-
-		if (attributes) {
-			fprintf(stderr, "Attributes not implemented yet\n");
-		}
-
-		uint16_t tile_data_start = 0x8000 + 16 * tile_index;
-
-		set_raw_tile(tile_data_start, y_position - 16, x_position - 8);
-	}
-}
 
 void DrawCenteredText(char* text, int font_size, Color color) {
 	int text_width = MeasureText(text, font_size);
@@ -133,7 +44,7 @@ void DrawCenteredText(char* text, int font_size, Color color) {
 }
 
 void draw_scanline() {
-	if (mmu_read(LCD_Y_COORDINATE) > 144)
+	if (mmu_read(LCD_Y_COORDINATE) >= 144)
 		return;
 	int background_row = mmu_read(LCD_Y_COORDINATE) + mmu_read(BG_SCROLL_Y);
 
@@ -196,8 +107,9 @@ void draw_scanline() {
 
 	// Copy scanline to screen_buffer
 	int x_offset = mmu_read(BG_SCROLL_X);
+	int current_row = mmu_read(LCD_Y_COORDINATE);
 	for (int i = 0; i < 160; i++)
-		screen_buffer[background_row][i] = colored_tile_data[(x_offset + i) % 256];
+		screen_buffer[current_row][i] = colored_tile_data[(x_offset + i) % 256];
 }
 
 
@@ -215,7 +127,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	SetWindowState(FLAG_VSYNC_HINT);
+	SetConfigFlags(FLAG_VSYNC_HINT);
 	SetTargetFPS(60);
 	InitWindow(SCREENWIDTH, SCREENHEIGHT, "Hagemu GameBoy Emulator");
 
