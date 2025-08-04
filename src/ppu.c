@@ -1,8 +1,8 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "ppu.h"
 #include "mmu.h"
-#include "stdio.h"
 
 #define PIXEL_DRAW_LENGTH 200
 #define SPRITE_LIMIT 10
@@ -147,8 +147,10 @@ void ppu_draw_sprites() {
 		uint8_t x_position = mmu_read(sprite_start + 1) - 8;
 		uint8_t tile_index = mmu_read(sprite_start + 2);
 		uint8_t attributes = mmu_read(sprite_start + 3);
+		bool background_priority = (attributes >> 7) & 0x01;
+		int sprite_row = current_line - y_position;
 
-		if (current_line < y_position || current_line > y_position + 7)
+		if (sprite_row < 0 || sprite_row > 7)
 			continue;
 
 		if (sprite_num < SPRITE_LIMIT)
@@ -156,21 +158,18 @@ void ppu_draw_sprites() {
 		else
 			continue;
 
-		int sprite_row = (current_line - y_position);
-
-		if (attributes) {
-			fprintf(stderr, "Attributes not implemented yet\n");
-		}
-
 		uint16_t byte1 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row);
 		uint16_t byte2 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row + 1);
 		for (int col = 0; col < 8; col++) {
-			bool bit1 = (byte1 & 0x80) >> 7;
-			bool bit2 = (byte2 & 0x80) >> 7;
+			bool bit1 = (byte1 >> (7 - col)) & 0x01;
+			bool bit2 = (byte2 >> (7 - col)) & 0x01;
+			if (background_priority && screen_buffer[current_line][x_position + col] != COLOR1)
+				continue;
+
 			switch ((bit2 << 1) | bit1) {
 
 			case 0:
-				screen_buffer[current_line][x_position + col] = COLOR1;
+				// This case represents transparency
 				break;
 			case 1:
 				screen_buffer[current_line][x_position + col] = COLOR2;
@@ -182,8 +181,6 @@ void ppu_draw_sprites() {
 				screen_buffer[current_line][x_position + col] = COLOR4;
 				break;
 			}
-			byte1 <<= 1;
-			byte2 <<= 1;
 		}
 	}
 }

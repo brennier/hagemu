@@ -448,7 +448,6 @@ void handle_interrupts() {
 	push_stack(cpu.wreg.pc);
 
 	if (interrupts & 0x01) {
-		printf("VBLANK INTERRUPT OCCURED\n");
 		cpu.wreg.pc = 0x0040;
 		mmu_clear_bit(VBLANK_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x02) {

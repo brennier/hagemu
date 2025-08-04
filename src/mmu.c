@@ -128,12 +128,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 		}
 		for (int i = 0; i < 0xA0; i++)
 			gb_memory[0xFE00 + i] = gb_memory[(value << 8) + i];
-		fprintf(stderr, "DMA Transfer Complete!!\n");
 		return;
-
-	case JOYPAD_INPUT:
-		printf("Value '%02X' written to JOYPAD_INPUT\n", value);
-		break;
 
 	case LCD_CONTROL:
 		printf("Value '%02X' written to LCD_CONTROL\n", value);
