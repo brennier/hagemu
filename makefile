@@ -1,6 +1,7 @@
 CC = gcc
 CFLAGS = -O3 -std=c99 -Wall -pedantic
-OBJ = build/main.o build/mmu.o build/clock.o build/cpu.o build/ppu.o
+SOURCES = $(wildcard src/*.c)
+OBJECTS = $(patsubst src/%.c,build/%.o,$(SOURCES))
 
 # Use different linker libraries and output names depending on the OS
 ifeq ($(OS),Windows_NT)
@@ -12,7 +13,7 @@ else
 	OUTPUT = hagemu
 endif
 
-${OUTPUT}: build/libraylib.a ${OBJ}
+${OUTPUT}: build/libraylib.a ${OBJECTS}
 	@printf %s "Linking object files..."
 	@${CC} $^ -o $@ -L build ${LFLAGS} >/dev/null
 	@echo sucessful!
@@ -23,7 +24,7 @@ build/raylib.h:
 	@cp lib/raylib/src/raylib.h $@
 	@echo sucessfull!
 
-build/%.o: src/%.c build/raylib.h
+build/%.o: src/%.c build/raylib.h makefile
 	@mkdir -p build
 	@printf %s "Compiling $(notdir $<) into object code..."
 	@${CC} ${CFLAGS} -o $@ -I build -c $< >/dev/null
