@@ -10,9 +10,6 @@
 #define SCALE_FACTOR 5
 #define SCREENWIDTH 160 * SCALE_FACTOR
 #define SCREENHEIGHT 144 * SCALE_FACTOR
-#define SPEED_FACTOR 1
-#define CLOCK_SPEED 4194304L * SPEED_FACTOR
-#define CLOCKS_PER_SCANLINE 456
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
@@ -84,18 +81,15 @@ int main(int argc, char *argv[]) {
 		    IsKeyDown(KEY_Z)     || IsKeyDown(KEY_X)     )
 			mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 
-		for (int scanline = 0; scanline < 154; scanline++) {
-			mmu_write(LCD_Y_COORDINATE, scanline);
-			ppu_draw_scanline();
-			int t_cycles = 0;
-			while (t_cycles < CLOCKS_PER_SCANLINE)
-				t_cycles += cpu_do_next_instruction();
+		int current_cycle = 0;
+		while (!ppu_frame_finished(current_cycle)) {
+			current_cycle += cpu_do_next_instruction();
+			ppu_update(current_cycle);
 		}
 
 		UpdateTexture(background_texture, ppu_get_frame());
-
+k
 		BeginDrawing();
-		ClearBackground(GREEN1);
 		DrawTexturePro(background_texture,
 			(Rectangle){ .x = 0, .y = 0, .width = 160, .height = 144},
 			(Rectangle){ .x = 0, .y = 0, .width = 160 * SCALE_FACTOR, .height = 144 * SCALE_FACTOR},
@@ -104,7 +98,6 @@ int main(int argc, char *argv[]) {
 			WHITE);
 		DrawFPS(10, 10);
 		EndDrawing();
-		mmu_set_bit(VBLANK_INTERRUPT_FLAG_BIT);
 	}
 
 	UnloadTexture(background_texture);

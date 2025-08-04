@@ -2,14 +2,63 @@
 #include <stdint.h>
 #include "ppu.h"
 #include "mmu.h"
+#include "stdio.h"
 
-#define CLOCKS_PER_SCANLINE 456
+#define PIXEL_DRAW_LENGTH 200
 
-R5G5B5A1 screen_buffer[144][160] = { 0 };
+R5G5B5A1 screen_buffer[144][160];
+void ppu_draw_scanline();
+
+enum PPUMode {
+	HBLANK,
+	VBLANK,
+	OAM_SCAN,
+	PIXEL_DRAW,
+} PPU_mode;
+
+void ppu_update(int current_cycle) {
+	int scanline_cycle = current_cycle % 456;
+	enum PPUMode old_mode = PPU_mode;
+
+	if (current_cycle > 70224)
+		return;
+	else if (current_cycle > 65664)
+		PPU_mode = VBLANK;
+	else if (scanline_cycle < 80)
+		PPU_mode = OAM_SCAN;
+	else if (scanline_cycle < 80 + PIXEL_DRAW_LENGTH)
+		PPU_mode = PIXEL_DRAW;
+	else
+		PPU_mode = HBLANK;
+
+	mmu_write(LCD_Y_COORDINATE, current_cycle / 456);
+
+	if (PPU_mode == old_mode)
+		return;
+
+	switch (PPU_mode) {
+
+	case OAM_SCAN:
+		break;
+	case PIXEL_DRAW:
+		break;
+	case HBLANK:
+		ppu_draw_scanline();
+		break;
+	case VBLANK:
+		mmu_set_bit(VBLANK_INTERRUPT_FLAG_BIT);
+		break;
+	}
+}
+
+bool ppu_frame_finished(int current_cycle) {
+	if (current_cycle > 70224)
+		return true;
+	else
+		return false;
+}
 
 void ppu_draw_scanline() {
-	if (mmu_read(LCD_Y_COORDINATE) >= 144)
-		return;
 	int background_row = mmu_read(LCD_Y_COORDINATE) + mmu_read(BG_SCROLL_Y);
 
 	// Get tile indices
