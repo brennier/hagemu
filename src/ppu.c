@@ -84,18 +84,21 @@ bool ppu_frame_finished(int current_cycle) {
 }
 
 void ppu_draw_scanline() {
-	bool tile_map_mode = mmu_get_bit(BG_TILE_MAP_AREA);
-	uint8_t scroll_x = mmu_read(BG_SCROLL_X);
-	uint8_t scroll_y = mmu_read(BG_SCROLL_Y);
-	ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
-
-	tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
-	scroll_x += mmu_read(WIN_SCROLL_X) - 7;
-	scroll_y += mmu_read(WIN_SCROLL_Y);
-	if (mmu_get_bit(WINDOW_ENABLE))
+	if (mmu_get_bit(BG_ENABLE)) {
+		bool tile_map_mode = mmu_get_bit(BG_TILE_MAP_AREA);
+		uint8_t scroll_x = mmu_read(BG_SCROLL_X);
+		uint8_t scroll_y = mmu_read(BG_SCROLL_Y);
 		ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
 
-	ppu_draw_sprites();
+		tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
+		scroll_x += mmu_read(WIN_SCROLL_X) - 7;
+		scroll_y += mmu_read(WIN_SCROLL_Y);
+		if (mmu_get_bit(WINDOW_ENABLE))
+			ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
+	}
+
+	if (mmu_get_bit(OBJECTS_ENABLE))
+		ppu_draw_sprites();
 }
 
 void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y) {
