@@ -5,10 +5,13 @@
 #include "stdio.h"
 
 #define PIXEL_DRAW_LENGTH 200
+#define SPRITE_LIMIT 10
 
 R5G5B5A1 screen_buffer[144][160];
 int current_line = 0;
 void ppu_draw_scanline();
+void ppu_draw_sprites();
+void ppu_draw_background();
 
 enum PPUMode {
 	HBLANK,
@@ -64,6 +67,11 @@ bool ppu_frame_finished(int current_cycle) {
 }
 
 void ppu_draw_scanline() {
+	ppu_draw_background();
+	ppu_draw_sprites();
+}
+
+void ppu_draw_background() {
 	int background_row = current_line + mmu_read(BG_SCROLL_Y);
 
 	// Get tile indices
@@ -127,6 +135,57 @@ void ppu_draw_scanline() {
 	int x_offset = mmu_read(BG_SCROLL_X);
 	for (int i = 0; i < 160; i++)
 		screen_buffer[current_line][i] = colored_tile_data[(x_offset + i) % 256];
+}
+
+void ppu_draw_sprites() {
+	uint16_t oam_start = 0xFE00;
+	uint16_t oam_end   = 0xFE9F;
+	int sprite_num = 0;
+
+	for (int sprite_start = oam_start; sprite_start < oam_end; sprite_start += 4) {
+		uint8_t y_position = mmu_read(sprite_start) - 16;
+		uint8_t x_position = mmu_read(sprite_start + 1) - 8;
+		uint8_t tile_index = mmu_read(sprite_start + 2);
+		uint8_t attributes = mmu_read(sprite_start + 3);
+
+		if (current_line < y_position || current_line > y_position + 7)
+			continue;
+
+		if (sprite_num < SPRITE_LIMIT)
+			sprite_num++;
+		else
+			continue;
+
+		int sprite_row = (current_line - y_position);
+
+		if (attributes) {
+			fprintf(stderr, "Attributes not implemented yet\n");
+		}
+
+		uint16_t byte1 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row);
+		uint16_t byte2 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row + 1);
+		for (int col = 0; col < 8; col++) {
+			bool bit1 = (byte1 & 0x80) >> 7;
+			bool bit2 = (byte2 & 0x80) >> 7;
+			switch ((bit2 << 1) | bit1) {
+
+			case 0:
+				screen_buffer[current_line][x_position + col] = COLOR1;
+				break;
+			case 1:
+				screen_buffer[current_line][x_position + col] = COLOR2;
+				break;
+			case 2:
+				screen_buffer[current_line][x_position + col] = COLOR3;
+				break;
+			case 3:
+				screen_buffer[current_line][x_position + col] = COLOR4;
+				break;
+			}
+			byte1 <<= 1;
+			byte2 <<= 1;
+		}
+	}
 }
 
 R5G5B5A1* ppu_get_frame() {
