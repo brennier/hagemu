@@ -7,14 +7,11 @@
 #define PIXEL_DRAW_LENGTH 200
 #define SPRITE_LIMIT 10
 
-// Green color palette from lightest to darkest
-//#define COLOR0 ((R5G5B5A1)0x8DD3)
-//#define COLOR1 ((R5G5B5A1)0x441B)
-//#define COLOR2 ((R5G5B5A1)0x3315)
-//#define COLOR3 ((R5G5B5A1)0x2251)
-
 // BW color palette from lightest to darkest
-const R5G5B5A1 ppu_default_colors[4] = { 0xFFFF, 0xAD6B, 0x5295, 0x0001 };
+// const R5G5B5A1 ppu_default_colors[4] = { 0xFFFF, 0xAD6B, 0x5295, 0x0001 };
+
+// Green color palette from lightest to darkest
+const R5G5B5A1 ppu_default_colors[4] = { 0x8DD3, 0x441B, 0x3315, 0x2251 };
 
 R5G5B5A1 screen_buffer[144][160];
 bool is_background_nonzero[160];

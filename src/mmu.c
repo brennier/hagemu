@@ -116,10 +116,6 @@ void mmu_write(uint16_t address, uint8_t value) {
 		clock_reset();
 		return;
 
-	case INTERRUPT_ENABLE:
-		printf("Value '%02X' written to INTERRUPT_ENABLE\n", value);
-		break;
-
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits
 		break;
@@ -132,10 +128,6 @@ void mmu_write(uint16_t address, uint8_t value) {
 		for (int i = 0; i < 0xA0; i++)
 			gb_memory[0xFE00 + i] = gb_memory[(value << 8) + i];
 		return;
-
-	case LCD_CONTROL:
-		printf("Value '%02X' written to LCD_CONTROL\n", value);
-		break;
 
 	case LCD_Y_COORDINATE:
 		printf("Illegal write to LCD Y Coordinate. Ignoring...\n");
@@ -167,7 +159,6 @@ void mmu_write(uint16_t address, uint8_t value) {
 		}
 		// Object Attribute Memory
 		else if (address < 0xFEA0) {
-			printf("Write to OAM at '%02X'\n", address);
 			gb_memory[address] = value;
 			return;
 		}
