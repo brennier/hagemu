@@ -40,9 +40,9 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Respond to the LCD control register (except for disabling the PPU)
   - [x] Pass dmg-acid2 test rom
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
-  - [x] MCB1 (Very Basic support)
+  - [x] MCB1 (Basic support)
   - [ ] MCB1 (Full support)
-  - [ ] MCB3
+  - [x] MCB3 (except for Real Time Clock)
   - [ ] Support for saving and loading .sav files
   - [ ] Real Time Clock support
 - [ ] Minor fixes
