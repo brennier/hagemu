@@ -108,7 +108,6 @@ void ppu_draw_scanline() {
 			window_triggered = true;
 		
 		uint8_t win_start_col = mmu_read(WIN_SCROLL_X) - 7;
-		printf("%d\n", win_start_col);
 		if (window_triggered && mmu_get_bit(WINDOW_ENABLE) && win_start_col < 160) {
 			tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
 			ppu_draw_background(tile_map_mode, current_window_line, win_start_col, true);
@@ -229,10 +228,50 @@ void ppu_draw_background(bool tile_map_mode, uint8_t bg_row, uint8_t bg_col, boo
 void ppu_draw_sprites() {
 	uint16_t oam_start = 0xFE00;
 	uint16_t oam_end   = 0xFE9F;
-	int sprite_num = 0;
 	bool use_tall_sprites = mmu_get_bit(OBJECTS_SIZE);
 
+	uint16_t sprite_addresses[10];
+	uint16_t sprite_count = 0;
+
+	// Get the first 10 sprites in the OAM
 	for (int sprite_start = oam_start; sprite_start < oam_end; sprite_start += 4) {
+		if (sprite_count == 10)
+			break;
+		uint8_t y_position = mmu_read(sprite_start) - 16;
+		int sprite_row = current_line - y_position;
+		if (sprite_row < 0) {
+			continue;
+		} else if (sprite_row < 8) {
+			sprite_addresses[sprite_count] = sprite_start;
+			sprite_count++;
+		} else if (use_tall_sprites && sprite_row < 15) {
+			sprite_addresses[sprite_count] = sprite_start;
+			sprite_count++;
+		} else
+			continue;
+	}
+
+	// Sort sprites based on descending x-coordinate
+	for (int i = 0; i < sprite_count; i++) {
+		uint16_t highest_x = mmu_read(sprite_addresses[i] + 1) - 8;
+		for (int j = i + 1; j < sprite_count; j++) {
+			uint16_t this_x = mmu_read(sprite_addresses[j] + 1) - 8;
+			if (this_x > highest_x) {
+				highest_x = this_x;
+				uint16_t temp = sprite_addresses[i];
+				sprite_addresses[i] = sprite_addresses[j];
+				sprite_addresses[j] = temp;
+			} else if (this_x == highest_x && sprite_addresses[i] < sprite_addresses[j]) {
+				highest_x = this_x;
+				uint16_t temp = sprite_addresses[i];
+				sprite_addresses[i] = sprite_addresses[j];
+				sprite_addresses[j] = temp;
+			}
+		}
+	}
+
+	for (int i = 0; i < sprite_count; i++) {
+		uint16_t sprite_start = sprite_addresses[i];
 		uint8_t y_position = mmu_read(sprite_start) - 16;
 		uint8_t x_position = mmu_read(sprite_start + 1) - 8;
 		uint8_t tile_index = mmu_read(sprite_start + 2);
@@ -248,20 +287,12 @@ void ppu_draw_sprites() {
 		else if (y_flip)
 			sprite_row = 7 - sprite_row;
 
-		if (sprite_row < 0)
-			continue;
-		else if (use_tall_sprites && sprite_row < 8)
+		if (use_tall_sprites && sprite_row < 8)
 			tile_index &= ~(0x01);
 		else if (use_tall_sprites && sprite_row < 15) {
 			tile_index |= 0x01;
 			sprite_row -= 8;
-		} else if (sprite_row > 7)
-			continue;
-
-		if (sprite_num < SPRITE_LIMIT)
-			sprite_num++;
-		else
-			continue;
+		}
 
 		uint16_t sprite_pixels[8];
 
