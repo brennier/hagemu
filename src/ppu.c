@@ -243,6 +243,11 @@ void ppu_draw_sprites() {
 		bool palette_select = (attributes >> 4) & 0x01;
 		int sprite_row = current_line - y_position;
 
+		if (y_flip && use_tall_sprites)
+			sprite_row = 15 - sprite_row;
+		else if (y_flip)
+			sprite_row = 7 - sprite_row;
+
 		if (sprite_row < 0)
 			continue;
 		else if (use_tall_sprites && sprite_row < 8)
@@ -257,9 +262,6 @@ void ppu_draw_sprites() {
 			sprite_num++;
 		else
 			continue;
-
-		if (y_flip)
-			sprite_row = 7 - sprite_row;
 
 		uint16_t sprite_pixels[8];
 
