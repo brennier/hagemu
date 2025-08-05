@@ -25,6 +25,9 @@ enum special_address {
 	WIN_SCROLL_X = 0xFF4B,
 	LCD_STATUS = 0xFF41,
 	LY_COMPARE = 0xFF45,
+	BG_PALETTE = 0xFF47,
+	OBJ0_PALETTE = 0xFF48,
+	OBJ1_PALETTE = 0xFF49
 };
 
 // The first four nibbles represents the byte address,

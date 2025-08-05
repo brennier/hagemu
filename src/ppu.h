@@ -3,12 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Green color palette from lightest to darkest
-#define COLOR1 ((R5G5B5A1)0x8DD3)
-#define COLOR2 ((R5G5B5A1)0x441B)
-#define COLOR3 ((R5G5B5A1)0x3315)
-#define COLOR4 ((R5G5B5A1)0x2251)
-
 // 0bRRRRRGGGGGBBBBBA
 typedef uint16_t R5G5B5A1;
 

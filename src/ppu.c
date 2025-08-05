@@ -7,6 +7,15 @@
 #define PIXEL_DRAW_LENGTH 200
 #define SPRITE_LIMIT 10
 
+// Green color palette from lightest to darkest
+//#define COLOR0 ((R5G5B5A1)0x8DD3)
+//#define COLOR1 ((R5G5B5A1)0x441B)
+//#define COLOR2 ((R5G5B5A1)0x3315)
+//#define COLOR3 ((R5G5B5A1)0x2251)
+
+// BW color palette from lightest to darkest
+const R5G5B5A1 ppu_default_colors[4] = { 0xFFFF, 0xAD6B, 0x5295, 0x0001 };
+
 R5G5B5A1 screen_buffer[144][160];
 int current_line = 0;
 void ppu_draw_scanline();
@@ -101,6 +110,27 @@ void ppu_draw_scanline() {
 		ppu_draw_sprites();
 }
 
+void apply_palette(uint16_t *array_2bbp, int array_length, uint16_t palette_location) {
+	uint8_t palette_data = mmu_read(palette_location);
+	R5G5B5A1 palette_color0 = ppu_default_colors[palette_data & 0x03];
+	palette_data >>= 2;
+	R5G5B5A1 palette_color1 = ppu_default_colors[palette_data & 0x03];
+	palette_data >>= 2;
+	R5G5B5A1 palette_color2 = ppu_default_colors[palette_data & 0x03];
+	palette_data >>= 2;
+	R5G5B5A1 palette_color3 = ppu_default_colors[palette_data & 0x03];
+
+	for (int i = 0; i < array_length; i++) {
+		switch (array_2bbp[i]) {
+			
+			case 0: array_2bbp[i] = palette_color0; break;
+			case 1: array_2bbp[i] = palette_color1; break;
+			case 2: array_2bbp[i] = palette_color2; break;
+			case 3: array_2bbp[i] = palette_color3; break;
+		}
+	}
+}
+
 void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y) {
 	int background_row = current_line + scroll_y;
 
@@ -137,7 +167,7 @@ void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y)
 	}
 
 	// Convert raw tile data into 2bpp format
-	uint8_t tile_data[256];
+	uint16_t tile_data[256];
 	for (int i = 0; i < 64; i += 2) {
 		uint8_t byte1 = raw_tile_data[i];
 		uint8_t byte2 = raw_tile_data[i + 1];
@@ -151,20 +181,12 @@ void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y)
 	}
 
 	// Convert 2bpp format to RGBA5551 format
-	R5G5B5A1 colored_tile_data[256];
-	for (int i = 0; i < 256; i++)
-		switch (tile_data[i]) {
-
-		case 0: colored_tile_data[i] = COLOR1; break;
-		case 1: colored_tile_data[i] = COLOR2; break;
-		case 2: colored_tile_data[i] = COLOR3; break;
-		case 3: colored_tile_data[i] = COLOR4; break;
-		}
+	apply_palette(tile_data, 256, BG_PALETTE);
 
 	// Copy scanline to screen_buffer
 	int x_offset = scroll_x;
 	for (int i = 0; i < 160; i++)
-		screen_buffer[current_line][i] = colored_tile_data[(x_offset + i) % 256];
+		screen_buffer[current_line][i] = tile_data[(x_offset + i) % 256];
 }
 
 void ppu_draw_sprites() {
@@ -204,7 +226,7 @@ void ppu_draw_sprites() {
 				draw_col = 7 - col;
 			else
 				draw_col = col;
-			if (background_priority && screen_buffer[current_line][x_position + col] != COLOR1)
+			if (background_priority && screen_buffer[current_line][x_position + col] != ppu_default_colors[0])
 				continue;
 
 			switch ((bit2 << 1) | bit1) {
@@ -213,13 +235,13 @@ void ppu_draw_sprites() {
 				// This case represents transparency
 				break;
 			case 1:
-				screen_buffer[current_line][x_position + draw_col] = COLOR2;
+				screen_buffer[current_line][x_position + draw_col] = ppu_default_colors[1];
 				break;
 			case 2:
-				screen_buffer[current_line][x_position + draw_col] = COLOR3;
+				screen_buffer[current_line][x_position + draw_col] = ppu_default_colors[2];
 				break;
 			case 3:
-				screen_buffer[current_line][x_position + draw_col] = COLOR4;
+				screen_buffer[current_line][x_position + draw_col] = ppu_default_colors[3];
 				break;
 			}
 		}
