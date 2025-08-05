@@ -216,35 +216,26 @@ void ppu_draw_sprites() {
 		if (y_flip)
 			sprite_row = 7 - sprite_row;
 
+		uint16_t sprite_pixels[8];
+
 		uint16_t byte1 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row);
 		uint16_t byte2 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row + 1);
 		for (int col = 0; col < 8; col++) {
 			bool bit1 = (byte1 >> (7 - col)) & 0x01;
 			bool bit2 = (byte2 >> (7 - col)) & 0x01;
-			int draw_col;
 			if (x_flip)
-				draw_col = 7 - col;
+				sprite_pixels[7 - col] = (bit2 << 1) | bit1;
 			else
-				draw_col = col;
-			if (background_priority && screen_buffer[current_line][x_position + col] != ppu_default_colors[0])
-				continue;
-
-			switch ((bit2 << 1) | bit1) {
-
-			case 0:
-				// This case represents transparency
-				break;
-			case 1:
-				screen_buffer[current_line][x_position + draw_col] = ppu_default_colors[1];
-				break;
-			case 2:
-				screen_buffer[current_line][x_position + draw_col] = ppu_default_colors[2];
-				break;
-			case 3:
-				screen_buffer[current_line][x_position + draw_col] = ppu_default_colors[3];
-				break;
-			}
+				sprite_pixels[col] = (bit2 << 1) | bit1;
 		}
+
+		if (palette_select)
+			apply_palette(sprite_pixels, 8, OBJ1_PALETTE);
+		else
+			apply_palette(sprite_pixels, 8, OBJ0_PALETTE);
+
+		for (int i = 0; i < 8; i++)
+			screen_buffer[current_line][x_position + i] = sprite_pixels[i];
 	}
 }
 
