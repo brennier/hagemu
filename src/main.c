@@ -75,11 +75,29 @@ int main(int argc, char *argv[]) {
 			continue;
 		}
 
-		if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_LEFT) ||
-		    IsKeyDown(KEY_UP)    || IsKeyDown(KEY_DOWN) ||
-		    IsKeyDown(KEY_J)     || IsKeyDown(KEY_K)    ||
-		    IsKeyDown(KEY_Z)     || IsKeyDown(KEY_X)     )
-			mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
+		mmu_joypad_inputs[JOYPAD_RIGHT]  = IsKeyDown(KEY_RIGHT) | IsKeyDown(KEY_D);
+		mmu_joypad_inputs[JOYPAD_LEFT]   = IsKeyDown(KEY_LEFT)  | IsKeyDown(KEY_A);
+		mmu_joypad_inputs[JOYPAD_UP]     = IsKeyDown(KEY_UP)    | IsKeyDown(KEY_W);
+		mmu_joypad_inputs[JOYPAD_DOWN]   = IsKeyDown(KEY_DOWN)  | IsKeyDown(KEY_S);
+		mmu_joypad_inputs[JOYPAD_A]      = IsKeyDown(KEY_L)     | IsKeyDown(KEY_SPACE);
+		mmu_joypad_inputs[JOYPAD_B]      = IsKeyDown(KEY_K);
+		mmu_joypad_inputs[JOYPAD_START]  = IsKeyDown(KEY_X)     | IsKeyDown(KEY_ESCAPE);
+		mmu_joypad_inputs[JOYPAD_SELECT] = IsKeyDown(KEY_Z);
+
+		if (IsGamepadAvailable(0)) {
+			mmu_joypad_inputs[JOYPAD_RIGHT]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
+			mmu_joypad_inputs[JOYPAD_LEFT]   |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT);
+			mmu_joypad_inputs[JOYPAD_UP]     |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_UP);
+			mmu_joypad_inputs[JOYPAD_DOWN]   |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN);
+			mmu_joypad_inputs[JOYPAD_A]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+			mmu_joypad_inputs[JOYPAD_B]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+			mmu_joypad_inputs[JOYPAD_START]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_RIGHT);
+			mmu_joypad_inputs[JOYPAD_SELECT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT);
+		}
+
+		for (int i = 0; i < 8; i++)
+			if (mmu_joypad_inputs[i])
+				mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 
 		int current_cycle = 0;
 		while (!ppu_frame_finished(current_cycle)) {

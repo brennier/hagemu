@@ -3,50 +3,33 @@
 #include <stdlib.h>
 #include "mmu.h"
 #include "clock.h"
-#include "raylib.h"
 #include "ppu.h"
 
 uint8_t *rom_memory;
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024]  = { 0 };
 
+bool mmu_joypad_inputs[8];
 int rom_bank_index = 0;
 
 uint8_t get_joypad_input() {
-	mmu_set_bit(JOYPAD_BUTTON0);
-	mmu_set_bit(JOYPAD_BUTTON1);
-	mmu_set_bit(JOYPAD_BUTTON2);
-	mmu_set_bit(JOYPAD_BUTTON3);
+	uint8_t joypad_byte = gb_memory[JOYPAD_INPUT];
+	joypad_byte |= 0x0F;
 
 	if (mmu_get_bit(JOYPAD_SELECT_DPAD) == 0) {
-		if (IsKeyDown(KEY_RIGHT))
-			mmu_clear_bit(JOYPAD_BUTTON0);
-		if (IsKeyDown(KEY_LEFT))
-			mmu_clear_bit(JOYPAD_BUTTON1);
-		if (IsKeyDown(KEY_UP))
-			mmu_clear_bit(JOYPAD_BUTTON2);
-		if (IsKeyDown(KEY_DOWN))
-			mmu_clear_bit(JOYPAD_BUTTON3);
+		for (int i = 0; i < 4; i++)
+			if (mmu_joypad_inputs[i])
+				joypad_byte &= ~(0x01 << i);
 	}
 
 	if (mmu_get_bit(JOYPAD_SELECT_BUTTONS) == 0) {
-		// A Button
-		if (IsKeyDown(KEY_K))
-			mmu_clear_bit(JOYPAD_BUTTON0);
-		// B Button
-		if (IsKeyDown(KEY_J))
-			mmu_clear_bit(JOYPAD_BUTTON1);
-		// SELECT
-		if (IsKeyDown(KEY_Z))
-			mmu_clear_bit(JOYPAD_BUTTON2);
-		// START
-		if (IsKeyDown(KEY_X))
-			mmu_clear_bit(JOYPAD_BUTTON3);
+		for (int i = 4; i < 8; i++)
+			if (mmu_joypad_inputs[i])
+				joypad_byte &= ~(0x01 << (i - 4));
 	}
 
-	return gb_memory[JOYPAD_INPUT];
+	return joypad_byte;
 }
-
 
 uint8_t mmu_read(uint16_t address) {
 	// Handle special cases first

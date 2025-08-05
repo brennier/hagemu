@@ -35,6 +35,9 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [ ] Save game support
   - [ ] Real Time Clock support
 - [ ] Minor fixes
+  - [x] Separate the joypad logic from the Raylib library
+  - [x] Add support for gamepads
+  - [ ] Test gamepad support
   - [ ] Emulate the timing of the DMA
   - [ ] Rewrite the f register as separate bools
   - [ ] Add 'inline' the CPU opcode functions
