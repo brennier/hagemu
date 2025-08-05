@@ -17,6 +17,7 @@
 const R5G5B5A1 ppu_default_colors[4] = { 0xFFFF, 0xAD6B, 0x5295, 0x0001 };
 
 R5G5B5A1 screen_buffer[144][160];
+bool is_background_nonzero[160];
 int current_line = 0;
 void ppu_draw_scanline();
 void ppu_draw_sprites();
@@ -180,13 +181,23 @@ void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y)
 		}
 	}
 
-	// Convert 2bpp format to RGBA5551 format
-	apply_palette(tile_data, 256, BG_PALETTE);
-
-	// Copy scanline to screen_buffer
+	uint16_t cropped_tile_data[160];
 	int x_offset = scroll_x;
 	for (int i = 0; i < 160; i++)
-		screen_buffer[current_line][i] = tile_data[(x_offset + i) % 256];
+		cropped_tile_data[i] = tile_data[(x_offset + i) % 256];
+
+	for (int i = 0; i < 160; i++)
+		if (cropped_tile_data[i] != 0)
+			is_background_nonzero[i] = true;
+		else
+			is_background_nonzero[i] = false;
+
+	// Convert 2bpp format to RGBA5551 format
+	apply_palette(cropped_tile_data, 160, BG_PALETTE);
+
+	// Copy scanline to screen_buffer
+	for (int i = 0; i < 160; i++)
+		screen_buffer[current_line][i] = cropped_tile_data[i];
 }
 
 void ppu_draw_sprites() {
@@ -199,7 +210,7 @@ void ppu_draw_sprites() {
 		uint8_t x_position = mmu_read(sprite_start + 1) - 8;
 		uint8_t tile_index = mmu_read(sprite_start + 2);
 		uint8_t attributes = mmu_read(sprite_start + 3);
-		bool background_priority = (attributes >> 7) & 0x01;
+		bool background_has_priority = (attributes >> 7) & 0x01;
 		bool y_flip = (attributes >> 6) & 0x01;
 		bool x_flip = (attributes >> 5) & 0x01;
 		bool palette_select = (attributes >> 4) & 0x01;
@@ -229,13 +240,25 @@ void ppu_draw_sprites() {
 				sprite_pixels[col] = (bit2 << 1) | bit1;
 		}
 
-		if (palette_select)
-			apply_palette(sprite_pixels, 8, OBJ1_PALETTE);
-		else
-			apply_palette(sprite_pixels, 8, OBJ0_PALETTE);
-
+		uint16_t colored_sprite_pixels[8];
 		for (int i = 0; i < 8; i++)
-			screen_buffer[current_line][x_position + i] = sprite_pixels[i];
+			colored_sprite_pixels[i] = sprite_pixels[i];
+
+		if (palette_select)
+			apply_palette(colored_sprite_pixels, 8, OBJ1_PALETTE);
+		else
+			apply_palette(colored_sprite_pixels, 8, OBJ0_PALETTE);
+
+		for (int i = 0; i < 8; i++) {
+			if (x_position + i < 0 || x_position + i >= 160)
+				continue;
+			else if (sprite_pixels[i] == 0)
+				continue;
+			else if (background_has_priority && is_background_nonzero[x_position + i])
+				continue;
+			else
+				screen_buffer[current_line][x_position + i] = colored_sprite_pixels[i];
+		}
 	}
 }
 
