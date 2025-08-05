@@ -102,6 +102,7 @@ void ppu_draw_scanline() {
 
 		tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
 		scroll_x += mmu_read(WIN_SCROLL_X) - 7;
+		if (scroll_x < 0) scroll_x = 0;
 		scroll_y += mmu_read(WIN_SCROLL_Y);
 		if (mmu_get_bit(WINDOW_ENABLE))
 			ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
@@ -204,6 +205,7 @@ void ppu_draw_sprites() {
 	uint16_t oam_start = 0xFE00;
 	uint16_t oam_end   = 0xFE9F;
 	int sprite_num = 0;
+	bool use_tall_sprites = mmu_get_bit(OBJECTS_SIZE);
 
 	for (int sprite_start = oam_start; sprite_start < oam_end; sprite_start += 4) {
 		uint8_t y_position = mmu_read(sprite_start) - 16;
@@ -216,7 +218,14 @@ void ppu_draw_sprites() {
 		bool palette_select = (attributes >> 4) & 0x01;
 		int sprite_row = current_line - y_position;
 
-		if (sprite_row < 0 || sprite_row > 7)
+		if (sprite_row < 0)
+			continue;
+		else if (use_tall_sprites && sprite_row < 8)
+			tile_index &= ~(0x01);
+		else if (use_tall_sprites && sprite_row < 15) {
+			tile_index |= 0x01;
+			sprite_row -= 8;
+		} else if (sprite_row > 7)
 			continue;
 
 		if (sprite_num < SPRITE_LIMIT)
