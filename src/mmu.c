@@ -6,11 +6,16 @@
 #include "ppu.h"
 
 uint8_t *rom_memory;
+// A maximum of 32kb of RAM
+uint8_t cartridge_ram[32 * 1042];
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024]  = { 0 };
 
+bool ram_enabled = false;
 bool mmu_joypad_inputs[8];
-int rom_bank_index = 0;
+int rom_bank_index = 1;
+int ram_bank_index = 0;
+bool mbc1_advanced_mode = false;
 
 uint8_t get_joypad_input() {
 	uint8_t joypad_byte = gb_memory[JOYPAD_INPUT];
@@ -52,13 +57,23 @@ uint8_t mmu_read(uint16_t address) {
 
 	// Read from ROM bank 00 (16 KiB)
 	case 0x0000: case 0x1000: case 0x2000: case 0x3000:
-		return rom_memory[address];
+		if (mbc1_advanced_mode)
+			return rom_memory[0x4000 * (ram_bank_index << 5) + address];
+		else
+			return rom_memory[address];
 
 	// Read from switchable ROM bank (16 KiB)
 	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
+	{
+		int high_bank_index = rom_bank_index;
+		if (mbc1_advanced_mode) {
+			high_bank_index &= ~(0x03 << 5);
+			high_bank_index |= (ram_bank_index << 5);
+		}
 		if (rom_bank_index == 0)
 			return rom_memory[address];
-		return rom_memory[address + (rom_bank_index - 1) * 0x4000];
+		return rom_memory[0x4000 * (high_bank_index - 1) + address];
+	}
 
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
@@ -66,7 +81,16 @@ uint8_t mmu_read(uint16_t address) {
 
 	// External switchable RAM from cartridge (8 KiB)
 	case 0xA000: case 0xB000:
-		return gb_memory[address];
+		if (ram_enabled) {
+			if (mbc1_advanced_mode)
+				return cartridge_ram[0x2000 * ram_bank_index + (address - 0xA000)];
+			else
+				return cartridge_ram[address - 0xA000];
+
+		} else {
+			fprintf(stderr, "Attempt to read RAM address %04X, but it was disabled\n", address);
+			return 0xFF;
+		}
 
 	// Work RAM (8 KiB)
 	case 0xC000: case 0xD000:
@@ -121,17 +145,45 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	// ROM BANK 0
 	case 0x0000: case 0x1000:
-		fprintf(stderr, "WARNING: Attempt to write value %d at address %02X\n", value, address);
+		if ((value & 0xF) == 0xA) {
+			ram_enabled = true;
+			fprintf(stderr, "Enabled ram with value %d at address %04X\n", value, address);
+		} else {
+			ram_enabled = false;
+			fprintf(stderr, "Disabled ram with value %d at address %04X\n", value, address);
+		}
 		return;
 
 	// ROM BANK SWITCH
 	case 0x2000: case 0x3000:
-		//fprintf(stderr, "ROM BANK SWITCHED TO %d\n", value & 0x1F);
-		rom_bank_index = value & 0x1F;
+		if (rom_bank_index == 0)
+			rom_bank_index = 1;
+		else
+			rom_bank_index = value & 0x1F;
+		return;
+
+	case 0x4000: case 0x5000:
+		if (mbc1_advanced_mode)
+			fprintf(stderr, "ADVANCED MODE: bit 6 and 5 are %02d\n", value & 0x03);
+		else
+			fprintf(stderr, "RAM BANK SWITCHED TO %d\n", value & 0x03);
+		ram_bank_index = value & 0x03;
 		return;
 
 	case 0x6000: case 0x7000:
-		fprintf(stderr, "Attempt to write value %d to the banking mode select address '%02X'. This is not implemented yet.\n", value, address);
+		fprintf(stderr, "MBC ADVANCED MODE FLAG CHANGED TO %d\n", value & 0x01);
+		mbc1_advanced_mode = value & 0x01;
+		return;
+	
+	case 0xA000: case 0xBFFF:
+		if (ram_enabled) {
+			if (mbc1_advanced_mode)
+				cartridge_ram[0x2000 * ram_bank_index + (address - 0xA000)] = value;
+			else
+				cartridge_ram[address - 0xA000] = value;
+		} else {
+			fprintf(stderr, "Attempt to write value %d to RAM address %04X, but it was disabled\n", value, address);
+		}
 		return;
 
 	case 0xE000: case 0xF000:
