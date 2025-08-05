@@ -19,9 +19,11 @@ const R5G5B5A1 ppu_default_colors[4] = { 0xFFFF, 0xAD6B, 0x5295, 0x0001 };
 R5G5B5A1 screen_buffer[144][160];
 bool is_background_nonzero[160];
 int current_line = 0;
+int current_window_line = 0;
+bool window_triggered = false;
 void ppu_draw_scanline();
 void ppu_draw_sprites();
-void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y);
+void ppu_draw_background(bool tile_map_mode, uint8_t bg_row, uint8_t bg_col, bool drawing_window);
 
 enum PPUMode {
 	HBLANK,
@@ -79,6 +81,8 @@ void ppu_update(int current_cycle) {
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		break;
 	case VBLANK:
+		current_window_line = 0;
+		window_triggered = false;
 		if (mmu_get_bit(VBLANK_INTERRUPT_SELECT))
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		mmu_set_bit(VBLANK_INTERRUPT_FLAG_BIT);
@@ -96,16 +100,23 @@ bool ppu_frame_finished(int current_cycle) {
 void ppu_draw_scanline() {
 	if (mmu_get_bit(BG_ENABLE)) {
 		bool tile_map_mode = mmu_get_bit(BG_TILE_MAP_AREA);
-		uint8_t scroll_x = mmu_read(BG_SCROLL_X);
-		uint8_t scroll_y = mmu_read(BG_SCROLL_Y);
-		ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
+		uint8_t bg_row = current_line + mmu_read(BG_SCROLL_Y);
+		uint8_t bg_start_col = mmu_read(BG_SCROLL_X);
+		ppu_draw_background(tile_map_mode, bg_row, bg_start_col, false);
 
-		tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
-		scroll_x += mmu_read(WIN_SCROLL_X) - 7;
-		if (scroll_x < 0) scroll_x = 0;
-		scroll_y += mmu_read(WIN_SCROLL_Y);
-		if (mmu_get_bit(WINDOW_ENABLE))
-			ppu_draw_background(tile_map_mode, scroll_x, scroll_y);
+		if (mmu_read(WIN_SCROLL_Y) == current_line)
+			window_triggered = true;
+		
+		uint8_t win_start_col = mmu_read(WIN_SCROLL_X) - 7;
+		printf("%d\n", win_start_col);
+		if (window_triggered && mmu_get_bit(WINDOW_ENABLE) && win_start_col < 160) {
+			tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
+			ppu_draw_background(tile_map_mode, current_window_line, win_start_col, true);
+			current_window_line++;
+		}
+	} else {
+		for (int i = 0; i < 160; i++)
+			screen_buffer[current_line][i] = ppu_default_colors[0];
 	}
 
 	if (mmu_get_bit(OBJECTS_ENABLE))
@@ -133,8 +144,8 @@ void apply_palette(uint16_t *array_2bbp, int array_length, uint16_t palette_loca
 	}
 }
 
-void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y) {
-	int background_row = current_line + scroll_y;
+void ppu_draw_background(bool tile_map_mode, uint8_t bg_row, uint8_t bg_col, bool drawing_window) {
+	int background_row = bg_row;
 
 	// Get tile indices
 	uint8_t tile_indices[32];
@@ -183,22 +194,36 @@ void ppu_draw_background(bool tile_map_mode, uint8_t scroll_x, uint8_t scroll_y)
 	}
 
 	uint16_t cropped_tile_data[160];
-	int x_offset = scroll_x;
-	for (int i = 0; i < 160; i++)
-		cropped_tile_data[i] = tile_data[(x_offset + i) % 256];
+	if (drawing_window) {
+		for (int i = bg_col; i < 160; i++)
+			cropped_tile_data[i] = tile_data[i - bg_col];
+		
+		for (int i = bg_col; i < 160; i++)
+			if (cropped_tile_data[i] != 0)
+				is_background_nonzero[i] = true;
+			else
+				is_background_nonzero[i] = false;
+		
+		apply_palette(cropped_tile_data + bg_col, 160 - bg_col, BG_PALETTE);
+		for (int i = bg_col; i < 160; i++)
+			screen_buffer[current_line][i] = cropped_tile_data[i];
+	} else {
+		for (int i = 0; i < 160; i++)
+			cropped_tile_data[i] = tile_data[(bg_col + i) % 256];
 
-	for (int i = 0; i < 160; i++)
-		if (cropped_tile_data[i] != 0)
-			is_background_nonzero[i] = true;
-		else
-			is_background_nonzero[i] = false;
+		for (int i = 0; i < 160; i++)
+			if (cropped_tile_data[i] != 0)
+				is_background_nonzero[i] = true;
+			else
+				is_background_nonzero[i] = false;
 
-	// Convert 2bpp format to RGBA5551 format
-	apply_palette(cropped_tile_data, 160, BG_PALETTE);
+		// Convert 2bpp format to RGBA5551 format
+		apply_palette(cropped_tile_data, 160, BG_PALETTE);
 
-	// Copy scanline to screen_buffer
-	for (int i = 0; i < 160; i++)
-		screen_buffer[current_line][i] = cropped_tile_data[i];
+		// Copy scanline to screen_buffer
+		for (int i = 0; i < 160; i++)
+			screen_buffer[current_line][i] = cropped_tile_data[i];
+	}
 }
 
 void ppu_draw_sprites() {
