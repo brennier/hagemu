@@ -7,3 +7,6 @@
 [submodule "lib/dmg-acid2"]
 	path = lib/dmg-acid2
 	url = https://github.com/mattcurrie/dmg-acid2
+[submodule "lib/emsdk"]
+	path = lib/emsdk
+	url = https://github.com/emscripten-core/emsdk
