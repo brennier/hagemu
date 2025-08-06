@@ -5,7 +5,7 @@
 #include "clock.h"
 #include "ppu.h"
 
-uint8_t *rom_memory;
+uint8_t *rom_memory = NULL;
 // A maximum of 32kb of RAM
 uint8_t cartridge_ram[32 * 1042];
 // The GB has 64kb of mapped memory
@@ -232,41 +232,82 @@ void mmu_clear_bit(enum special_bit bit) {
 	gb_memory[bit_address] &= ~(1 << bit_position);
 }
 
+const char* cartridge_type_description[] = {
+	[0x00] = "ROM ONLY",
+	[0x01] = "MBC1",
+	[0x02] = "MBC1+RAM",
+	[0x03] = "MBC1+RAM+BATTERY",
+	[0x05] = "MBC2",
+	[0x06] = "MBC2+BATTERY",
+	[0x08] = "ROM+RAM",
+	[0x09] = "ROM+RAM+BATTERY",
+	[0x0B] = "MMM01",
+	[0x0C] = "MMM01+RAM",
+	[0x0D] = "MMM01+RAM+BATTERY",
+	[0x0F] = "MBC3+TIMER+BATTERY",
+	[0x10] = "MBC3+TIMER+RAM+BATTERY",
+	[0x11] = "MBC3",
+	[0x12] = "MBC3+RAM",
+	[0x13] = "MBC3+RAM+BATTERY",
+	[0x19] = "MBC5",
+	[0x1A] = "MBC5+RAM",
+	[0x1B] = "MBC5+RAM+BATTERY",
+	[0x1C] = "MBC5+RUMBLE",
+	[0x1D] = "MBC5+RUMBLE+RAM",
+	[0x1E] = "MBC5+RUMBLE+RAM+BATTERY",
+	[0x20] = "MBC6",
+	[0x22] = "MBC7+SENSOR+RUMBLE+RAM+BATTERY",
+	[0xFC] = "POCKET CAMERA",
+	[0xFD] = "BANDAI TAMA5",
+	[0xFE] = "HuC3",
+	[0xFF] = "HuC1+RAM+BATTERY",
+};
+
+const int ram_size_table[] = {
+	[0x00] = 0,
+	[0x01] = 0,
+	[0x02] = 8 * 1024,
+	[0x03] = 32 * 1024,
+	[0x04] = 128 * 1024,
+	[0x05] = 64 * 1024,
+};
+
 void mmu_load_rom(char* rom_name) {
+	if (rom_memory != NULL) {
+		printf("Freeing previously read rom...\n");
+		free(rom_memory);
+		rom_memory = NULL;
+	}
+
 	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
 	if (rom_file == NULL) {
 		fprintf(stderr, "Error: Failed to find the rom file `%s'\n", rom_name);
 		exit(EXIT_FAILURE);
 	}
 
-	uint8_t *rom_size_byte = malloc(1);
-	// Skip up until the cartridge size byte in the header
-	fseek(rom_file, CARTRIDGE_SIZE, SEEK_SET);
-	size_t bytes_read = fread(rom_size_byte, 1, 1, rom_file);
+	fseek(rom_file, 0L, SEEK_END);
+	long rom_size = ftell(rom_file);
+	printf("Allocating %ld bytes for the rom...\n", rom_size);
 
-	if (bytes_read != 1) {
-		fprintf(stderr, "Error: Couldn't read the cartridge size from the ROM file\n");
-		exit(EXIT_FAILURE);
-	}
-
-	int rom_size = 32 * 1024 * (1 << *rom_size_byte);
-	free(rom_size_byte);
-	printf("Allocating %d bytes for the rom...\n", rom_size);
 	rom_memory = malloc(rom_size);
 	if (rom_memory == NULL) {
 		fprintf(stderr, "Error: Couldn't allocate the space for the rom\n");
 		exit(EXIT_FAILURE);
 	}
 
-	fseek(rom_file, 0, SEEK_SET);
-	bytes_read = fread(rom_memory, 1, rom_size, rom_file);
+	rewind(rom_file);
+	long bytes_read = fread(rom_memory, 1, rom_size, rom_file);
 	if (bytes_read != rom_size) {
-		fprintf(stderr, "Error: Rom was expected to be %d bytes, but was actually %d bytes\n", rom_size, (int)bytes_read);
+		fprintf(stderr, "Error: Rom was expected to be %ld bytes, but was actually %ld bytes\n", rom_size, bytes_read);
 		exit(EXIT_FAILURE);
 	}
 	fclose(rom_file);
-}
 
-void mmu_free_rom() {
-	free(rom_memory);
+	char game_title[17] = { 0 };
+	for (int i = 0; i < 16; i++)
+		game_title[i] = rom_memory[0x0134 + i];
+	printf("Rom Title is %s\n", game_title);
+	printf("Cartridge type is %s\n", cartridge_type_description[rom_memory[0x0147]]);
+	printf("ROM size is %d KiB\n", 32 * (1 << rom_memory[0x0148]));
+	printf("RAM size is %d KiB\n", ram_size_table[rom_memory[0x0149]] / 1024);
 }
