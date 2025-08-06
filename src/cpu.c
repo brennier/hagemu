@@ -5,6 +5,70 @@
 #include "mmu.h"
 #include "clock.h"
 
+static void handle_interrupts();
+static void increment_clock_once();
+static inline void increment_clock(int m_cycles);
+static inline uint8_t fetch_next_byte();
+static inline uint8_t fetch_byte(uint16_t address);
+static inline void write_byte(uint16_t address, uint8_t value);
+static inline uint16_t fetch_word();
+static inline uint16_t pop_stack();
+static inline void push_stack(uint16_t reg16);
+
+static void process_opcode(uint8_t op_byte);
+static void process_extra_opcodes(uint8_t opcode);
+
+static inline uint8_t op_rlc(uint8_t value);
+static inline uint8_t op_rrc(uint8_t value);
+static inline uint8_t op_rr(uint8_t value);
+static inline uint8_t op_rl(uint8_t value);
+static inline uint8_t op_sla(uint8_t value);
+static inline uint8_t op_sra(uint8_t value);
+static inline uint8_t op_srl(uint8_t value);
+static inline uint8_t op_swap(uint8_t value);
+static inline void op_bit(int bit_num, uint8_t value);
+static inline uint8_t op_res(int bit_num, uint8_t value);
+static inline uint8_t op_set(int bit_num, uint8_t value);
+static inline void op_add(uint8_t value);
+static inline void op_adc(uint8_t value);
+static inline void op_sub(uint8_t value);
+static inline void op_sbc(uint8_t value);
+static inline uint8_t op_inc(uint8_t value);
+static inline uint8_t op_dec(uint8_t value);
+static inline void op_jump(bool condition, uint16_t address);
+static inline void op_ret(bool condition);
+static inline void op_rst(uint16_t address);
+static inline void op_jr(bool condition);
+static inline void op_and(uint8_t value);
+static inline void op_or(uint8_t value);
+static inline void op_xor(uint8_t value);
+static inline void op_cp(uint8_t value);
+static inline void op_add_16bit(uint16_t value);
+static inline void op_call(bool condition);
+static inline void op_daa();
+
+int blargg_opcode_timing[256] = {
+	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
+	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
+	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
+	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
+
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+
+	1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
+	1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0
+};
+
 // Unions are a wonderful thing
 union {
 	// Regular 8-bit registers
@@ -30,12 +94,6 @@ bool master_interrupt_flag = false;
 bool master_interrupt_flag_pending = false;
 bool cpu_halted = false;
 
-void cpu_print_state() {
-	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
-		cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l, cpu.wreg.sp,
-		cpu.wreg.pc, mmu_read(cpu.wreg.pc), mmu_read(cpu.wreg.pc+1), mmu_read(cpu.wreg.pc+2), mmu_read(cpu.wreg.pc+3));
-}
-
 void cpu_reset() {
 	// Inital state of registers
 	cpu.reg.a = 0x01;
@@ -55,7 +113,72 @@ void cpu_reset() {
 	cpu_halted = false;
 }
 
-void increment_clock_once() {
+void cpu_print_state() {
+	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
+		cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l, cpu.wreg.sp,
+		cpu.wreg.pc, mmu_read(cpu.wreg.pc), mmu_read(cpu.wreg.pc+1), mmu_read(cpu.wreg.pc+2), mmu_read(cpu.wreg.pc+3));
+}
+
+// Returns the number of t-cycles it took to complete the next instruction
+int cpu_do_next_instruction() {
+	int old_clock = clock_get();
+
+	if (mmu_read(INTERRUPT_FLAGS) & mmu_read(INTERRUPT_ENABLE))
+		cpu_halted = false;
+
+	if (cpu_halted) {
+		increment_clock(1);
+		if (clock_get() - old_clock > 0)
+			return clock_get() - old_clock;
+		else
+			return 0xFFFF - (old_clock - clock_get());
+	}
+
+	if (master_interrupt_flag_pending) {
+		master_interrupt_flag_pending = false;
+		master_interrupt_flag = true;
+	} else if (master_interrupt_flag) {
+		handle_interrupts();
+	}
+
+	uint8_t op_byte = fetch_next_byte();
+	process_opcode(op_byte);
+	increment_clock(blargg_opcode_timing[op_byte]);
+	if (clock_get() - old_clock > 0)
+		return clock_get() - old_clock;
+	else
+		return 0xFFFF - (old_clock - clock_get());
+}
+
+static void handle_interrupts() {
+	uint8_t interrupts = mmu_read(INTERRUPT_FLAGS);
+	interrupts &= mmu_read(INTERRUPT_ENABLE);
+	if (!interrupts) return;
+
+	increment_clock(2);
+	master_interrupt_flag = false;
+	push_stack(cpu.wreg.pc);
+
+	if (interrupts & 0x01) {
+		cpu.wreg.pc = 0x0040;
+		mmu_clear_bit(VBLANK_INTERRUPT_FLAG_BIT);
+	} else if (interrupts & 0x02) {
+		cpu.wreg.pc = 0x0048;
+		mmu_clear_bit(LCD_INTERRUPT_FLAG_BIT);
+	} else if (interrupts & 0x04) {
+		cpu.wreg.pc = 0x0050;
+		mmu_clear_bit(TIMER_INTERRUPT_FLAG_BIT);
+	} else if (interrupts & 0x08) {
+		cpu.wreg.pc = 0x0058;
+		mmu_clear_bit(SERIAL_INTERRUPT_FLAG_BIT);
+	} else if (interrupts & 0x10) {
+		cpu.wreg.pc = 0x0060;
+		mmu_clear_bit(JOYPAD_INTERRUPT_FLAG_BIT);
+	}
+	increment_clock(1);
+}
+
+static void increment_clock_once() {
 	if (clock_is_running())
 		clock_update(4);
 	uint16_t clock_time = clock_get();
@@ -91,41 +214,39 @@ void increment_clock_once() {
 	}
 }
 
-void increment_clock(int m_cycles) {
+static inline void increment_clock(int m_cycles) {
 	for (int i = 0; i < m_cycles; i++)
 		increment_clock_once();
 }
 
-uint8_t fetch_next_byte() {
-	uint8_t value = mmu_read(cpu.wreg.pc++);
-	increment_clock(1);
-	return value;
-}
-
-uint8_t fetch_byte(uint16_t address) {
+static inline uint8_t fetch_byte(uint16_t address) {
 	uint8_t value = mmu_read(address);
 	increment_clock(1);
 	return value;
 }
 
-void write_byte(uint16_t address, uint8_t value) {
+static inline uint8_t fetch_next_byte() {
+	return fetch_byte(cpu.wreg.pc++);
+}
+
+static inline void write_byte(uint16_t address, uint8_t value) {
 	mmu_write(address, value);
 	increment_clock(1);
 }
 
-uint16_t fetch_word() {
+static inline uint16_t fetch_word() {
 	uint8_t first_byte = fetch_next_byte();
 	uint8_t second_byte = fetch_next_byte();
 	return ((uint16_t)second_byte << 8) | (uint16_t)first_byte;
 }
 
-uint16_t pop_stack() {
+static inline uint16_t pop_stack() {
 	uint8_t lower = fetch_byte(cpu.wreg.sp++);
 	uint8_t upper = fetch_byte(cpu.wreg.sp++);
 	return (upper << 8) | lower;
 }
 
-void push_stack(uint16_t reg16) {
+static inline void push_stack(uint16_t reg16) {
 	increment_clock(1); // internal increment (reason unknown)
 	uint8_t lower = (reg16 & 0x00FF);
 	uint8_t upper = (reg16 & 0xFF00) >> 8;
@@ -135,368 +256,7 @@ void push_stack(uint16_t reg16) {
 	write_byte(cpu.wreg.sp, lower);
 }
 
-uint8_t op_rlc(uint8_t value) {
-	int highest_bit = value >> 7;
-	value <<= 1;
-	value |= highest_bit;
-	cpu.reg.f = 0;
-	cpu.flag.zero = !value;
-	cpu.flag.carry = highest_bit;
-	return value;
-}
-
-uint8_t op_rrc(uint8_t value) {
-	int lowest_bit = value & 0x01;
-	value >>= 1;
-	value |= (lowest_bit << 7);
-	cpu.reg.f = 0;
-	cpu.flag.zero = !value;
-	cpu.flag.carry = lowest_bit;
-	return value;
-}
-
-uint8_t op_rr(uint8_t value) {
-	int lowest_bit = value & 0x01;
-	value >>= 1;
-	value |= (cpu.flag.carry << 7);
-	cpu.reg.f = 0;
-	cpu.flag.zero = !value;
-	cpu.flag.carry = lowest_bit;
-	return value;
-}
-
-uint8_t op_rl(uint8_t value) {
-	int highest_bit = value >> 7;
-	value <<= 1;
-	value |= cpu.flag.carry;
-	cpu.reg.f = 0;
-	cpu.flag.zero = !value;
-	cpu.flag.carry = highest_bit;
-	return value;
-}
-
-uint8_t op_sla(uint8_t value) {
-	int highest_bit = value >> 7;
-	value <<= 1;
-	cpu.reg.f = 0;
-	cpu.flag.zero = !value;
-	cpu.flag.carry = highest_bit;
-	return value;
-}
-
-uint8_t op_sra(uint8_t value) {
-	int lowest_bit = value & 0x01;
-	int highest_bit = value & 0x80;
-	value >>= 1;
-	value |= highest_bit;
-	cpu.reg.f = 0;
-	cpu.flag.zero = !value;
-	cpu.flag.carry = lowest_bit;
-	return value;
-}
-
-uint8_t op_srl(uint8_t value) {
-	cpu.flag.carry = value & 0x01;
-	value >>= 1;
-	cpu.flag.subtract = 0;
-	cpu.flag.half_carry = 0;
-	cpu.flag.zero = !value;
-	return value;
-}
-
-uint8_t op_swap(uint8_t value) {
-	uint8_t lower = (value & 0x0F);
-	uint8_t upper = (value & 0xF0);
-	value = (lower << 4) | (upper >> 4);
-	cpu.reg.f = 0;
-	cpu.flag.zero = !value;
-	return value;
-}
-
-void op_bit(int bit_num, uint8_t value) {
-	cpu.flag.subtract = 0;
-	cpu.flag.half_carry = 1;
-	cpu.flag.zero = !(value & (1 << bit_num));
-}
-
-uint8_t op_res(int bit_num, uint8_t value) {
-	value &= ~((uint8_t)0x01 << bit_num);
-	return value;
-}
-
-uint8_t op_set(int bit_num, uint8_t value) {
-	value |= (1 << bit_num);
-	return value;
-}
-
-void process_extra_opcodes(uint8_t opcode) {
-	// The lower 4 bits of the opcode determines the operand
-    uint8_t value = 0;
-	switch (opcode & 0x07) {
-
-	case 0x00: value = cpu.reg.b; break;
-	case 0x01: value = cpu.reg.c; break;
-	case 0x02: value = cpu.reg.d; break;
-	case 0x03: value = cpu.reg.e; break;
-	case 0x04: value = cpu.reg.h; break;
-	case 0x05: value = cpu.reg.l; break;
-	case 0x06: value = fetch_byte(cpu.wreg.hl); break;
-	case 0x07: value = cpu.reg.a; break;
-	}
-
-	// The upper 5 bits of the opcode determines the operation
-	switch (opcode & 0xF8) {
-
-	case 0x00: value = op_rlc(value);  break; // ROTATE LEFT CIRCULAR
-	case 0x08: value = op_rrc(value);  break; // ROTATE RIGHT CIRCULAR
-	case 0x10: value = op_rl(value);   break; // ROTATE LEFT
-	case 0x18: value = op_rr(value);   break; // ROTATE RIGHT
-	case 0x20: value = op_sla(value);  break; // SHIFT LEFT ARITHMETIC
-	case 0x28: value = op_sra(value);  break; // SHIFT RIGHT ARITHEMTIC
-	case 0x30: value = op_swap(value); break; // SWAP
-	case 0x38: value = op_srl(value);  break; // SHIFT RIGHT LOGICAL
-
-	// Return early since we don't need to the write the data back
-	case 0x40: op_bit(0, value); return; // TEST BIT 0
-	case 0x48: op_bit(1, value); return; // TEST BIT 1
-	case 0x50: op_bit(2, value); return; // TEST BIT 2
-	case 0x58: op_bit(3, value); return; // TEST BIT 3
-	case 0x60: op_bit(4, value); return; // TEST BIT 4
-	case 0x68: op_bit(5, value); return; // TEST BIT 5
-	case 0x70: op_bit(6, value); return; // TEST BIT 6
-	case 0x78: op_bit(7, value); return; // TEST BIT 7
-
-	case 0x80: value = op_res(0, value); break; // RESET BIT 0
-	case 0x88: value = op_res(1, value); break; // RESET BIT 1
-	case 0x90: value = op_res(2, value); break; // RESET BIT 2
-	case 0x98: value = op_res(3, value); break; // RESET BIT 3
-	case 0xA0: value = op_res(4, value); break; // RESET BIT 4
-	case 0xA8: value = op_res(5, value); break; // RESET BIT 5
-	case 0xB0: value = op_res(6, value); break; // RESET BIT 6
-	case 0xB8: value = op_res(7, value); break; // RESET BIT 7
-
-	case 0xC0: value = op_set(0, value); break; // SET BIT 0
-	case 0xC8: value = op_set(1, value); break; // SET BIT 1
-	case 0xD0: value = op_set(2, value); break; // SET BIT 2
-	case 0xD8: value = op_set(3, value); break; // SET BIT 3
-	case 0xE0: value = op_set(4, value); break; // SET BIT 4
-	case 0xE8: value = op_set(5, value); break; // SET BIT 5
-	case 0xF0: value = op_set(6, value); break; // SET BIT 6
-	case 0xF8: value = op_set(7, value); break; // SET BIT 7
-
-	default:
-		printf("Error: Unknown prefixed opcode `%02X'\n", opcode);
-		exit(EXIT_FAILURE);
-		break;
-	}
-
-	switch (opcode & 0x07) {
-
-	case 0x00: cpu.reg.b = value; break;
-	case 0x01: cpu.reg.c = value; break;
-	case 0x02: cpu.reg.d = value; break;
-	case 0x03: cpu.reg.e = value; break;
-	case 0x04: cpu.reg.h = value; break;
-	case 0x05: cpu.reg.l = value; break;
-	case 0x06: write_byte(cpu.wreg.hl, value); break;
-	case 0x07: cpu.reg.a = value; break;
-	}
-}
-
-void op_add(uint8_t value) {
-	uint8_t result = cpu.reg.a + value;
-	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
-	cpu.flag.carry = result < cpu.reg.a;
-	cpu.flag.zero = !result;
-	cpu.flag.subtract = 0;
-	cpu.reg.a = result;
-}
-
-void op_adc(uint8_t value) {
-	bool oldcarry = cpu.flag.carry;
-	uint8_t result = cpu.reg.a + value + oldcarry;
-	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
-	cpu.flag.carry = (value == 0xFF && oldcarry == 1) || (result < cpu.reg.a);
-	cpu.flag.subtract = 0;
-	cpu.reg.a = result;
-	cpu.flag.zero = !cpu.reg.a;
-}
-
-void op_sub(uint8_t value) {
-	uint8_t result = cpu.reg.a - value;
-	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
-	cpu.flag.carry = result > cpu.reg.a;
-	cpu.flag.zero = !result;
-	cpu.flag.subtract = 1;
-	cpu.reg.a = result;
-}
-
-void op_sbc(uint8_t value) {
-	bool oldcarry = cpu.flag.carry;
-	uint8_t result = cpu.reg.a - value - oldcarry;
-	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
-        cpu.flag.carry = (value == 0xFF && oldcarry == 1) || (result > cpu.reg.a);
-	cpu.flag.subtract = 1;
-	cpu.reg.a = result;
-	cpu.flag.zero = !cpu.reg.a;
-}
-
-uint8_t op_inc(uint8_t value) {
-	value++;
-	cpu.flag.zero = !value;
-	cpu.flag.half_carry = !(value & 0x0F);
-	cpu.flag.subtract = 0;
-	return value;
-}
-
-uint8_t op_dec(uint8_t value) {
-	value--;
-	cpu.flag.zero = !value;
-	cpu.flag.half_carry = (value & 0x0F) == 0x0F;
-	cpu.flag.subtract = 1;
-    return value;
-}
-
-void op_jump(bool condition, uint16_t address) {
-	if (condition) {
-		cpu.wreg.pc = address;
-		increment_clock(1);
-	}
-}
-
-void op_ret(bool condition) {
-	if (condition) {
-		cpu.wreg.pc = pop_stack();
-		increment_clock(1);
-	}
-}
-
-void op_rst(uint16_t address) {
-    push_stack(cpu.wreg.pc);
-    cpu.wreg.pc = address;
-}
-
-void op_jr(bool condition) {
-	int8_t relative_address = (int8_t)fetch_next_byte();
-	if (condition) {
-		cpu.wreg.pc += relative_address;
-		increment_clock(1);
-	}
-}
-
-void op_and(uint8_t value) {
-	cpu.reg.a &= value;
-	cpu.reg.f = 0;
-	cpu.flag.zero = !cpu.reg.a;
-	cpu.flag.half_carry = 1;
-}
-void op_or(uint8_t value) {
-	cpu.reg.a |= value;
-	cpu.reg.f = 0;
-	cpu.flag.zero = !cpu.reg.a;
-}
-
-void op_xor(uint8_t value) {
-	cpu.reg.a ^= value;
-	cpu.reg.f = 0;
-	cpu.flag.zero = !cpu.reg.a;
-}
-
-void op_cp(uint8_t value) {
-	uint8_t result = cpu.reg.a - value;
-	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
-	cpu.flag.carry = result > cpu.reg.a;
-	cpu.flag.zero = !result;
-	cpu.flag.subtract = 1;
-}
-
-void op_add_16bit(uint16_t value) {
-	uint16_t result = cpu.wreg.hl + value;
-	cpu.flag.half_carry = ((cpu.wreg.hl ^ value ^ result) & 0x1000) == 0x1000;
-	cpu.flag.carry = result < cpu.wreg.hl;
-	cpu.flag.subtract = 0;
-	cpu.wreg.hl = result;
-}
-
-void op_call(bool condition) {
-	uint16_t address = fetch_word();
-	if (condition) {
-		push_stack(cpu.wreg.pc);
-		cpu.wreg.pc = address;
-	}
-}
-
-void op_daa() {
-	unsigned offset = 0;
-	if (!cpu.flag.subtract) {
-		if (cpu.flag.half_carry || (cpu.reg.a & 0x0F) > 0x09)
-			offset |= 0x06;
-		if (cpu.flag.carry || cpu.reg.a > 0x99)
-			offset |= 0x60;
-		cpu.flag.carry |= (cpu.reg.a > (0xFF - offset));
-		cpu.reg.a += offset;
-	} else {
-		if (cpu.flag.half_carry) offset |= 0x06;
-		if (cpu.flag.carry)      offset |= 0x60;
-		cpu.reg.a -= offset;
-	}
-	cpu.flag.zero = !cpu.reg.a;
-	cpu.flag.half_carry = 0;
-}
-
-void handle_interrupts() {
-	uint8_t interrupts = mmu_read(INTERRUPT_FLAGS);
-	interrupts &= mmu_read(INTERRUPT_ENABLE);
-	if (!interrupts) return;
-
-	increment_clock(2);
-	master_interrupt_flag = false;
-	push_stack(cpu.wreg.pc);
-
-	if (interrupts & 0x01) {
-		cpu.wreg.pc = 0x0040;
-		mmu_clear_bit(VBLANK_INTERRUPT_FLAG_BIT);
-	} else if (interrupts & 0x02) {
-		cpu.wreg.pc = 0x0048;
-		mmu_clear_bit(LCD_INTERRUPT_FLAG_BIT);
-	} else if (interrupts & 0x04) {
-		cpu.wreg.pc = 0x0050;
-		mmu_clear_bit(TIMER_INTERRUPT_FLAG_BIT);
-	} else if (interrupts & 0x08) {
-		cpu.wreg.pc = 0x0058;
-		mmu_clear_bit(SERIAL_INTERRUPT_FLAG_BIT);
-	} else if (interrupts & 0x10) {
-		cpu.wreg.pc = 0x0060;
-		mmu_clear_bit(JOYPAD_INTERRUPT_FLAG_BIT);
-	}
-	increment_clock(1);
-}
-
-void process_opcode(uint8_t op_byte);
-
-int blargg_opcode_timing[256] = {
-	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
-	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
-	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
-	0,0,0,1,0,0,0,0, 0,1,0,1,0,0,0,0,
-
-	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-
-	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-
-	1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
-	1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0
-};
-
-void process_opcode(uint8_t op_byte) {
+static void process_opcode(uint8_t op_byte) {
 	switch (op_byte) {
 
 	// LOAD OPERATIONS (These are in sequential order)
@@ -901,33 +661,312 @@ void process_opcode(uint8_t op_byte) {
 	}
 }
 
-// Returns the number of t-cycles it took to complete the next instruction
-int cpu_do_next_instruction() {
-	int old_clock = clock_get();
+static void process_extra_opcodes(uint8_t opcode) {
+	// The lower 4 bits of the opcode determines the operand
+	uint8_t value = 0;
+	switch (opcode & 0x07) {
 
-	if (mmu_read(INTERRUPT_FLAGS) & mmu_read(INTERRUPT_ENABLE))
-		cpu_halted = false;
+	case 0x00: value = cpu.reg.b; break;
+	case 0x01: value = cpu.reg.c; break;
+	case 0x02: value = cpu.reg.d; break;
+	case 0x03: value = cpu.reg.e; break;
+	case 0x04: value = cpu.reg.h; break;
+	case 0x05: value = cpu.reg.l; break;
+	case 0x06: value = fetch_byte(cpu.wreg.hl); break;
+	case 0x07: value = cpu.reg.a; break;
+	}
 
-	if (cpu_halted) {
+	// The upper 5 bits of the opcode determines the operation
+	switch (opcode & 0xF8) {
+
+	case 0x00: value = op_rlc(value);  break; // ROTATE LEFT CIRCULAR
+	case 0x08: value = op_rrc(value);  break; // ROTATE RIGHT CIRCULAR
+	case 0x10: value = op_rl(value);   break; // ROTATE LEFT
+	case 0x18: value = op_rr(value);   break; // ROTATE RIGHT
+	case 0x20: value = op_sla(value);  break; // SHIFT LEFT ARITHMETIC
+	case 0x28: value = op_sra(value);  break; // SHIFT RIGHT ARITHEMTIC
+	case 0x30: value = op_swap(value); break; // SWAP
+	case 0x38: value = op_srl(value);  break; // SHIFT RIGHT LOGICAL
+
+	// Return early since we don't need to the write the data back
+	case 0x40: op_bit(0, value); return; // TEST BIT 0
+	case 0x48: op_bit(1, value); return; // TEST BIT 1
+	case 0x50: op_bit(2, value); return; // TEST BIT 2
+	case 0x58: op_bit(3, value); return; // TEST BIT 3
+	case 0x60: op_bit(4, value); return; // TEST BIT 4
+	case 0x68: op_bit(5, value); return; // TEST BIT 5
+	case 0x70: op_bit(6, value); return; // TEST BIT 6
+	case 0x78: op_bit(7, value); return; // TEST BIT 7
+
+	case 0x80: value = op_res(0, value); break; // RESET BIT 0
+	case 0x88: value = op_res(1, value); break; // RESET BIT 1
+	case 0x90: value = op_res(2, value); break; // RESET BIT 2
+	case 0x98: value = op_res(3, value); break; // RESET BIT 3
+	case 0xA0: value = op_res(4, value); break; // RESET BIT 4
+	case 0xA8: value = op_res(5, value); break; // RESET BIT 5
+	case 0xB0: value = op_res(6, value); break; // RESET BIT 6
+	case 0xB8: value = op_res(7, value); break; // RESET BIT 7
+
+	case 0xC0: value = op_set(0, value); break; // SET BIT 0
+	case 0xC8: value = op_set(1, value); break; // SET BIT 1
+	case 0xD0: value = op_set(2, value); break; // SET BIT 2
+	case 0xD8: value = op_set(3, value); break; // SET BIT 3
+	case 0xE0: value = op_set(4, value); break; // SET BIT 4
+	case 0xE8: value = op_set(5, value); break; // SET BIT 5
+	case 0xF0: value = op_set(6, value); break; // SET BIT 6
+	case 0xF8: value = op_set(7, value); break; // SET BIT 7
+
+	default:
+		printf("Error: Unknown prefixed opcode `%02X'\n", opcode);
+		exit(EXIT_FAILURE);
+		break;
+	}
+
+	switch (opcode & 0x07) {
+
+	case 0x00: cpu.reg.b = value; break;
+	case 0x01: cpu.reg.c = value; break;
+	case 0x02: cpu.reg.d = value; break;
+	case 0x03: cpu.reg.e = value; break;
+	case 0x04: cpu.reg.h = value; break;
+	case 0x05: cpu.reg.l = value; break;
+	case 0x06: write_byte(cpu.wreg.hl, value); break;
+	case 0x07: cpu.reg.a = value; break;
+	}
+}
+
+static inline uint8_t op_rlc(uint8_t value) {
+	int highest_bit = value >> 7;
+	value <<= 1;
+	value |= highest_bit;
+	cpu.reg.f = 0;
+	cpu.flag.zero = !value;
+	cpu.flag.carry = highest_bit;
+	return value;
+}
+
+static inline uint8_t op_rrc(uint8_t value) {
+	int lowest_bit = value & 0x01;
+	value >>= 1;
+	value |= (lowest_bit << 7);
+	cpu.reg.f = 0;
+	cpu.flag.zero = !value;
+	cpu.flag.carry = lowest_bit;
+	return value;
+}
+
+static inline uint8_t op_rr(uint8_t value) {
+	int lowest_bit = value & 0x01;
+	value >>= 1;
+	value |= (cpu.flag.carry << 7);
+	cpu.reg.f = 0;
+	cpu.flag.zero = !value;
+	cpu.flag.carry = lowest_bit;
+	return value;
+}
+
+static inline uint8_t op_rl(uint8_t value) {
+	int highest_bit = value >> 7;
+	value <<= 1;
+	value |= cpu.flag.carry;
+	cpu.reg.f = 0;
+	cpu.flag.zero = !value;
+	cpu.flag.carry = highest_bit;
+	return value;
+}
+
+static inline uint8_t op_sla(uint8_t value) {
+	int highest_bit = value >> 7;
+	value <<= 1;
+	cpu.reg.f = 0;
+	cpu.flag.zero = !value;
+	cpu.flag.carry = highest_bit;
+	return value;
+}
+
+static inline uint8_t op_sra(uint8_t value) {
+	int lowest_bit = value & 0x01;
+	int highest_bit = value & 0x80;
+	value >>= 1;
+	value |= highest_bit;
+	cpu.reg.f = 0;
+	cpu.flag.zero = !value;
+	cpu.flag.carry = lowest_bit;
+	return value;
+}
+
+static inline uint8_t op_srl(uint8_t value) {
+	cpu.flag.carry = value & 0x01;
+	value >>= 1;
+	cpu.flag.subtract = 0;
+	cpu.flag.half_carry = 0;
+	cpu.flag.zero = !value;
+	return value;
+}
+
+static inline uint8_t op_swap(uint8_t value) {
+	uint8_t lower = (value & 0x0F);
+	uint8_t upper = (value & 0xF0);
+	value = (lower << 4) | (upper >> 4);
+	cpu.reg.f = 0;
+	cpu.flag.zero = !value;
+	return value;
+}
+
+static inline void op_bit(int bit_num, uint8_t value) {
+	cpu.flag.subtract = 0;
+	cpu.flag.half_carry = 1;
+	cpu.flag.zero = !(value & (1 << bit_num));
+}
+
+static inline uint8_t op_res(int bit_num, uint8_t value) {
+	value &= ~((uint8_t)0x01 << bit_num);
+	return value;
+}
+
+static inline uint8_t op_set(int bit_num, uint8_t value) {
+	value |= (1 << bit_num);
+	return value;
+}
+
+static inline void op_add(uint8_t value) {
+	uint8_t result = cpu.reg.a + value;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+	cpu.flag.carry = result < cpu.reg.a;
+	cpu.flag.zero = !result;
+	cpu.flag.subtract = 0;
+	cpu.reg.a = result;
+}
+
+static inline void op_adc(uint8_t value) {
+	bool oldcarry = cpu.flag.carry;
+	uint8_t result = cpu.reg.a + value + oldcarry;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+	cpu.flag.carry = (value == 0xFF && oldcarry == 1) || (result < cpu.reg.a);
+	cpu.flag.subtract = 0;
+	cpu.reg.a = result;
+	cpu.flag.zero = !cpu.reg.a;
+}
+
+static inline void op_sub(uint8_t value) {
+	uint8_t result = cpu.reg.a - value;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+	cpu.flag.carry = result > cpu.reg.a;
+	cpu.flag.zero = !result;
+	cpu.flag.subtract = 1;
+	cpu.reg.a = result;
+}
+
+static inline void op_sbc(uint8_t value) {
+	bool oldcarry = cpu.flag.carry;
+	uint8_t result = cpu.reg.a - value - oldcarry;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+        cpu.flag.carry = (value == 0xFF && oldcarry == 1) || (result > cpu.reg.a);
+	cpu.flag.subtract = 1;
+	cpu.reg.a = result;
+	cpu.flag.zero = !cpu.reg.a;
+}
+
+static inline uint8_t op_inc(uint8_t value) {
+	value++;
+	cpu.flag.zero = !value;
+	cpu.flag.half_carry = !(value & 0x0F);
+	cpu.flag.subtract = 0;
+	return value;
+}
+
+static inline uint8_t op_dec(uint8_t value) {
+	value--;
+	cpu.flag.zero = !value;
+	cpu.flag.half_carry = (value & 0x0F) == 0x0F;
+	cpu.flag.subtract = 1;
+	return value;
+}
+
+static inline void op_jump(bool condition, uint16_t address) {
+	if (condition) {
+		cpu.wreg.pc = address;
 		increment_clock(1);
-		if (clock_get() - old_clock > 0)
-			return clock_get() - old_clock;
-		else
-			return 0xFFFF - (old_clock - clock_get());
 	}
+}
 
-	if (master_interrupt_flag_pending) {
-		master_interrupt_flag_pending = false;
-		master_interrupt_flag = true;
-	} else if (master_interrupt_flag) {
-		handle_interrupts();
+static inline void op_ret(bool condition) {
+	if (condition) {
+		cpu.wreg.pc = pop_stack();
+		increment_clock(1);
 	}
+}
 
-	uint8_t op_byte = fetch_next_byte();
-	process_opcode(op_byte);
-	increment_clock(blargg_opcode_timing[op_byte]);
-	if (clock_get() - old_clock > 0)
-		return clock_get() - old_clock;
-	else
-		return 0xFFFF - (old_clock - clock_get());
+static inline void op_rst(uint16_t address) {
+	push_stack(cpu.wreg.pc);
+	cpu.wreg.pc = address;
+}
+
+static inline void op_jr(bool condition) {
+	int8_t relative_address = (int8_t)fetch_next_byte();
+	if (condition) {
+		cpu.wreg.pc += relative_address;
+		increment_clock(1);
+	}
+}
+
+static inline void op_and(uint8_t value) {
+	cpu.reg.a &= value;
+	cpu.reg.f = 0;
+	cpu.flag.zero = !cpu.reg.a;
+	cpu.flag.half_carry = 1;
+}
+
+static inline void op_or(uint8_t value) {
+	cpu.reg.a |= value;
+	cpu.reg.f = 0;
+	cpu.flag.zero = !cpu.reg.a;
+}
+
+static inline void op_xor(uint8_t value) {
+	cpu.reg.a ^= value;
+	cpu.reg.f = 0;
+	cpu.flag.zero = !cpu.reg.a;
+}
+
+static inline void op_cp(uint8_t value) {
+	uint8_t result = cpu.reg.a - value;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+	cpu.flag.carry = result > cpu.reg.a;
+	cpu.flag.zero = !result;
+	cpu.flag.subtract = 1;
+}
+
+static inline void op_add_16bit(uint16_t value) {
+	uint16_t result = cpu.wreg.hl + value;
+	cpu.flag.half_carry = ((cpu.wreg.hl ^ value ^ result) & 0x1000) == 0x1000;
+	cpu.flag.carry = result < cpu.wreg.hl;
+	cpu.flag.subtract = 0;
+	cpu.wreg.hl = result;
+}
+
+static inline void op_call(bool condition) {
+	uint16_t address = fetch_word();
+	if (condition) {
+		push_stack(cpu.wreg.pc);
+		cpu.wreg.pc = address;
+	}
+}
+
+static inline void op_daa() {
+	unsigned offset = 0;
+	if (!cpu.flag.subtract) {
+		if (cpu.flag.half_carry || (cpu.reg.a & 0x0F) > 0x09)
+			offset |= 0x06;
+		if (cpu.flag.carry || cpu.reg.a > 0x99)
+			offset |= 0x60;
+		cpu.flag.carry |= (cpu.reg.a > (0xFF - offset));
+		cpu.reg.a += offset;
+	} else {
+		if (cpu.flag.half_carry) offset |= 0x06;
+		if (cpu.flag.carry)      offset |= 0x60;
+		cpu.reg.a -= offset;
+	}
+	cpu.flag.zero = !cpu.reg.a;
+	cpu.flag.half_carry = 0;
 }
