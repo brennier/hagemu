@@ -6,13 +6,23 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
 - Tetris
 - Dr. Mario
 - Super Mario Land
+- Metroid
 
 ### Progress Report
-- [x] Pass Blargg's CPU test roms
-  - [x] cpu_instrs test
-  - [x] instr_timing test
-  - [x] mem_timing test
-  - [x] mem_timing_2 test
+- [x] Implement CPU
+  - [x] Parse opcodes
+  - [x] Implement double registers
+  - [x] Write functions for the opcodes
+  - [x] Set flags in the f register
+  - [x] Write the interrupt dispatch code
+  - [x] Add a clock and timer interrupts
+  - [x] Fix cycle timing of opcodes
+  - [x] Cycle-correct memory reads/writes
+  - [x] Pass Blargg's CPU test roms
+    - [x] cpu_instrs test
+    - [x] instr_timing test
+    - [x] mem_timing test
+    - [x] mem_timing_2 test
 - [x] Implement PPU
   - [x] Display tiles from VRAM
   - [x] Write tiles to window with Raylib
@@ -37,17 +47,18 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
   - [x] Add support for gamepads
-  - [ ] Test gamepad support
+  - [x] Test gamepad support
+  - [x] Calculate the half-carry as (a ^ b ^ result) & 0x10
+  - [x] Add 'inline' the CPU opcode functions
+  - [x] Rewrite the f register as separate bools
+  - [ ] Add option to blend frames
+  - [ ] Fix glitch where a sprite partially clips if it's on the left or top border
   - [ ] Emulate the timing of the DMA
-  - [ ] Rewrite the f register as separate bools
-  - [ ] Add 'inline' the CPU opcode functions
   - [ ] Add support for disabling the PPU
   - [ ] Fix bug where window X Position is less than 7
   - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
   - [ ] Implement the STOP instruction
   - [ ] Test the HALT instruction
-  - [ ] Is there a faster way to calculate the half-carry?
-    - Idea: (a ^ b ^ result) & 0x10
   - [ ] Rewrite the PPU using a pixel pusher renderer
   - [ ] Pass Blargg's interrupt_time test
   - [ ] Run the Mooneye Test Suite
