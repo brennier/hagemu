@@ -304,36 +304,40 @@ void process_extra_opcodes(uint8_t opcode) {
 }
 
 void op_add(uint8_t value) {
-	cpu.flag.half_carry = (((cpu.reg.a & 0x0F) + (value & 0x0F)) & 0x10) == 0x10;
-	cpu.flag.carry = (0xFF - cpu.reg.a) < value;
-	cpu.reg.a += value;
-	cpu.flag.zero = !(cpu.reg.a);
+	uint8_t result = cpu.reg.a + value;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+	cpu.flag.carry = result < cpu.reg.a;
+	cpu.flag.zero = !result;
 	cpu.flag.subtract = 0;
+	cpu.reg.a = result;
 }
 
 void op_adc(uint8_t value) {
 	bool oldcarry = cpu.flag.carry;
-	cpu.flag.half_carry = (((cpu.reg.a & 0x0F) + (value & 0x0F) + oldcarry) & 0x10) == 0x10;
-	cpu.flag.carry = ((unsigned)oldcarry + (unsigned)cpu.reg.a + (unsigned)value) > 0xFF;
+	uint8_t result = cpu.reg.a + value + oldcarry;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+	cpu.flag.carry = (value == 0xFF && oldcarry == 1) || (result < cpu.reg.a);
 	cpu.flag.subtract = 0;
-	cpu.reg.a += value + oldcarry;
+	cpu.reg.a = result;
 	cpu.flag.zero = !cpu.reg.a;
 }
 
 void op_sub(uint8_t value) {
-	cpu.flag.half_carry = (((cpu.reg.a & 0x0F) - (value & 0x0F)) & 0x10) == 0x10;
-	cpu.flag.carry = cpu.reg.a < value;
-	cpu.reg.a -= value;
-	cpu.flag.zero = !(cpu.reg.a);
+	uint8_t result = cpu.reg.a - value;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+	cpu.flag.carry = result > cpu.reg.a;
+	cpu.flag.zero = !result;
 	cpu.flag.subtract = 1;
+	cpu.reg.a = result;
 }
 
 void op_sbc(uint8_t value) {
 	bool oldcarry = cpu.flag.carry;
-	cpu.flag.half_carry = (((cpu.reg.a & 0x0F) - (value & 0x0F) - oldcarry) & 0x10) == 0x10;
-	cpu.flag.carry = ((unsigned)oldcarry - (unsigned)cpu.reg.a - (unsigned)value) > 0xFF;
+	uint8_t result = cpu.reg.a - value - oldcarry;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+        cpu.flag.carry = (value == 0xFF && oldcarry == 1) || (result > cpu.reg.a);
 	cpu.flag.subtract = 1;
-	cpu.reg.a -= value + oldcarry;
+	cpu.reg.a = result;
 	cpu.flag.zero = !cpu.reg.a;
 }
 
@@ -342,7 +346,7 @@ uint8_t op_inc(uint8_t value) {
 	cpu.flag.zero = !value;
 	cpu.flag.half_carry = !(value & 0x0F);
 	cpu.flag.subtract = 0;
-    return value;
+	return value;
 }
 
 uint8_t op_dec(uint8_t value) {
@@ -399,17 +403,19 @@ void op_xor(uint8_t value) {
 }
 
 void op_cp(uint8_t value) {
-	cpu.flag.zero = !(cpu.reg.a - value);
+	uint8_t result = cpu.reg.a - value;
+	cpu.flag.half_carry = ((cpu.reg.a ^ value ^ result) & 0x10) == 0x10;
+	cpu.flag.carry = result > cpu.reg.a;
+	cpu.flag.zero = !result;
 	cpu.flag.subtract = 1;
-	cpu.flag.half_carry = (((cpu.reg.a & 0x0F) - (value & 0x0F)) & 0x10) == 0x10;
-	cpu.flag.carry = value > cpu.reg.a;
 }
 
 void op_add_16bit(uint16_t value) {
-	cpu.flag.half_carry = (((cpu.wreg.hl & 0x0FFF) + (value & 0x0FFF)) & 0x1000) == 0x1000;
-	cpu.flag.carry = (0xFFFF - cpu.wreg.hl) < value;
-	cpu.wreg.hl += value;
+	uint16_t result = cpu.wreg.hl + value;
+	cpu.flag.half_carry = ((cpu.wreg.hl ^ value ^ result) & 0x1000) == 0x1000;
+	cpu.flag.carry = result < cpu.wreg.hl;
 	cpu.flag.subtract = 0;
+	cpu.wreg.hl = result;
 }
 
 void op_call(bool condition) {
@@ -843,10 +849,11 @@ void process_opcode(uint8_t op_byte) {
 	case 0xF8: // LD HL SP+i8
 	{
 		uint8_t next = fetch_next_byte();
+		uint16_t result = cpu.wreg.sp + (int8_t)next;
 		cpu.reg.f = 0;
 		cpu.flag.half_carry = (((cpu.wreg.sp & 0x000F) + (next & 0x0F)) & 0x10) == 0x10;
 		cpu.flag.carry = (cpu.wreg.sp & 0x00FF) + next > 0x00FF;
-		cpu.wreg.hl = cpu.wreg.sp + (int8_t)next;
+		cpu.wreg.hl = result;
 		break;
 	}
 
