@@ -51,11 +51,11 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Calculate the half-carry as (a ^ b ^ result) & 0x10
   - [x] Add 'inline' the CPU opcode functions
   - [x] Rewrite the f register as separate bools
+  - [x] Fix glitch where a sprite partially clips if it's on the left or top border
+  - [x] Fix bug where window X Position is less than 7
   - [ ] Add option to blend frames
-  - [ ] Fix glitch where a sprite partially clips if it's on the left or top border
   - [ ] Emulate the timing of the DMA
   - [ ] Add support for disabling the PPU
-  - [ ] Fix bug where window X Position is less than 7
   - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
   - [ ] Implement the STOP instruction
   - [ ] Test the HALT instruction

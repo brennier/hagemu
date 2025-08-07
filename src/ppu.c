@@ -20,7 +20,7 @@ int current_window_line = 0;
 bool window_triggered = false;
 void ppu_draw_scanline();
 void ppu_draw_sprites();
-void ppu_draw_background(bool tile_map_mode, uint8_t bg_row, uint8_t bg_col, bool drawing_window);
+void ppu_draw_background(bool tile_map_mode, uint8_t bg_row, int bg_col, bool drawing_window);
 
 enum PPUMode {
 	HBLANK,
@@ -104,7 +104,7 @@ void ppu_draw_scanline() {
 		if (mmu_read(WIN_SCROLL_Y) == current_line)
 			window_triggered = true;
 		
-		uint8_t win_start_col = mmu_read(WIN_SCROLL_X) - 7;
+		int win_start_col = mmu_read(WIN_SCROLL_X) - 7;
 		if (window_triggered && mmu_get_bit(WINDOW_ENABLE) && win_start_col < 160) {
 			tile_map_mode = mmu_get_bit(WINDOW_TILE_MAP_AREA);
 			ppu_draw_background(tile_map_mode, current_window_line, win_start_col, true);
@@ -140,7 +140,7 @@ void apply_palette(uint16_t *array_2bbp, int array_length, uint16_t palette_loca
 	}
 }
 
-void ppu_draw_background(bool tile_map_mode, uint8_t bg_row, uint8_t bg_col, bool drawing_window) {
+void ppu_draw_background(bool tile_map_mode, uint8_t bg_row, int bg_col, bool drawing_window) {
 	int background_row = bg_row;
 
 	// Get tile indices
@@ -191,21 +191,24 @@ void ppu_draw_background(bool tile_map_mode, uint8_t bg_row, uint8_t bg_col, boo
 
 	uint16_t cropped_tile_data[160];
 	if (drawing_window) {
-		for (int i = bg_col; i < 160; i++)
+		for (int i = bg_col; i < 160; i++) {
+			if (i < 0)
+				continue;
 			cropped_tile_data[i] = tile_data[i - bg_col];
-		
-		for (int i = bg_col; i < 160; i++)
 			if (cropped_tile_data[i] != 0)
 				is_background_nonzero[i] = true;
 			else
 				is_background_nonzero[i] = false;
-		
+		}
 		apply_palette(cropped_tile_data + bg_col, 160 - bg_col, BG_PALETTE);
-		for (int i = bg_col; i < 160; i++)
+		for (int i = bg_col; i < 160; i++) {
+			if (i < 0)
+				continue;
 			screen_buffer[current_line][i] = cropped_tile_data[i];
+		}
 	} else {
 		for (int i = 0; i < 160; i++)
-			cropped_tile_data[i] = tile_data[(bg_col + i) % 256];
+			cropped_tile_data[i] = tile_data[((uint8_t)bg_col + i) % 256];
 
 		for (int i = 0; i < 160; i++)
 			if (cropped_tile_data[i] != 0)
@@ -228,13 +231,13 @@ void ppu_draw_sprites() {
 	bool use_tall_sprites = mmu_get_bit(OBJECTS_SIZE);
 
 	uint16_t sprite_addresses[10];
-	uint16_t sprite_count = 0;
+	int sprite_count = 0;
 
 	// Get the first 10 sprites in the OAM
 	for (int sprite_start = oam_start; sprite_start < oam_end; sprite_start += 4) {
 		if (sprite_count == 10)
 			break;
-		uint8_t y_position = mmu_read(sprite_start) - 16;
+		int y_position = mmu_read(sprite_start) - 16;
 		int sprite_row = current_line - y_position;
 		if (sprite_row < 0) {
 			continue;
@@ -250,9 +253,9 @@ void ppu_draw_sprites() {
 
 	// Sort sprites based on descending x-coordinate
 	for (int i = 0; i < sprite_count; i++) {
-		uint16_t highest_x = mmu_read(sprite_addresses[i] + 1) - 8;
+		int highest_x = mmu_read(sprite_addresses[i] + 1) - 8;
 		for (int j = i + 1; j < sprite_count; j++) {
-			uint16_t this_x = mmu_read(sprite_addresses[j] + 1) - 8;
+			int this_x = mmu_read(sprite_addresses[j] + 1) - 8;
 			if (this_x > highest_x) {
 				highest_x = this_x;
 				uint16_t temp = sprite_addresses[i];
@@ -269,8 +272,8 @@ void ppu_draw_sprites() {
 
 	for (int i = 0; i < sprite_count; i++) {
 		uint16_t sprite_start = sprite_addresses[i];
-		uint8_t y_position = mmu_read(sprite_start) - 16;
-		uint8_t x_position = mmu_read(sprite_start + 1) - 8;
+		int y_position = mmu_read(sprite_start) - 16;
+		int x_position = mmu_read(sprite_start + 1) - 8;
 		uint8_t tile_index = mmu_read(sprite_start + 2);
 		uint8_t attributes = mmu_read(sprite_start + 3);
 		bool background_has_priority = (attributes >> 7) & 0x01;
@@ -293,8 +296,8 @@ void ppu_draw_sprites() {
 
 		uint16_t sprite_pixels[8];
 
-		uint16_t byte1 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row);
-		uint16_t byte2 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row + 1);
+		uint8_t byte1 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row);
+		uint8_t byte2 = mmu_read(0x8000 + 16 * tile_index + 2 * sprite_row + 1);
 		for (int col = 0; col < 8; col++) {
 			bool bit1 = (byte1 >> (7 - col)) & 0x01;
 			bool bit2 = (byte2 >> (7 - col)) & 0x01;
