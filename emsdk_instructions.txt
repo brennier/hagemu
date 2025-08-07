@@ -1,8 +1,0 @@
-cd lib/emsdk
-./emsdk install latest
-./emsdk activate latest
-source ./emsdk_env.sh
-cd ../..
-cd lib/raylib/src
-make -e PLATFORM=PLATFORM_WEB -B
-emcc *.c -o main.html -Lpath/to/raylib/lib -lraylib -s USE_GLFW=3 -s ASYNCIFY
