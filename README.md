@@ -7,6 +7,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
 - Dr. Mario
 - Super Mario Land
 - Metroid
+- Zelda: Link's Awakening
 
 ### Progress Report
 - [x] Implement CPU
@@ -42,7 +43,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] MCB1 (Very Basic support)
   - [ ] MCB1 (Full support)
   - [ ] MCB3
-  - [ ] Save game support
+  - [ ] Support for saving and loading .sav files
   - [ ] Real Time Clock support
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
@@ -64,9 +65,22 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [ ] Run the Mooneye Test Suite
   - [ ] Make a cool logo
   - [ ] Add a custom boot rom
-- [ ] Add the APU (Audio Processing Unit)
-- [ ] Get the WebAssembly version working
-- [ ] Finish the UI
+- [ ] WebAssembly version
+  - [x] Get the WebAssembly version working
+  - [x] Add a simple front-end UI
+  - [x] Upload to my website (https://uezu.dev/projects/hagemu)
+  - [ ] Select file using a mobile browser
+  - [ ] Touchscreen support
+  - [ ] Download and upload save files
+- [ ] Add a UI
   - [x] Drag and drop rom files onto the window
-- [ ] Add save states
+  - [ ] Add a custom bootrom
+  - [ ] Select file using a file dialog window
+  - [ ] Settings menu
+    - [ ] Button mapping menu
+    - [ ] Audio menu
+    - [ ] Color palette menu
+    - [ ] Save state menu
+- [ ] Add the APU (Audio Processing Unit)
+- [ ] Saving and loading save states
 - [ ] Add GBC functionality
