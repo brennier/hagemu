@@ -279,6 +279,7 @@ char* get_sram_name(char* rom_name) {
     *(save_file_name_pos++) = 'v';
     *(save_file_name_pos++) = '\0';
 
+    return "/savedata/zelda.sav";
     return save_file_name;
 }
 
@@ -286,7 +287,7 @@ void mmu_load_sram_file() {
 	long sram_size = cartridge_ram_size;
 	FILE *save_file = fopen(sram_file_name, "rb");
 	if (save_file == NULL) {
-		printf("Warning: Failed to find a save file. Using a new save...\n");
+		printf("Warning: Failed to find the save file '%s'. Using a new save...\n", sram_file_name);
 		return;
 	}
 

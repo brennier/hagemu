@@ -39,6 +39,7 @@ build/libraylib.a: makefile
 	@echo sucessful!
 
 build/libraylib_web.a: makefile
+	@mkdir -p build
 	@printf %s "Building Raylib using emcc..."
 	@make -C lib/raylib/src PLATFORM=PLATFORM_WEB -B >/dev/null
 	@cp lib/raylib/src/libraylib.web.a build/libraylib_web.a
@@ -47,7 +48,8 @@ build/libraylib_web.a: makefile
 web: makefile build/raylib.h build/libraylib_web.a
 	sh lib/emsdk/emsdk install latest
 	sh lib/emsdk/emsdk activate latest
-	source lib/emsdk/emsdk_env.sh && emcc -O3 -flto src/*.c -o build/main.html -I build -L build -lraylib_web -s USE_GLFW=3 -s ASYNCIFY
+	cp lib/emsdk/upstream/emscripten/cache/sysroot/include/emscripten.h build
+	source lib/emsdk/emsdk_env.sh && emcc -O3 -flto -lidbfs.js src/*.c -o build/main.html -I build -L build -lraylib_web -s USE_GLFW=3 -s ASYNCIFY
 	rm build/main.html
 	cp src/emsdk_index.html build/index.html
 	cd build && python -m http.server 8000
