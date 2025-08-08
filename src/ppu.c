@@ -244,7 +244,7 @@ void ppu_draw_sprites() {
 		} else if (sprite_row < 8) {
 			sprite_addresses[sprite_count] = sprite_start;
 			sprite_count++;
-		} else if (use_tall_sprites && sprite_row < 15) {
+		} else if (use_tall_sprites && sprite_row < 16) {
 			sprite_addresses[sprite_count] = sprite_start;
 			sprite_count++;
 		} else
@@ -289,7 +289,7 @@ void ppu_draw_sprites() {
 
 		if (use_tall_sprites && sprite_row < 8)
 			tile_index &= ~(0x01);
-		else if (use_tall_sprites && sprite_row < 15) {
+		else if (use_tall_sprites && sprite_row < 16) {
 			tile_index |= 0x01;
 			sprite_row -= 8;
 		}
