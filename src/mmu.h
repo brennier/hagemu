@@ -19,6 +19,7 @@ extern bool mmu_joypad_inputs[8];
 enum special_address {
 	CARTRIDGE_TYPE = 0x0147,
 	CARTRIDGE_SIZE = 0x0148,
+	RAM_SIZE      = 0x0149,
 	JOYPAD_INPUT = 0xFF00,
 	SERIAL_DATA = 0xFF01,
 	SERIAL_CONTROL = 0xFF02,
@@ -84,6 +85,7 @@ enum special_bit {
 };
 
 void mmu_load_rom(char* rom_name);
+void mmu_save_sram_file();
 
 uint8_t mmu_read(uint16_t address);
 void mmu_write(uint16_t address, uint8_t value);

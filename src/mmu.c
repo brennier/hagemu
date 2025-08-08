@@ -7,11 +7,15 @@
 
 uint8_t *rom_memory = NULL;
 // A maximum of 32kb of RAM
+long cartridge_ram_size = 0;
 uint8_t cartridge_ram[32 * 1024] = { 0 };
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[64 * 1024] = { 0 };
 
+char *rom_file_name = NULL;
+char *sram_file_name = NULL;
 bool ram_enabled = false;
+bool save_ram_to_file = false;
 bool mmu_joypad_inputs[8];
 int rom_bank_index = 1;
 int ram_bank_index = 0;
@@ -88,7 +92,7 @@ uint8_t mmu_read(uint16_t address) {
 			return gb_memory[address];
 		// Unusable memory
 		else if (address < 0xFEFF)
-			return 0;
+			return 0xFF;
 		// TODO: IO Registers and High RAM
 		else
 			return gb_memory[address];
@@ -179,8 +183,8 @@ void mmu_write(uint16_t address, uint8_t value) {
 		}
 		// Unusable memory
 		else if (address < 0xFEFF) {
-			/* fprintf(stderr, "Error: Attempted write at the forbidden address '%02X'", address); */
-			/* exit(EXIT_FAILURE); */
+			// fprintf(stderr, "Warning: Attempted write at the forbidden address '%02X'. Ignoring...\n", address);
+			return;
 		}
 		// TODO: IO Registers and High RAM
 		else {
@@ -252,6 +256,69 @@ const int ram_size_table[] = {
 	[0x05] = 64 * 1024,
 };
 
+char* get_sram_name(char* rom_name) {
+    char* point_to_end = rom_name;
+    char* save_file_name = NULL;
+    while (*point_to_end)
+	point_to_end++;
+    while (*point_to_end != '.')
+	point_to_end--;
+
+    size_t rom_name_length = point_to_end - rom_name;
+
+    save_file_name = malloc((rom_name_length + 5) * sizeof(char));
+    char* save_file_name_pos = save_file_name;
+    while (rom_name != point_to_end) {
+	*save_file_name_pos = *rom_name;
+	save_file_name_pos++;
+	rom_name++;
+    }
+    *(save_file_name_pos++) = '.';
+    *(save_file_name_pos++) = 's';
+    *(save_file_name_pos++) = 'a';
+    *(save_file_name_pos++) = 'v';
+    *(save_file_name_pos++) = '\0';
+
+    return save_file_name;
+}
+
+void mmu_load_sram_file() {
+	long sram_size = cartridge_ram_size;
+	FILE *save_file = fopen(sram_file_name, "rb");
+	if (save_file == NULL) {
+		printf("Warning: Failed to find a save file. Using a new save...\n");
+		return;
+	}
+
+	long bytes_read = fread(cartridge_ram, 1, sram_size, save_file);
+	if (bytes_read != sram_size)
+		printf("Error: Save file was expected to be %ld bytes, but was actually %ld bytes.\n", sram_size, bytes_read);
+	else
+		printf("The save file '%s' was sucessfully found and loaded (%ld bytes)\n", sram_file_name, sram_size);
+	fclose(save_file);
+}
+
+void mmu_save_sram_file() {
+	if (!save_ram_to_file) {
+		printf("Error: This game has no ability to save\n");
+		return;
+	}
+
+	long sram_size = cartridge_ram_size;
+	FILE *save_file = fopen(sram_file_name, "wb");
+	if (save_file == NULL) {
+		printf("Error: Failed to open the file '%s' to write the save data :(\n", sram_file_name);
+		return;
+	}
+
+	long bytes_written = fwrite(cartridge_ram, 1, sram_size, save_file);
+	if (bytes_written != sram_size)
+		printf("Error: Tried to write %ld bytes to '%s', but actually only wrote %ld bytes.\n", sram_size, sram_file_name, bytes_written);
+	else
+		printf("Save data was sucessfully written to '%s' (%ld bytes)\n", sram_file_name, sram_size);
+	fclose(save_file);
+}
+
 void mmu_load_rom(char* rom_name) {
 	if (rom_memory != NULL) {
 		printf("Freeing previously read rom...\n");
@@ -287,7 +354,61 @@ void mmu_load_rom(char* rom_name) {
 	for (int i = 0; i < 16; i++)
 		game_title[i] = rom_memory[0x0134 + i];
 	printf("Rom Title is %s\n", game_title);
-	printf("Cartridge type is %s\n", cartridge_type_description[rom_memory[0x0147]]);
-	printf("ROM size is %d KiB\n", 32 * (1 << rom_memory[0x0148]));
-	printf("RAM size is %d KiB\n", ram_size_table[rom_memory[0x0149]] / 1024);
+	printf("Cartridge type is %s\n", cartridge_type_description[rom_memory[CARTRIDGE_TYPE]]);
+	printf("ROM size is %d KiB\n", 32 * (1 << rom_memory[CARTRIDGE_SIZE]));
+	cartridge_ram_size = ram_size_table[rom_memory[RAM_SIZE]];
+	printf("RAM size is %ld KiB\n", cartridge_ram_size / 1024);
+
+	switch (rom_memory[CARTRIDGE_TYPE]) {
+
+	case 0x00: case 0x08: case 0x09: // No MBC
+		break;
+
+	case 0x01: case 0x02: case 0x03: case 0x04: // MBC1
+		if (rom_size > 512 * 1024)
+			printf("WARNING: Cartridges of this size using the MBC1 have limited support.\n");
+		else if (rom_size > 1024 * 1024)
+			printf("WARNING: Cartridges of this size using the MBC1 may crash.\n");
+		break;
+
+	case 0x05: case 0x06: // MBC2
+		printf("WARNING: Cartridge type MBC2 is not supported yet.\n");
+		break;
+
+	case 0x0B: case 0x0C: case 0x0D: // MMM01
+		printf("WARNING: Cartridge type MMM01 is not supported yet.\n");
+		break;
+
+	case 0x0F: case 0x10: case 0x11: case 0x12: case 0x13: // MBC3
+		printf("WARNING: The real time clock feature is not supported yet.\n");
+		break;
+
+	case 0x19: case 0x1A: case 0x1B: case 0x1C: case 0x1D: case 0x1E: // MBC3
+		printf("WARNING: Cartridge type MBC5 is not supported yet.\n");
+		break;
+
+	case 0x20: case 0x22: case 0xFC: case 0xFD: case 0xFE: case 0xFF: // Other controllers
+		printf("WARNING: This cartridge type is not supported yet.\n");
+		break;
+
+	}
+
+	switch (rom_memory[CARTRIDGE_TYPE]) {
+
+	case 0x03: case 0x09: case 0x0D: case 0x13: case 0x1B: case 0x1E: case 0x22: case 0xFF:
+		printf("This rom supports loading and saving. Checking for a save file...\n");
+		if (sram_file_name != NULL)
+			free(sram_file_name);
+		else
+			sram_file_name = get_sram_name(rom_name);
+		mmu_load_sram_file();
+		save_ram_to_file = true;
+		break;
+
+	default:
+		save_ram_to_file = false;
+		for (unsigned i = 0; i < cartridge_ram_size; i++)
+			cartridge_ram[i] = 0;
+		break;
+	}
 }

@@ -43,6 +43,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
+	SetTraceLogLevel(LOG_ERROR);
 	SetConfigFlags(FLAG_VSYNC_HINT);
 	SetTargetFPS(60);
 	InitWindow(SCREENWIDTH, SCREENHEIGHT, "Hagemu GameBoy Emulator");
@@ -118,6 +119,7 @@ int main(int argc, char *argv[]) {
 		EndDrawing();
 	}
 
+	mmu_save_sram_file();
 	UnloadTexture(background_texture);
 	CloseWindow();
 

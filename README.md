@@ -43,7 +43,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] MCB1 (Basic support)
   - [ ] MCB1 (Full support)
   - [x] MCB3 (except for Real Time Clock)
-  - [ ] Support for saving and loading .sav files
+  - [x] Basic support for saving and loading .sav files
   - [ ] Real Time Clock support
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
@@ -54,6 +54,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Rewrite the f register as separate bools
   - [x] Fix glitch where a sprite partially clips if it's on the left or top border
   - [x] Fix bug where window X Position is less than 7
+  - [ ] Pokemon Red has corrupted saves
   - [ ] Add option to blend frames
   - [ ] Emulate the timing of the DMA
   - [ ] Add support for disabling the PPU
