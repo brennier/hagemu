@@ -9,8 +9,8 @@
 #include "emscripten.h"
 
 #define SCALE_FACTOR 5
-#define SCREENWIDTH 160 * SCALE_FACTOR
-#define SCREENHEIGHT 144 * SCALE_FACTOR
+#define SCREEN_WIDTH 160 * SCALE_FACTOR
+#define SCREEN_HEIGHT 144 * SCALE_FACTOR
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
@@ -20,14 +20,14 @@
 
 Texture2D screen_texture;
 
-void DrawCenteredText(char* text, int font_size, Color color) {
+void DrawTextCentered(char* text, int x, int y, int font_size, Color color) {
 	int text_width = MeasureText(text, font_size);
 	DrawText(text,
-		SCREENWIDTH / 2 - text_width / 2,
-		SCREENHEIGHT / 2 - font_size / 2,
-		font_size,
-		color
-	);
+		 x - text_width / 2,
+		 y - font_size / 2,
+		 font_size,
+		 color
+		);
 }
 
 void EMSCRIPTEN_KEEPALIVE cleanup() {
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
 	SetTraceLogLevel(LOG_ERROR);
 	SetConfigFlags(FLAG_VSYNC_HINT);
 	SetTargetFPS(60);
-	InitWindow(SCREENWIDTH, SCREENHEIGHT, "Hagemu GameBoy Emulator");
+	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hagemu GameBoy Emulator");
 
 	Image background_image = (Image){
 		.data = NULL,
@@ -104,7 +104,13 @@ int main(int argc, char *argv[]) {
 		if (rom_loaded == false) {
 			BeginDrawing();
 			ClearBackground(GREEN1);
-			DrawCenteredText("Please drop a .gb file onto this window", 7 * SCALE_FACTOR, GREEN3);
+			DrawTextCentered(
+				"Please drop a .gb file onto this window",
+				SCREEN_WIDTH / 2,
+				SCREEN_HEIGHT / 2,
+				7 * SCALE_FACTOR,
+				GREEN3
+				);
 			EndDrawing();
 			continue;
 		}
@@ -142,12 +148,7 @@ int main(int argc, char *argv[]) {
 		UpdateTexture(background_texture, ppu_get_frame());
 
 		BeginDrawing();
-		DrawTexturePro(background_texture,
-			(Rectangle){ .x = 0, .y = 0, .width = 160, .height = 144},
-			(Rectangle){ .x = 0, .y = 0, .width = 160 * SCALE_FACTOR, .height = 144 * SCALE_FACTOR},
-			(Vector2){ 0, 0 },
-			0.0,
-			WHITE);
+		DrawTextureEx(background_texture, (Vector2){ 0, 0 }, 0, SCALE_FACTOR, WHITE);
 		DrawFPS(10, 10);
 		EndDrawing();
 	}
