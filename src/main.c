@@ -46,9 +46,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	SetTraceLogLevel(LOG_ERROR);
-	SetConfigFlags(FLAG_VSYNC_HINT);
 	SetTargetFPS(60);
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hagemu GameBoy Emulator");
+	SetExitKey(KEY_NULL);
 
 	Image background_image = (Image){
 		.data = NULL,
