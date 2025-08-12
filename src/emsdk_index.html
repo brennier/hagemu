@@ -3,101 +3,126 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Hagemu Gameboy Emulator</title>
+    <title>Hagemu GameBoy Emulator</title>
     <style>
+      body {
+	  font-family: arial;
+	  margin: 0;
+	  padding: none;
+	  background-color: #306657;
+      }
 
-body {
-	font-family: arial;
-	margin: 0;
-	padding: none;
-	background-color: #306657;
-}
+      a {
+          color: inherit;
+      }
 
-a {
-	color: inherit;
-}
+      button {
+          color: inherit;
+          background: none;
+          border: none;
+          padding: 0;
+          font: inherit;
+          cursor: pointer;
+          outline: inherit;
+          text-decoration: underline;
+      }
 
-button {
-	color: inherit;
-	background: none;
-	border: none;
-	padding: 0;
-	font: inherit;
-	cursor: pointer;
-	outline: inherit;
-	text-decoration: underline;
-}
+      #content {
+          position: absolute;
+          background-color: #20453A;
+          border: 10px #20453A solid;
+          border-radius: 10px;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+      }
 
-#content {
-	position: absolute;
-	background-color: #20453A;
-	border: 10px #20453A solid;
-	border-radius: 10px;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-}
+      /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+      #canvas {
+          outline: none;
+          border-radius: 5px;
+          display: block;
+          margin: 0;
+          padding: 0;
+      }
 
-/* the canvas *must not* have any border or padding, or mouse coords will be wrong */
-#canvas {
-	outline: none;
-	border-radius: 5px;
-	display: block;
-	margin: 0;	
-	padding: 0;
-}
+      #logo {
+	  font-family: "Courier New", monospace;
+	  font-weight: bold;
+	  font-size: 2.5vh;
+	  font-size: 2.5svh;
+	  color: #8abd4c;
+	  text-align: center;
+	  padding-top: 5px;
+      }
 
-#logo {
-	font-family: "Courier New", monospace;
-	font-weight: bold;
-	font-size: 2.5vh;
-	color: #8abd4c;
-	text-align: center;
-	padding-top: 5px;
-}
+      #under-logo {
+          font-size: 1.5vh;
+          font-size: 1.5svh;
+          vertical-align: middle;
+          white-space: nowrap;
+      }
 
-@media (min-aspect-ratio: 10 / 9) {
-  #canvas {
-    height: 90vh;
-    width: auto;
-  }
-}
+      @media (min-aspect-ratio: 10 / 9) {
+          #canvas {
+              height: 90vh;
+              height: 90svh;
+              width: auto;
+          }
+          #logo {
+	      font-size: 2.75vh;
+	      font-size: 2.75svh;
+          }
+          #under-logo {
+	      font-size: 1.65vh;
+	      font-size: 1.65svh;
+          }
+      }
 
-@media (max-aspect-ratio: 10 / 9) {
-  #canvas {
-    height: auto;
-    width: 90vw;
-  }
-}
+      @media (max-aspect-ratio: 10 / 9) {
+          #canvas {
+              height: auto;
+              width: 90vw;
+              width: 90svw;
+          }
+          #logo {
+	      font-size: 2.5vw;
+	      font-size: 2.5svw;
+          }
+          #under-logo {
+	      font-size: 1.5vw;
+	      font-size: 1.5svw;
+          }
+      }
 
-#status {
-  display: inline-block;
-  vertical-align: top;
-  margin-top: 0px;
-  margin-left: 0px;
-  display: none;
-  font-weight: bold;
-  color: rgb(120, 120, 120);
-}
+      #status {
+          display: inline-block;
+          vertical-align: top;
+          margin-top: 0px;
+          margin-left: 0px;
+          display: none;
+          font-weight: bold;
+          color: rgb(120, 120, 120);
+      }
 
-#terminal-output {
-  display: none;
-  border-radius: 5px;
-  box-sizing: border-box;
-  width: 100%;
-  height: 200px;
-  margin: 5px 0 0 0;
-  border: 0;
-  padding: 5px;
-  background-color: black;
-  color: white;
-  font-family: 'Lucida Console', Monaco, monospace;
-  outline: none;
-  scrollbar-width: none;
-  resize: none;
-}
+      #terminal-output {
+          display: none;
+          border-radius: 5px;
+          box-sizing: border-box;
+          width: 100%;
+          height: 200px;
+          margin: 5px 0 0 0;
+          border: 0;
+          padding: 5px;
+          background-color: black;
+          color: white;
+          font-family: 'Lucida Console', Monaco, monospace;
+          outline: none;
+          scrollbar-width: none;
+          resize: none;
+      }
 
-</style>
+    </style>
   </head>
   <body>
 
@@ -106,26 +131,26 @@ button {
     <progress value="0" max="100" id="progress" hidden=1></progress>
     <div id="content">
       <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-      <div id="logo">Hagemu Gameboy Emulator
-	<div style="font-size: 1.5vh; vertical-align: middle; white-space: nowrap;">
-		(<button id="terminal-button">Terminal</button>) (<a href="https://github.com/brennier/hagemu">Source</a>)
+      <div id="logo">Hagemu GameBoy Emulator
+	<div id="under-logo">
+	  (<button id="terminal-button">Terminal</button>) (<a href="https://github.com/brennier/hagemu">Source</a>)
 	</div>
       </div>
       <textarea readonly id="terminal-output" rows="8"></textarea>
-    </div>   
+    </div>
 
     <script type='text/javascript'>
 
       var button = document.getElementById('terminal-button');
       button.onclick = function() {
-        var div = document.getElementById('terminal-output');
-        if (div.style.display == 'block') {
-          div.style.display = 'none';
-        }
-        else {
-          div.style.display = 'block';
-        }
-     };
+          var div = document.getElementById('terminal-output');
+          if (div.style.display == 'block') {
+              div.style.display = 'none';
+          }
+          else {
+              div.style.display = 'block';
+          }
+      };
 
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
@@ -138,57 +163,62 @@ button {
       // application robust, you may want to override this behavior before shipping!
       // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
       canvasElement.addEventListener('webglcontextlost', (e) => {
-        alert('WebGL context lost. You will need to reload the page.');
-        e.preventDefault();
+          alert('WebGL context lost. You will need to reload the page.');
+          e.preventDefault();
       }, false);
 
       var Module = {
-        print(...args) {
-          console.log(...args);
-          if (outputElement) {
-            var text = args.join(' ');
-            outputElement.value += text + "\n";
-            outputElement.scrollTop = outputElement.scrollHeight; // focus on bottom
+          print(...args) {
+              console.log(...args);
+              // These replacements are necessary if you render to raw HTML
+              //text = text.replace(/&/g, "&amp;");
+              //text = text.replace(/</g, "&lt;");
+              //text = text.replace(/>/g, "&gt;");
+              //text = text.replace('\n', '<br>', 'g');
+              if (outputElement) {
+                  var text = args.join(' ');
+                  outputElement.value += text + "\n";
+                  outputElement.scrollTop = outputElement.scrollHeight; // focus on bottom
+              }
+          },
+          canvas: canvasElement,
+          setStatus(text) {
+              Module.setStatus.last ??= { time: Date.now(), text: '' };
+              if (text === Module.setStatus.last.text) return;
+              var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+              var now = Date.now();
+              // if this is a progress update, skip it if too soon
+              if (m && now - Module.setStatus.last.time < 30) return;
+              Module.setStatus.last.time = now;
+              Module.setStatus.last.text = text;
+              if (m) {
+                  text = m[1];
+                  progressElement.value = parseInt(m[2])*100;
+                  progressElement.max = parseInt(m[4])*100;
+                  progressElement.hidden = false;
+                  spinnerElement.hidden = false;
+              } else {
+                  progressElement.value = null;
+                  progressElement.max = null;
+                  progressElement.hidden = true;
+                  if (!text) spinnerElement.style.display = 'none';
+              }
+              statusElement.innerHTML = text;
+          },
+          totalDependencies: 0,
+          monitorRunDependencies(left) {
+              this.totalDependencies = Math.max(this.totalDependencies, left);
+              Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
           }
-        },
-        canvas: canvasElement,
-        setStatus(text) {
-          Module.setStatus.last ??= { time: Date.now(), text: '' };
-          if (text === Module.setStatus.last.text) return;
-          var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
-          var now = Date.now();
-          // if this is a progress update, skip it if too soon
-          if (m && now - Module.setStatus.last.time < 30) return;
-          Module.setStatus.last.time = now;
-          Module.setStatus.last.text = text;
-          if (m) {
-            text = m[1];
-            progressElement.value = parseInt(m[2])*100;
-            progressElement.max = parseInt(m[4])*100;
-            progressElement.hidden = false;
-            spinnerElement.hidden = false;
-          } else {
-            progressElement.value = null;
-            progressElement.max = null;
-            progressElement.hidden = true;
-            if (!text) spinnerElement.style.display = 'none';
-          }
-          statusElement.innerHTML = text;
-        },
-        totalDependencies: 0,
-        monitorRunDependencies(left) {
-          this.totalDependencies = Math.max(this.totalDependencies, left);
-          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
-        }
       };
       Module.setStatus('Downloading...');
       window.onerror = (event) => {
-        // TODO: do not warn on ok events like simulating an infinite loop or exitStatus
-        Module.setStatus('Exception thrown, see JavaScript console');
-        spinnerElement.style.display = 'none';
-        Module.setStatus = (text) => {
-          if (text) console.error('[post-exception status] ' + text);
-        };
+          // TODO: do not warn on ok events like simulating an infinite loop or exitStatus
+          Module.setStatus('Exception thrown, see JavaScript console');
+          spinnerElement.style.display = 'none';
+          Module.setStatus = (text) => {
+              if (text) console.error('[post-exception status] ' + text);
+          };
       };
     </script>
     <script async type="text/javascript" src="main.js"></script>
