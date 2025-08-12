@@ -51,7 +51,7 @@ web: makefile build/raylib.h build/libraylib_web.a
 	@sh lib/emsdk/emsdk install latest
 	@sh lib/emsdk/emsdk activate latest
 	@cp lib/emsdk/upstream/emscripten/cache/sysroot/include/emscripten.h build
-	@source lib/emsdk/emsdk_env.sh && emcc -O3 -flto -lidbfs.js src/*.c -o build/main.html -I build -L build -lraylib_web -s USE_GLFW=3 -s ASYNCIFY
+	@source lib/emsdk/emsdk_env.sh && emcc -DPLATFORM_WEB -O3 -flto -lidbfs.js src/*.c -o build/main.html -I build -L build -lraylib_web -s USE_GLFW=3 -s ASYNCIFY
 	@rm build/main.html
 	@cp src/emsdk_index.html build/index.html
 	@cd build && python -m http.server 8000

@@ -6,7 +6,7 @@
 #include "ppu.h"
 #include "mmu.h"
 #include "cpu.h"
-#include "emscripten.h"
+#include "web.h" // Does nothing unless PLATFORM_WEB is defined
 
 #define SCALE_FACTOR 5
 #define SCREEN_WIDTH 160 * SCALE_FACTOR
@@ -30,39 +30,8 @@ void DrawTextCentered(char* text, int x, int y, int font_size, Color color) {
 		);
 }
 
-void EMSCRIPTEN_KEEPALIVE cleanup() {
-	mmu_save_sram_file();
-	printf("Saving the game...");
-	EM_ASM(
-		FS.syncfs(false, function (err) {
-			if (err) {
-				console.log("Error saving to the offline database");
-			} else {
-				console.log("Successfully saved to the offline database")
-			}
-		});
-	);
-}
-
 int main(int argc, char *argv[]) {
-	EM_ASM(
-		FS.mkdir('/savedata');
-		FS.mount(IDBFS, {}, '/savedata');
-
-		FS.syncfs(true, function (err) {
-			if (err) {
-				console.log("Error loading the offline database");
-			} else {
-				console.log("Successfully loaded the offline database")
-			}
-		});
-
-		window.addEventListener("beforeunload", function (event) {
-			Module._cleanup();
-			return "SAVING";
-		});
-	);
-
+	web_setup_filesystem(); // Does nothing unless PLATFORM_WEB is defined
 	bool rom_loaded = false;
 
 	if (argc == 2) {
