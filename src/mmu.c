@@ -15,7 +15,6 @@ uint8_t gb_memory[64 * 1024] = { 0 };
 char *rom_file_name = NULL;
 char *sram_file_name = NULL;
 bool ram_enabled = false;
-bool save_ram_to_file = false;
 bool mmu_joypad_inputs[8];
 int rom_bank_index = 1;
 int ram_bank_index = 0;
@@ -256,32 +255,75 @@ const int ram_size_table[] = {
 	[0x05] = 64 * 1024,
 };
 
+#ifdef PLATFORM_WEB
 char* get_sram_name(char* rom_name) {
-    char* point_to_end = rom_name;
-    char* save_file_name = NULL;
-    while (*point_to_end)
-	point_to_end++;
-    while (*point_to_end != '.')
-	point_to_end--;
+	char* sram_name = NULL;
+	char* rom_name_end = rom_name;
+	char* rom_name_start = rom_name;
 
-    size_t rom_name_length = point_to_end - rom_name;
+	while (*rom_name_end)
+		rom_name_end++;
+	while (*rom_name_end != '.')
+		rom_name_end--;
 
-    save_file_name = malloc((rom_name_length + 5) * sizeof(char));
-    char* save_file_name_pos = save_file_name;
-    while (rom_name != point_to_end) {
-	*save_file_name_pos = *rom_name;
-	save_file_name_pos++;
-	rom_name++;
-    }
-    *(save_file_name_pos++) = '.';
-    *(save_file_name_pos++) = 's';
-    *(save_file_name_pos++) = 'a';
-    *(save_file_name_pos++) = 'v';
-    *(save_file_name_pos++) = '\0';
+	rom_name_start = rom_name_end;
+	while (rom_name_start > rom_name && *rom_name_start != '/')
+		rom_name_start--;
 
-    return "/savedata/zelda.sav";
-    return save_file_name;
+	if (*rom_name_start == '/')
+		rom_name_start++;
+
+	size_t rom_name_length = rom_name_end - rom_name_start;
+	sram_name = malloc(10 + rom_name_length + 5);
+	char *sram_name_pos = sram_name;
+	*(sram_name_pos++) = '/';
+	*(sram_name_pos++) = 's';
+	*(sram_name_pos++) = 'a';
+	*(sram_name_pos++) = 'v';
+	*(sram_name_pos++) = 'e';
+	*(sram_name_pos++) = 'd';
+	*(sram_name_pos++) = 'a';
+	*(sram_name_pos++) = 't';
+	*(sram_name_pos++) = 'a';
+	*(sram_name_pos++) = '/';
+
+	while (rom_name_start != rom_name_end)
+		*(sram_name_pos++) = *(rom_name_start++);
+
+	*(sram_name_pos++) = '.';
+	*(sram_name_pos++) = 's';
+	*(sram_name_pos++) = 'a';
+	*(sram_name_pos++) = 'v';
+	*(sram_name_pos++) = '\0';
+
+	return sram_name;
 }
+#else
+char* get_sram_name(char* rom_name) {
+	char* sram_name = NULL;
+	char* rom_name_end = rom_name;
+
+	while (*rom_name_end)
+		rom_name_end++;
+	while (*rom_name_end != '.')
+		rom_name_end--;
+
+	size_t rom_name_length = rom_name_end - rom_name;
+
+	sram_name = malloc(rom_name_length + 5);
+	char* sram_name_pos = sram_name;
+	while (rom_name != rom_name_end)
+		*(sram_name_pos++) = *(rom_name++);
+
+	*(sram_name_pos++) = '.';
+	*(sram_name_pos++) = 's';
+	*(sram_name_pos++) = 'a';
+	*(sram_name_pos++) = 'v';
+	*(sram_name_pos++) = '\0';
+
+	return sram_name;
+}
+#endif
 
 void mmu_load_sram_file() {
 	long sram_size = cartridge_ram_size;
@@ -300,8 +342,8 @@ void mmu_load_sram_file() {
 }
 
 void mmu_save_sram_file() {
-	if (!save_ram_to_file) {
-		printf("Error: This game has no ability to save\n");
+	if (!sram_file_name) {
+		printf("This game doesn't support saving so no save file was created\n");
 		return;
 	}
 
@@ -325,6 +367,11 @@ void mmu_load_rom(char* rom_name) {
 		printf("Freeing previously read rom...\n");
 		free(rom_memory);
 		rom_memory = NULL;
+	}
+
+	if (sram_file_name != NULL) {
+		free(sram_file_name);
+		sram_file_name = NULL;
 	}
 
 	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
@@ -398,16 +445,11 @@ void mmu_load_rom(char* rom_name) {
 
 	case 0x03: case 0x09: case 0x0D: case 0x13: case 0x1B: case 0x1E: case 0x22: case 0xFF:
 		printf("This rom supports loading and saving. Checking for a save file...\n");
-		if (sram_file_name != NULL)
-			free(sram_file_name);
-		else
-			sram_file_name = get_sram_name(rom_name);
+		sram_file_name = get_sram_name(rom_name);
 		mmu_load_sram_file();
-		save_ram_to_file = true;
 		break;
 
 	default:
-		save_ram_to_file = false;
 		for (unsigned i = 0; i < cartridge_ram_size; i++)
 			cartridge_ram[i] = 0;
 		break;
