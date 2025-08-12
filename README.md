@@ -70,6 +70,8 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Get the WebAssembly version working
   - [x] Add a simple front-end UI
   - [x] Upload to my website (https://uezu.dev/projects/hagemu)
+  - [x] Automatically save and load .sav files using a local IndexedDB file system
+  - [ ] Automatically cache and load the last played game
   - [ ] Select file using a mobile browser
   - [ ] Touchscreen support
   - [ ] Download and upload save files
