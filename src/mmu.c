@@ -166,7 +166,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 		fprintf(stderr, "The value %d was written to the RTC Data Latch area at %04X\n", value, address);
 		return;
 
-	case 0xA000: case 0xBFFF:
+	case 0xA000: case 0xB000:
 		if (ram_enabled) {
 			cartridge_ram[0x2000 * ram_bank_index + (address - 0xA000)] = value;
 		} else {
