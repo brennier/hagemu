@@ -5,12 +5,15 @@
 #include "clock.h"
 #include "ppu.h"
 
+#define MAX_SRAM_SIZE 0x8000
+#define GB_MEMORY_SIZE 0x10000
+
 uint8_t *rom_memory = NULL;
 // A maximum of 32kb of RAM
 long cartridge_ram_size = 0;
-uint8_t cartridge_ram[32 * 1024] = { 0 };
+uint8_t cartridge_ram[MAX_SRAM_SIZE];
 // The GB has 64kb of mapped memory
-uint8_t gb_memory[64 * 1024] = { 0 };
+uint8_t gb_memory[GB_MEMORY_SIZE] = { 0 };
 
 char *rom_file_name = NULL;
 char *sram_file_name = NULL;
@@ -152,13 +155,15 @@ void mmu_write(uint16_t address, uint8_t value) {
 	case 0x4000: case 0x5000:
 		if (value > 7)
 			fprintf(stderr, "RTC not implemented\n");
-		else
+		else if (value <= 3 && value >= 0)
 			fprintf(stderr, "Switching to RAM bank %d\n", value);
+		else
+			fprintf(stderr, "Invalid ram bank number %d. Ignoring...\n", value);
 		ram_bank_index = value;
 		return;
 
 	case 0x6000: case 0x7000:
-		fprintf(stderr, "The value %d was written to the RTC Data Latch area\n", value);
+		fprintf(stderr, "The value %d was written to the RTC Data Latch area at %04X\n", value, address);
 		return;
 
 	case 0xA000: case 0xBFFF:
@@ -407,6 +412,10 @@ void mmu_load_rom(char* rom_name) {
 	cartridge_ram_size = ram_size_table[rom_memory[RAM_SIZE]];
 	printf("RAM size is %ld KiB\n", cartridge_ram_size / 1024);
 
+	// Reset the cartridge ram
+	for (int i = 0; i < MAX_CARTRIDGE_RAM; i++)
+		cartridge_ram[i] = 0xFF;
+
 	switch (rom_memory[CARTRIDGE_TYPE]) {
 
 	case 0x00: case 0x08: case 0x09: // No MBC
@@ -447,11 +456,6 @@ void mmu_load_rom(char* rom_name) {
 		printf("This rom supports loading and saving. Checking for a save file...\n");
 		sram_file_name = get_sram_name(rom_name);
 		mmu_load_sram_file();
-		break;
-
-	default:
-		for (unsigned i = 0; i < cartridge_ram_size; i++)
-			cartridge_ram[i] = 0;
 		break;
 	}
 }

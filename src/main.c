@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	SetTraceLogLevel(LOG_ERROR);
+	SetTraceLogLevel(LOG_WARNING);
 	SetTargetFPS(60);
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hagemu GameBoy Emulator");
 	SetExitKey(KEY_NULL);
