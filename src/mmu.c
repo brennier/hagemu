@@ -46,16 +46,32 @@ uint8_t mmu_read(uint16_t address) {
 	switch (address) {
 
 	case TIMER_DIVIDER:
+		// get the time from the clock file
 		return ((clock_get() & 0xFF00) >> 8);
 
 	case JOYPAD_INPUT:
-		return get_joypad_input();
+		// bits 6 and 7 should always be one
+		return get_joypad_input() | 0xC0;
 
 	case LCD_Y_COORDINATE:
+		// get the current line from the PPU
 		return ppu_get_current_line();
 
 	case LCD_STATUS:
-		return gb_memory[LCD_STATUS] | ppu_get_lcd_status();
+		// bits 0-2 are from the PPU, bit 7 is always 1
+		return (gb_memory[LCD_STATUS] & ~0x07) | ppu_get_lcd_status() | 0x80;
+
+	case SERIAL_CONTROL:
+		// bits 1 through 6 should always be 1
+		return gb_memory[SERIAL_CONTROL] | 0x7E;
+
+	case TIMER_CONTROL:
+		// bits 3 through 7 should always be 1
+		return gb_memory[TIMER_CONTROL] | 0xF8;
+
+	case INTERRUPT_FLAGS:
+		// bits 3 through 7 should always be 1
+		return gb_memory[INTERRUPT_FLAGS] | 0xE0;
 	}
 
 	switch (address & 0xF000) {
@@ -132,7 +148,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	switch (address & 0xF000) {
 
-	// ROM BANK 0
+	// Disable/Enable cartridge RAM
 	case 0x0000: case 0x1000:
 		if ((value & 0xF) == 0xA) {
 			ram_enabled = true;
@@ -143,7 +159,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 		}
 		return;
 
-	// ROM BANK SWITCH
+	// Switch ROM bank
 	case 0x2000: case 0x3000:
 		value &= 0x7F;
 		if (value == 0)
@@ -152,6 +168,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 			rom_bank_index = value;
 		return;
 
+	// Switch RAM bank or select RTC
 	case 0x4000: case 0x5000:
 		if (value > 7)
 			fprintf(stderr, "RTC not implemented\n");
@@ -162,16 +179,28 @@ void mmu_write(uint16_t address, uint8_t value) {
 		ram_bank_index = value;
 		return;
 
+	// Setting RTC register
 	case 0x6000: case 0x7000:
 		fprintf(stderr, "The value %d was written to the RTC Data Latch area at %04X\n", value, address);
 		return;
 
+	// Video Ram (8 KiB)
+	case 0x8000: case 0x9000:
+		gb_memory[address] = value;
+		return;
+
+	// Cartridge RAM (8 KiB slot)
 	case 0xA000: case 0xB000:
 		if (ram_enabled) {
 			cartridge_ram[0x2000 * ram_bank_index + (address - 0xA000)] = value;
 		} else {
 			fprintf(stderr, "Attempt to write value %d to RAM address %04X, but it was disabled\n", value, address);
 		}
+		return;
+
+	// Work RAM (8 KiB)
+	case 0xC000: case 0xD000:
+		gb_memory[address] = value;
 		return;
 
 	case 0xE000: case 0xF000:
@@ -197,8 +226,8 @@ void mmu_write(uint16_t address, uint8_t value) {
 		}
 	}
 
-	// Else just write the value normally
-	gb_memory[address] = value;
+	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
+	exit(EXIT_FAILURE);
 }
 
 
@@ -413,7 +442,7 @@ void mmu_load_rom(char* rom_name) {
 	printf("RAM size is %ld KiB\n", cartridge_ram_size / 1024);
 
 	// Reset the cartridge ram
-	for (int i = 0; i < MAX_CARTRIDGE_RAM; i++)
+	for (int i = 0; i < MAX_SRAM_SIZE; i++)
 		cartridge_ram[i] = 0xFF;
 
 	switch (rom_memory[CARTRIDGE_TYPE]) {
@@ -452,7 +481,7 @@ void mmu_load_rom(char* rom_name) {
 
 	switch (rom_memory[CARTRIDGE_TYPE]) {
 
-	case 0x03: case 0x09: case 0x0D: case 0x13: case 0x1B: case 0x1E: case 0x22: case 0xFF:
+	case 0x03: case 0x09: case 0x10: case 0x0D: case 0x13: case 0x1B: case 0x1E: case 0x22: case 0xFF:
 		printf("This rom supports loading and saving. Checking for a save file...\n");
 		sram_file_name = get_sram_name(rom_name);
 		mmu_load_sram_file();

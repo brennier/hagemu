@@ -27,6 +27,7 @@ enum PPUMode {
 	VBLANK,
 	OAM_SCAN,
 	PIXEL_DRAW,
+	DISABLED,
 } PPU_mode;
 
 int ppu_get_current_line() {
@@ -35,7 +36,8 @@ int ppu_get_current_line() {
 
 int ppu_get_lcd_status() {
 	int result = 0;
-	result |= PPU_mode;
+	if (PPU_mode != DISABLED)
+		result |= PPU_mode;
 	result |= (current_line == mmu_read(LY_COMPARE)) << 2;
 	return result;
 }
@@ -83,6 +85,10 @@ void ppu_update(int current_cycle) {
 		if (mmu_get_bit(VBLANK_INTERRUPT_SELECT))
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		mmu_set_bit(VBLANK_INTERRUPT_FLAG_BIT);
+		break;
+
+	case DISABLED:
+		// Do nothing
 		break;
 	}
 }

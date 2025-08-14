@@ -54,7 +54,6 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Rewrite the f register as separate bools
   - [x] Fix glitch where a sprite partially clips if it's on the left or top border
   - [x] Fix bug where window X Position is less than 7
-  - [ ] Pokemon Red has corrupted saves
   - [ ] Add option to blend frames
   - [ ] Emulate the timing of the DMA
   - [ ] Add support for disabling the PPU
@@ -66,6 +65,11 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [ ] Run the Mooneye Test Suite
   - [ ] Make a cool logo
   - [ ] Add a custom boot rom
+- [x] Known glitches
+  - [x] Pokemon Red corrupted save data
+    - Fixed! My SRAM implementation was off-by-one
+  - [x] Pokemon Aka character constantly moves up
+    - Fixed! The upper two bits of joypad register should always be 1
 - [ ] WebAssembly version
   - [x] Get the WebAssembly version working
   - [x] Add a simple front-end UI
