@@ -7,10 +7,13 @@
 #include "mmu.h"
 #include "cpu.h"
 #include "web.h" // Does nothing unless PLATFORM_WEB is defined
+#include "apu.h"
 
 #define SCALE_FACTOR 5
 #define SCREEN_WIDTH 160 * SCALE_FACTOR
 #define SCREEN_HEIGHT 144 * SCALE_FACTOR
+#define MAX_BYTES_PER_AUDIO_CALLBACK 2048
+#define AUDIO_SAMPLE_RATE 48000
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
@@ -50,6 +53,12 @@ int main(int argc, char *argv[]) {
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hagemu GameBoy Emulator");
 	SetExitKey(KEY_NULL);
 
+	InitAudioDevice();
+	SetAudioStreamBufferSizeDefault(MAX_BYTES_PER_AUDIO_CALLBACK);
+	AudioStream audio_stream = LoadAudioStream(AUDIO_SAMPLE_RATE, 16, 1);
+	SetAudioStreamCallback(audio_stream, apu_generate_frames);
+	PlayAudioStream(audio_stream);
+
 	Image background_image = (Image){
 		.data = NULL,
 		.width = 160,
@@ -80,6 +89,7 @@ int main(int argc, char *argv[]) {
 				7 * SCALE_FACTOR,
 				GREEN3
 				);
+			DrawFPS(10, 10);
 			EndDrawing();
 			continue;
 		}
@@ -124,6 +134,8 @@ int main(int argc, char *argv[]) {
 
 	mmu_save_sram_file();
 	UnloadTexture(background_texture);
+	UnloadAudioStream(audio_stream);
+	CloseAudioDevice();
 	CloseWindow();
 
 	return 0;
