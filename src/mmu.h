@@ -41,7 +41,38 @@ enum special_address {
 	LY_COMPARE = 0xFF45,
 	BG_PALETTE = 0xFF47,
 	OBJ0_PALETTE = 0xFF48,
-	OBJ1_PALETTE = 0xFF49
+	OBJ1_PALETTE = 0xFF49,
+
+	// Channel 1 Registers
+	SOUND_NR10 = 0xFF10,
+	SOUND_NR11 = 0xFF11,
+	SOUND_NR12 = 0xFF12,
+	SOUND_NR13 = 0xFF13,
+	SOUND_NR14 = 0xFF14,
+
+	// Channel 2 Registers
+	SOUND_NR21 = 0xFF16,
+	SOUND_NR22 = 0xFF17,
+	SOUND_NR23 = 0xFF18,
+	SOUND_NR24 = 0xFF19,
+
+	// Channel 3 Registers
+	SOUND_NR30 = 0xFF1A,
+	SOUND_NR31 = 0xFF1B,
+	SOUND_NR32 = 0xFF1C,
+	SOUND_NR33 = 0xFF1D,
+	SOUND_NR34 = 0xFF1E,
+
+	// Channel 4 Registers
+	SOUND_NR41 = 0xFF20,
+	SOUND_NR42 = 0xFF21,
+	SOUND_NR43 = 0xFF22,
+	SOUND_NR44 = 0xFF23,
+
+	// Audio Control Registers
+	SOUND_NR50 = 0xFF24,
+	SOUND_NR51 = 0xFF25,
+	SOUND_NR52 = 0xFF26,
 };
 
 // The first four nibbles represents the byte address,

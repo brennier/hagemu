@@ -4,6 +4,7 @@
 #include "mmu.h"
 #include "clock.h"
 #include "ppu.h"
+#include "apu.h"
 
 #define MAX_SRAM_SIZE 0x8000
 #define GB_MEMORY_SIZE 0x10000
@@ -72,6 +73,14 @@ uint8_t mmu_read(uint16_t address) {
 	case INTERRUPT_FLAGS:
 		// bits 3 through 7 should always be 1
 		return gb_memory[INTERRUPT_FLAGS] | 0xE0;
+
+	case SOUND_NR10: case SOUND_NR11: case SOUND_NR12: case SOUND_NR13:
+	case SOUND_NR14: case SOUND_NR21: case SOUND_NR22: case SOUND_NR23:
+	case SOUND_NR24: case SOUND_NR30: case SOUND_NR31: case SOUND_NR32:
+	case SOUND_NR33: case SOUND_NR34: case SOUND_NR41: case SOUND_NR42:
+	case SOUND_NR43: case SOUND_NR44: case SOUND_NR50: case SOUND_NR51:
+	case SOUND_NR52:
+		return apu_audio_register_read(address);
 	}
 
 	switch (address & 0xF000) {
@@ -144,6 +153,15 @@ void mmu_write(uint16_t address, uint8_t value) {
 	case LCD_Y_COORDINATE:
 		printf("Illegal write to LCD Y Coordinate. Ignoring...\n");
 		return;
+
+	case SOUND_NR10: case SOUND_NR11: case SOUND_NR12: case SOUND_NR13:
+	case SOUND_NR14: case SOUND_NR21: case SOUND_NR22: case SOUND_NR23:
+	case SOUND_NR24: case SOUND_NR30: case SOUND_NR31: case SOUND_NR32:
+	case SOUND_NR33: case SOUND_NR34: case SOUND_NR41: case SOUND_NR42:
+	case SOUND_NR43: case SOUND_NR44: case SOUND_NR50: case SOUND_NR51:
+	case SOUND_NR52:
+	    apu_audio_register_write(address, value);
+	    return;
 	}
 
 	switch (address & 0xF000) {
@@ -152,10 +170,10 @@ void mmu_write(uint16_t address, uint8_t value) {
 	case 0x0000: case 0x1000:
 		if ((value & 0xF) == 0xA) {
 			ram_enabled = true;
-			fprintf(stderr, "Enabled ram with value %d at address %04X\n", value, address);
+			//fprintf(stderr, "Enabled ram with value %d at address %04X\n", value, address);
 		} else {
 			ram_enabled = false;
-			fprintf(stderr, "Disabled ram with value %d at address %04X\n", value, address);
+			//fprintf(stderr, "Disabled ram with value %d at address %04X\n", value, address);
 		}
 		return;
 
@@ -194,7 +212,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 		if (ram_enabled) {
 			cartridge_ram[0x2000 * ram_bank_index + (address - 0xA000)] = value;
 		} else {
-			fprintf(stderr, "Attempt to write value %d to RAM address %04X, but it was disabled\n", value, address);
+			//fprintf(stderr, "Attempt to write value %d to RAM address %04X, but it was disabled\n", value, address);
 		}
 		return;
 
