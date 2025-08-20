@@ -10,7 +10,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
 - Zelda: Link's Awakening
 
 ### Progress Report
-- [x] Implement CPU
+- [x] Finish the CPU
   - [x] Parse opcodes
   - [x] Implement double registers
   - [x] Write functions for the opcodes
@@ -24,7 +24,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
     - [x] instr_timing test
     - [x] mem_timing test
     - [x] mem_timing_2 test
-- [x] Implement PPU
+- [x] Finish the PPU (Picture Processing Unit)
   - [x] Display tiles from VRAM
   - [x] Write tiles to window with Raylib
   - [x] Draw the background layer
@@ -39,6 +39,18 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Implement LCD STAT interrupts
   - [x] Respond to the LCD control register (except for disabling the PPU)
   - [x] Pass dmg-acid2 test rom
+- [ ] Finish the APU (Audio Processing Unit)
+  - [x] Setup sound and add an audio callback function
+  - [ ] Finish channels 1 and 2 (pulse waves)
+    - [x] Basic volume
+    - [x] Correct frequency
+    - [x] Wave duty
+    - [ ] Sweep
+    - [ ] Envelope
+    - [ ] Length timer
+    - [ ] Reset trigger
+  - [ ] Finish channel 3 (custom waveform)
+  - [ ] Finish channel 4 (random noise)
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
   - [x] MCB1 (Basic support)
   - [ ] MCB1 (Full support)
@@ -88,6 +100,5 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
     - [ ] Audio menu
     - [ ] Color palette menu
     - [ ] Save state menu
-- [ ] Add the APU (Audio Processing Unit)
 - [ ] Saving and loading save states
 - [ ] Add GBC functionality
