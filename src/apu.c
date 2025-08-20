@@ -2,10 +2,8 @@
 #include <string.h>
 #include <stdio.h>
 
-#define CPU_FREQUENCY (4 * 1024 * 1024)
 #define AUDIO_SAMPLE_RATE 48000
-#define VOLUME 5000
-#define SQUARE_WAVE_FREQUENCY 170.67
+#define VOLUME 1000
 
 typedef int16_t AudioSample;
 
@@ -29,9 +27,12 @@ struct SquareWave {
 	uint8_t trigger : 1;
 };
 
-int channel1_frequency = 0;
-unsigned channel1_ticks = 0;
-unsigned channel1_duty_step = 0;
+struct ChannelContext {
+	uint16_t address_start;
+	unsigned frequency;
+	unsigned ticks;
+	unsigned duty_step;
+} channel1_context = { 0xFF11, 0 }, channel2_context = { 0xFF16, 0 };
 
 const bool duty_cycle_form[4][8] = {
 	{0, 0, 0, 0, 0, 0, 0, 1},
@@ -49,62 +50,35 @@ struct SquareWave get_square_wave_info(uint16_t address_start) {
 
 	struct SquareWave wave_info = { 0 };
 	memcpy(&wave_info, audio_registers, sizeof(audio_registers));
-	uint16_t period_value = (wave_info.period_high << 8) | wave_info.period_low;
-	channel1_frequency = 131072 / (2048 - period_value);
 	return wave_info;
 }
 
-AudioSample generate_channel1() {
-	struct SquareWave channel1 = get_square_wave_info(0xFF11);
+AudioSample generate_channel(struct ChannelContext *channel_context) {
+	struct SquareWave channel = get_square_wave_info(channel_context->address_start);
 
-	channel1_ticks++;
-	if (channel1_ticks > AUDIO_SAMPLE_RATE / (channel1_frequency * 8)) {
-		channel1_duty_step++;
-		channel1_duty_step %= 8;
-		channel1_ticks = 0;
+	uint16_t period_value = (channel.period_high << 8) | channel.period_low;
+	channel_context->frequency = 131072 / (2048 - period_value);
+
+	channel_context->ticks++;
+	if (channel_context->ticks > AUDIO_SAMPLE_RATE / (channel_context->frequency * 8)) {
+		channel_context->duty_step++;
+		channel_context->duty_step %= 8;
+		channel_context->ticks = 0;
 	}
 
 	AudioSample sample;
-	if (duty_cycle_form[channel1.wave_duty][channel1_duty_step])
-		sample = VOLUME;
+	if (duty_cycle_form[channel.wave_duty][channel_context->duty_step])
+		sample = VOLUME * channel.initial_volume;
 	else
-		sample = -VOLUME;
+		sample = -VOLUME * channel.initial_volume;
 
 	return sample;
 }
 
-unsigned int position = 0;
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
 
-	static int sample_count = 0;
-
 	for (int i = 0; i < frame_count; i++) {
-		samples[i] = generate_channel1();
-		if (samples[i] < 0) {
-			sample_count++;
-		} else if (sample_count != 0) {
-			printf("%d\n", sample_count);
-			sample_count = 0;
-		}
-	}
-	
-	return;
-
-	int period = AUDIO_SAMPLE_RATE / SQUARE_WAVE_FREQUENCY;
-
-	for (int i = 0; i < frame_count; i++) {
-		if (position < period / 2) {
-			samples[i] = VOLUME;
-			position++;
-		}
-		else if (position < period) {
-			samples[i] = -VOLUME;
-			position++;
-		}
-		else {
-			samples[i] = -VOLUME;
-			position = 0;
-		}
+		samples[i] = generate_channel(&channel1_context) + generate_channel(&channel2_context);
 	}
 }
