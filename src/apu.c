@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #define AUDIO_SAMPLE_RATE 48000
-#define VOLUME 1000
+#define MAX_VOLUME 32000
 
 typedef int16_t AudioSample;
 
@@ -18,6 +18,19 @@ struct PulseChannel {
 	unsigned wave_duty;      //  2 bits
 	unsigned initial_volume; //  4 bits
 } channel1 = { 0 }, channel2 = { 0 };
+
+struct WaveChannel {
+	// These are private internal variables
+	unsigned frequency;
+	unsigned ticks;
+	unsigned wave_step;
+
+	// These variables are set using audio registers
+	bool dac_enabled; // 1 bit long
+	unsigned volume_level; // 2  bits long
+	unsigned period_value; // 11 bits long
+	uint8_t wave_data[16];
+} channel3 = { 0 };
 
 const bool duty_cycle_form[4][8] = {
 	{0, 0, 0, 0, 0, 0, 0, 1},
@@ -38,20 +51,49 @@ AudioSample generate_pulse_channel(struct PulseChannel *channel) {
 
 	AudioSample sample;
 	if (duty_cycle_form[channel->wave_duty][channel->duty_step])
-		sample = VOLUME * channel->initial_volume;
+		sample = channel->initial_volume;
 	else
-		sample = -VOLUME * channel->initial_volume;
+		sample = -channel->initial_volume;
 
 	return sample;
+}
+
+AudioSample generate_wave_channel(struct WaveChannel *channel) {
+	if (!channel->dac_enabled)
+		return 0;
+
+	channel->frequency = 65536 / (2048 - channel->period_value);
+
+	channel->ticks++;
+	if (channel->ticks > AUDIO_SAMPLE_RATE / (channel->frequency * 32)) {
+		channel->wave_step++;
+		channel->wave_step %= 32;
+		channel->ticks = 0;
+	}
+
+	AudioSample sample;
+	uint8_t wave_data = channel->wave_data[channel->wave_step >> 2];
+	if (channel->wave_step & 0x01) {
+		sample = wave_data >> 4;
+	} else {
+		sample = wave_data & 0x0F;
+	}
+
+	if (channel->volume_level == 0)
+		return 0;
+	else
+		return sample >> (channel->volume_level - 1);
 }
 
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
 
 	for (int i = 0; i < frame_count; i++) {
-		AudioSample sample1 = generate_pulse_channel(&channel1);
-		AudioSample sample2 = generate_pulse_channel(&channel2);
-		samples[i] = sample1 + sample2;
+		// Each channel outputs a 4bit value
+		AudioSample sample1 = (MAX_VOLUME / 16) * generate_pulse_channel(&channel1);
+		AudioSample sample2 = (MAX_VOLUME / 16) * generate_pulse_channel(&channel2);
+		AudioSample sample3 = (MAX_VOLUME / 16) * generate_wave_channel(&channel3);
+		samples[i] = (sample1 + sample2 + sample3) / 4;
 	}
 }
 
@@ -96,12 +138,36 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		channel2.period_value |= (value & 0x07) << 8;
 		return;
 
-	case SOUND_NR10:
 	case SOUND_NR30:
+		channel3.dac_enabled = value >> 7;
+		return;
+
 	case SOUND_NR31:
+		return; // Unimplemented
+
 	case SOUND_NR32:
+		channel3.volume_level = (value >> 5) & 0x03;
+		return;
+
 	case SOUND_NR33:
+		channel3.period_value &= ~(0x00FF);
+		channel3.period_value |= value;
+		return;
+
 	case SOUND_NR34:
+		channel3.period_value &= ~(0xFF00);
+		channel3.period_value |= (value & 0x07) << 8;
+		return;
+
+	// Channel 3 wave data
+	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
+	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
+	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
+	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
+		channel3.wave_data[address - 0xFF30] = value;
+		return;
+
+	case SOUND_NR10:
 	case SOUND_NR41:
 	case SOUND_NR42:
 	case SOUND_NR43:
