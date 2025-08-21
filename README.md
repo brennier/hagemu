@@ -41,7 +41,12 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Pass dmg-acid2 test rom
 - [ ] Finish the APU (Audio Processing Unit)
   - [x] Setup sound and add an audio callback function
+  - [ ] Finish Master controls
+    - [x] Turn APU on/off
+    - [ ] Panning left/right per channel
+    - [ ] Volume control left/right per channel
   - [ ] Finish channels 1 and 2 (pulse waves)
+    - [x] Turn DAC on/off
     - [x] Basic volume
     - [x] Correct frequency
     - [x] Wave duty

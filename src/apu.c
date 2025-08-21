@@ -12,6 +12,7 @@ struct PulseChannel {
 	unsigned frequency;
 	unsigned ticks;
 	unsigned duty_step;
+	bool dac_enabled;
 
 	// These variables are set using audio registers
 	unsigned period_value;   // 11 bits long
@@ -32,6 +33,18 @@ struct WaveChannel {
 	uint8_t wave_data[16];
 } channel3 = { 0 };
 
+struct {
+	bool apu_enabled;
+	bool channel1_right;
+	bool channel1_left;
+	bool channel2_right;
+	bool channel2_left;
+	bool channel3_right;
+	bool channel3_left;
+	bool channel4_right;
+	bool channel4_left;
+} master_controls = { 0 };
+
 const bool duty_cycle_form[4][8] = {
 	{0, 0, 0, 0, 0, 0, 0, 1},
 	{1, 0, 0, 0, 0, 0, 0, 1},
@@ -40,6 +53,9 @@ const bool duty_cycle_form[4][8] = {
 };
 
 AudioSample generate_pulse_channel(struct PulseChannel *channel) {
+	if (!channel->dac_enabled)
+		return 0;
+
 	channel->frequency = 131072 / (2048 - channel->period_value);
 
 	channel->ticks++;
@@ -89,6 +105,9 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
 
 	for (int i = 0; i < frame_count; i++) {
+		if (!master_controls.apu_enabled)
+			samples[i] = 0;
+
 		// Each channel outputs a 4bit value
 		AudioSample sample1 = (MAX_VOLUME / 16) * generate_pulse_channel(&channel1);
 		AudioSample sample2 = (MAX_VOLUME / 16) * generate_pulse_channel(&channel2);
@@ -107,6 +126,10 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR12:
 		channel1.initial_volume = value >> 4;
+		if (value & 0xF8)
+			channel1.dac_enabled = true;
+		else
+			channel1.dac_enabled = false;
 		return;
 
 	case SOUND_NR13:
@@ -126,6 +149,10 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR22:
 		channel2.initial_volume = value >> 4;
+		if (value & 0xF8)
+			channel2.dac_enabled = true;
+		else
+			channel2.dac_enabled = false;
 		return;
 
 	case SOUND_NR23:
@@ -167,14 +194,27 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		channel3.wave_data[address - 0xFF30] = value;
 		return;
 
+	case SOUND_NR51:
+		master_controls.channel1_right = (value >> 0) & 0x01;
+		master_controls.channel2_right = (value >> 1) & 0x01;
+		master_controls.channel3_right = (value >> 2) & 0x01;
+		master_controls.channel4_right = (value >> 3) & 0x01;
+		master_controls.channel1_left  = (value >> 4) & 0x01;
+		master_controls.channel2_left  = (value >> 5) & 0x01;
+		master_controls.channel3_left  = (value >> 6) & 0x01;
+		master_controls.channel4_left  = (value >> 7) & 0x01;
+		return;
+
+	case SOUND_NR52:
+		master_controls.apu_enabled = value >> 7;
+		return;
+
 	case SOUND_NR10:
 	case SOUND_NR41:
 	case SOUND_NR42:
 	case SOUND_NR43:
 	case SOUND_NR44:
 	case SOUND_NR50:
-	case SOUND_NR51:
-	case SOUND_NR52:
 		return; // Unimplemented
 	}
 }
