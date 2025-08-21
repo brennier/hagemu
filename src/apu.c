@@ -16,7 +16,7 @@ struct PulseChannel {
 	// These are private internal variables
 	unsigned current_volume;
 	unsigned envelope_ticks;
-	unsigned sample_rate;
+	unsigned frequency;
 	unsigned ticks;
 	unsigned duty_step;
 	bool dac_enabled;
@@ -31,7 +31,7 @@ struct PulseChannel {
 
 struct WaveChannel {
 	// These are private internal variables
-	unsigned sample_rate;
+	unsigned frequency;
 	unsigned ticks;
 	unsigned wave_step;
 
@@ -74,15 +74,15 @@ AudioSample generate_pulse_channel(struct PulseChannel *channel) {
 				channel->period_value = channel->period_value - channel->period_value / (1 << channel->sweep_step);
 			if (channel->period_value > 0x7FF) {
 				channel->period_value %= 0x7FF;
-				channel->sample_rate = 1048576 / (2048 - channel->period_value);
 				channel->dac_enabled = false;
 				channel->sweep_ticks = 0;
 				return 0;
 			}
-			channel->sample_rate = 1048576 / (2048 - channel->period_value);
 			channel->sweep_ticks = 0;
 		}
 	}
+
+	channel->frequency = 131072 / (2048 - channel->period_value);
 
 	if (channel->envelope_pace != 0) {
 		channel->envelope_ticks++;
@@ -96,7 +96,7 @@ AudioSample generate_pulse_channel(struct PulseChannel *channel) {
 	}
 
 	channel->ticks++;
-	if (channel->ticks > AUDIO_SAMPLE_RATE / channel->sample_rate) {
+	if (channel->ticks > AUDIO_SAMPLE_RATE / (channel->frequency * 8)) {
 		channel->duty_step++;
 		channel->duty_step %= 8;
 		channel->ticks = 0;
@@ -115,8 +115,10 @@ AudioSample generate_wave_channel(struct WaveChannel *channel) {
 	if (!channel->dac_enabled)
 		return 0;
 
+	channel->frequency = 65536 / (2048 - channel->period_value);
+
 	channel->ticks++;
-	if (channel->ticks > AUDIO_SAMPLE_RATE / channel->sample_rate) {
+	if (channel->ticks > AUDIO_SAMPLE_RATE / (channel->frequency * 32)) {
 		channel->wave_step++;
 		channel->wave_step %= 32;
 		channel->ticks = 0;
@@ -179,7 +181,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR13:
 		channel1.period_value &= ~(0x00FF);
 		channel1.period_value |= value;
-		channel1.sample_rate = 1048576 / (2048 - channel1.period_value);
 		return;
 
 	case SOUND_NR14:
@@ -192,7 +193,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		}
 		channel1.period_value &= ~(0xFF00);
 		channel1.period_value |= (value & 0x07) << 8;
-		channel1.sample_rate = 1048576 / (2048 - channel1.period_value);
 		return;
 
 	// CHANNEL 2
@@ -214,7 +214,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR23:
 		channel2.period_value &= ~(0x00FF);
 		channel2.period_value |= value;
-		channel2.sample_rate = 1048576 / (2048 - channel2.period_value);
 		return;
 
 	case SOUND_NR24:
@@ -227,7 +226,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		}
 		channel2.period_value &= ~(0xFF00);
 		channel2.period_value |= (value & 0x07) << 8;
-		channel2.sample_rate = 1048576 / (2048 - channel2.period_value);
 		return;
 
 	case SOUND_NR30:
@@ -244,7 +242,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR33:
 		channel3.period_value &= ~(0x00FF);
 		channel3.period_value |= value;
-		channel3.sample_rate = 2097152 / (2048 - channel3.period_value);
 		return;
 
 	case SOUND_NR34:
@@ -255,7 +252,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		}
 		channel3.period_value &= ~(0xFF00);
 		channel3.period_value |= (value & 0x07) << 8;
-		channel3.sample_rate = 2097152 / (2048 - channel3.period_value);
 		return;
 
 	// Channel 3 wave data
