@@ -61,7 +61,7 @@ const bool duty_cycle_form[4][8] = {
 	{0, 1, 1, 1, 1, 1, 1, 0},
 };
 
-AudioSample generate_pulse_channel(struct PulseChannel *channel) {
+uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 	if (!channel->dac_enabled)
 		return 0;
 
@@ -102,16 +102,16 @@ AudioSample generate_pulse_channel(struct PulseChannel *channel) {
 		channel->ticks = 0;
 	}
 
-	AudioSample sample;
-	if (duty_cycle_form[channel->wave_duty][channel->duty_step])
-		sample = channel->current_volume;
-	else
-		sample = -channel->current_volume;
+	uint8_t data;
+ 	if (duty_cycle_form[channel->wave_duty][channel->duty_step])
+		data = channel->current_volume;
+ 	else
+		data = 0;
 
-	return sample;
+	return data;
 }
 
-AudioSample generate_wave_channel(struct WaveChannel *channel) {
+uint8_t generate_wave_channel(struct WaveChannel *channel) {
 	if (!channel->dac_enabled)
 		return 0;
 
@@ -124,18 +124,17 @@ AudioSample generate_wave_channel(struct WaveChannel *channel) {
 		channel->ticks = 0;
 	}
 
-	AudioSample sample;
-	uint8_t wave_data = channel->wave_data[channel->wave_step >> 2];
-	if (channel->wave_step & 0x01) {
-		sample = wave_data >> 4;
-	} else {
-		sample = wave_data & 0x0F;
-	}
+	uint8_t data = 0;
+	uint8_t wave_data = channel->wave_data[channel->wave_step / 2];
+	if (channel->wave_step % 2)
+		data = wave_data & 0x0F;
+	else
+		data = wave_data >> 4;
 
 	if (channel->volume_level == 0)
 		return 0;
 	else
-		return sample >> (channel->volume_level - 1);
+		return data >> (channel3.volume_level - 1);
 }
 
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
@@ -145,11 +144,17 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		if (!master_controls.apu_enabled)
 			samples[i] = 0;
 
-		// Each channel outputs a 4bit value
-		AudioSample sample1 = (MAX_VOLUME / 16) * generate_pulse_channel(&channel1);
-		AudioSample sample2 = (MAX_VOLUME / 16) * generate_pulse_channel(&channel2);
-		AudioSample sample3 = (MAX_VOLUME / 16) * generate_wave_channel(&channel3);
-		samples[i] = (sample1 + sample2 + sample3) / 4;
+		// Each channel is in the range [0, 15]
+		AudioSample sample1 = generate_pulse_channel(&channel1);
+		AudioSample sample2 = generate_pulse_channel(&channel2);
+		AudioSample sample3 = generate_wave_channel(&channel3);
+
+		// Adjust the samples to be [-15, 15]
+		sample1 = 2 * sample1 - 15;
+		sample2 = 2 * sample2 - 15;
+		sample3 = 2 * sample3 - 15;
+
+		samples[i] = 500 * (sample1 + sample2 + sample3);
 	}
 }
 
