@@ -50,17 +50,17 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
     - [x] Basic volume
     - [x] Correct frequency
     - [x] Wave duty
+    - [x] Envelope (maybe incorrect?)
+    - [x] Reset trigger (maybe incorrect?)
     - [ ] Sweep
-    - [ ] Envelope
     - [ ] Length timer
-    - [ ] Reset trigger
   - [ ] Finish channel 3 (custom waveform)
     - [x] Turn DAC on/off
     - [x] Correct frequency
     - [x] Basic volume
     - [x] Read and output the custom wave data
+    - [x] Reset trigger (maybe incorrect?)
     - [ ] Length timer
-    - [ ] Reset trigger
   - [ ] Finish channel 4 (random noise)
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
   - [x] MCB1 (Basic support)
