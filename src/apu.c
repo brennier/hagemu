@@ -8,6 +8,11 @@
 typedef int16_t AudioSample;
 
 struct PulseChannel {
+	unsigned sweep_ticks;
+	unsigned sweep_direction;
+	unsigned sweep_step;
+	unsigned sweep_pace;
+
 	// These are private internal variables
 	unsigned current_volume;
 	unsigned envelope_ticks;
@@ -59,6 +64,25 @@ const bool duty_cycle_form[4][8] = {
 AudioSample generate_pulse_channel(struct PulseChannel *channel) {
 	if (!channel->dac_enabled)
 		return 0;
+
+	if (channel->sweep_pace != 0) {
+		channel->sweep_ticks++;
+		if (channel->sweep_ticks > (AUDIO_SAMPLE_RATE / 128) * channel->sweep_pace) {
+			if (channel->sweep_direction == 0)
+				channel->period_value = channel->period_value + channel->period_value / (1 << channel->sweep_step);
+			else
+				channel->period_value = channel->period_value - channel->period_value / (1 << channel->sweep_step);
+			if (channel->period_value > 0x7FF) {
+				channel->period_value %= 0x7FF;
+				channel->sample_rate = 1048576 / (2048 - channel->period_value);
+				channel->dac_enabled = false;
+				channel->sweep_ticks = 0;
+				return 0;
+			}
+			channel->sample_rate = 1048576 / (2048 - channel->period_value);
+			channel->sweep_ticks = 0;
+		}
+	}
 
 	if (channel->envelope_pace != 0) {
 		channel->envelope_ticks++;
@@ -131,6 +155,12 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	switch (address) {
 
 	// CHANNEL 1
+	case SOUND_NR10:
+		channel1.sweep_step = value & 0x07;
+		channel1.sweep_direction = (value >> 3) & 0x01;
+		channel1.sweep_pace = (value >> 4) & 0x07;
+		return;
+
 	case SOUND_NR11:
 		channel1.wave_duty = value >> 6;
 		return;
@@ -251,7 +281,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		master_controls.apu_enabled = value >> 7;
 		return;
 
-	case SOUND_NR10:
 	case SOUND_NR41:
 	case SOUND_NR42:
 	case SOUND_NR43:
