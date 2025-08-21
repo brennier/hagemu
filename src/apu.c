@@ -16,7 +16,7 @@ struct PulseChannel {
 	// These are private internal variables
 	unsigned current_volume;
 	unsigned envelope_ticks;
-	unsigned frequency;
+	unsigned sample_rate;
 	unsigned ticks;
 	unsigned duty_step;
 	bool dac_enabled;
@@ -31,7 +31,7 @@ struct PulseChannel {
 
 struct WaveChannel {
 	// These are private internal variables
-	unsigned frequency;
+	unsigned sample_rate;
 	unsigned ticks;
 	unsigned wave_step;
 
@@ -82,7 +82,7 @@ AudioSample generate_pulse_channel(struct PulseChannel *channel) {
 		}
 	}
 
-	channel->frequency = 131072 / (2048 - channel->period_value);
+	channel->sample_rate = 1048576 / (2048 - channel->period_value);
 
 	if (channel->envelope_pace != 0) {
 		channel->envelope_ticks++;
@@ -96,7 +96,7 @@ AudioSample generate_pulse_channel(struct PulseChannel *channel) {
 	}
 
 	channel->ticks++;
-	if (channel->ticks > AUDIO_SAMPLE_RATE / (channel->frequency * 8)) {
+	if (channel->ticks > AUDIO_SAMPLE_RATE / channel->sample_rate) {
 		channel->duty_step++;
 		channel->duty_step %= 8;
 		channel->ticks = 0;
@@ -115,10 +115,10 @@ AudioSample generate_wave_channel(struct WaveChannel *channel) {
 	if (!channel->dac_enabled)
 		return 0;
 
-	channel->frequency = 65536 / (2048 - channel->period_value);
+	channel->sample_rate = 2097152 / (2048 - channel->period_value);
 
 	channel->ticks++;
-	if (channel->ticks > AUDIO_SAMPLE_RATE / (channel->frequency * 32)) {
+	if (channel->ticks > AUDIO_SAMPLE_RATE / channel->sample_rate) {
 		channel->wave_step++;
 		channel->wave_step %= 32;
 		channel->ticks = 0;
