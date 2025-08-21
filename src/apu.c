@@ -102,13 +102,10 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 		channel->ticks = 0;
 	}
 
-	uint8_t data;
  	if (duty_cycle_form[channel->wave_duty][channel->duty_step])
-		data = channel->current_volume;
+		return channel->current_volume;
  	else
-		data = 0;
-
-	return data;
+		return 0;
 }
 
 uint8_t generate_wave_channel(struct WaveChannel *channel) {
@@ -134,7 +131,7 @@ uint8_t generate_wave_channel(struct WaveChannel *channel) {
 	if (channel->volume_level == 0)
 		return 0;
 	else
-		return data >> (channel3.volume_level - 1);
+		return data >> (channel->volume_level - 1);
 }
 
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
