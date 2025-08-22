@@ -7,6 +7,9 @@
 
 typedef int16_t AudioSample;
 
+uint8_t master_volume_left = 0;
+uint8_t master_volume_right = 0;
+
 struct PulseChannel {
 	bool enabled;
 	unsigned length_initial;
@@ -187,7 +190,9 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		sample2 = 2 * sample2 - 15;
 		sample3 = 2 * sample3 - 15;
 
-		samples[i] = 500 * (sample1 + sample2 + sample3);
+		uint8_t master_volume = master_volume_left + master_volume_right;
+
+		samples[i] = 32 * master_volume * (sample1 + sample2 + sample3);
 	}
 }
 
@@ -335,11 +340,15 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		master_controls.apu_enabled = value >> 7;
 		return;
 
+	case SOUND_NR50:
+		master_volume_right = value & 0x07;
+		master_volume_left  = (value >> 4) & 0x07;
+		return;
+
 	case SOUND_NR41:
 	case SOUND_NR42:
 	case SOUND_NR43:
 	case SOUND_NR44:
-	case SOUND_NR50:
 		return; // Unimplemented
 	}
 }
@@ -347,12 +356,14 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 uint8_t apu_audio_register_read(uint16_t address) {
 	switch (address) {
 
+	case SOUND_NR50:
+		return (master_volume_left << 4) | master_volume_right;
+
 	case SOUND_NR10: case SOUND_NR11: case SOUND_NR12: case SOUND_NR13:
 	case SOUND_NR14: case SOUND_NR21: case SOUND_NR22: case SOUND_NR23:
 	case SOUND_NR24: case SOUND_NR30: case SOUND_NR31: case SOUND_NR32:
 	case SOUND_NR33: case SOUND_NR34: case SOUND_NR41: case SOUND_NR42:
-	case SOUND_NR43: case SOUND_NR44: case SOUND_NR50: case SOUND_NR51:
-	case SOUND_NR52:
+	case SOUND_NR43: case SOUND_NR44: case SOUND_NR51: case SOUND_NR52:
 		return 0xFF; // Unimplemented
 	}
 
