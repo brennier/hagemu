@@ -152,17 +152,19 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 		channel->sweep_current++;
 		if (channel->sweep_current == channel->sweep_pace) {
 			channel->sweep_current = 0;
+			unsigned new_period_value;
 
 			if (channel->sweep_direction == 0)
-				channel->period_value = channel->period_value + channel->period_value / (1 << channel->sweep_step);
+				new_period_value = channel->period_value + channel->period_value / (1 << channel->sweep_step);
 			else
-				channel->period_value = channel->period_value - channel->period_value / (1 << channel->sweep_step);
+				new_period_value = channel->period_value - channel->period_value / (1 << channel->sweep_step);
 
 			// Period value overflowed
-			if (channel->period_value > 0x7FF) {
-				channel->period_value %= 0x7FF;
+			if (new_period_value > 0x7FF) {
 				channel->enabled = false;
 				return 0;
+			} else {
+				channel->period_value = new_period_value;
 			}
 		}
 	}
