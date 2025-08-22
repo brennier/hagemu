@@ -451,7 +451,7 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		// Channel is triggered
 		if (value >> 7) {
 			channel4.enabled = true;
-			channel2.current_volume = channel2.initial_volume;
+			channel4.current_volume = channel4.initial_volume;
 			channel4.length_current = channel4.length_initial;
 			channel4.ticks = 0;
 			channel4.envelope_current = 0;
