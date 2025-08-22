@@ -57,6 +57,28 @@ struct WaveChannel {
 	uint8_t wave_data[16];
 } channel3 = { 0 };
 
+struct NoiseChannel {
+	bool enabled;
+	bool dac_enabled;
+	unsigned sample_rate;
+	unsigned length_initial;
+	unsigned length_current;
+	unsigned length_ticks;
+	unsigned length_enabled;
+
+	unsigned envelope_pace;
+	unsigned envelope_direction;
+	unsigned initial_volume;
+	unsigned current_volume;
+	unsigned envelope_ticks;
+	unsigned ticks;
+
+	uint16_t lfsr; // linear feedback shift register
+	bool lfsr_width;
+	unsigned clock_shift;
+	unsigned clock_divider;
+} channel4 = { 0 };
+
 struct {
 	bool apu_enabled;
 	bool channel1_right;
@@ -173,6 +195,58 @@ uint8_t generate_wave_channel(struct WaveChannel *channel) {
 		return data >> (channel->volume_level - 1);
 }
 
+uint8_t generate_noise_channel(struct NoiseChannel *channel) {
+	if (!channel->dac_enabled || !channel->enabled)
+		return 0;
+
+	if (channel->length_enabled) {
+		channel->length_ticks++;
+		if (channel->length_ticks > AUDIO_SAMPLE_RATE / 256) {
+			channel->length_current++;
+			if (channel->length_current == 64) {
+				channel->length_current = channel->length_initial;
+				channel->enabled = false;
+			}
+			channel->length_ticks = 0;
+		}
+	}
+
+	if (!channel->clock_divider)
+		channel->sample_rate = 524288 / (1 << channel->clock_shift);
+	else
+		channel->sample_rate = 262144 / (channel->clock_divider * (1 << channel->clock_shift));
+
+	if (channel->envelope_pace != 0) {
+		channel->envelope_ticks++;
+		if (channel->envelope_ticks > (AUDIO_SAMPLE_RATE / 64) * channel->envelope_pace) {
+			if (channel->envelope_direction && channel->current_volume < 15)
+				channel->current_volume++;
+			else if (!channel->envelope_direction && channel->current_volume > 0)
+				channel->current_volume--;
+			channel->envelope_ticks = 0;
+		}
+	}
+
+	channel->ticks++;
+	if (channel->ticks > AUDIO_SAMPLE_RATE / channel->sample_rate) {
+		bool next_bit = (channel->lfsr ^ (channel->lfsr >> 1)) & 0x01;
+		next_bit = !next_bit;
+		channel->lfsr &= ~(0x8000);
+		channel->lfsr |= (next_bit << 15);
+		if (channel->lfsr_width) { // if 7bit mode
+			channel->lfsr &= ~(0x80);
+			channel->lfsr |= (next_bit << 7);
+		}
+		channel->lfsr >>= 1;
+		channel->ticks = 0;
+	}
+
+ 	if (channel->lfsr & 0x01)
+		return channel->current_volume;
+ 	else
+		return 0;
+}
+
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
 
@@ -184,15 +258,17 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		AudioSample sample1 = generate_pulse_channel(&channel1);
 		AudioSample sample2 = generate_pulse_channel(&channel2);
 		AudioSample sample3 = generate_wave_channel(&channel3);
+		AudioSample sample4 = generate_noise_channel(&channel4);
 
 		// Adjust the samples to be [-15, 15]
 		sample1 = 2 * sample1 - 15;
 		sample2 = 2 * sample2 - 15;
 		sample3 = 2 * sample3 - 15;
+		sample4 = 2 * sample4 - 15;
 
 		uint8_t master_volume = master_volume_left + master_volume_right;
 
-		samples[i] = 32 * master_volume * (sample1 + sample2 + sample3);
+		samples[i] = 32 * master_volume * (sample1 + sample2 + sample3 + sample4);
 	}
 }
 
@@ -317,6 +393,41 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		channel3.period_value |= (value & 0x07) << 8;
 		return;
 
+	case SOUND_NR41:
+		channel4.length_initial = value & 0x3F;
+		return;
+
+	case SOUND_NR42:
+		channel4.envelope_pace = value & 0x07;
+		channel4.envelope_direction = (value >> 3) & 0x01;
+		channel4.initial_volume = value >> 4;
+		channel4.current_volume = value >> 4;
+		if (channel4.initial_volume || channel4.envelope_direction)
+			channel4.dac_enabled = true;
+		else {
+			channel4.dac_enabled = false;
+			channel4.enabled = false;
+		}
+		return;
+
+	case SOUND_NR43:
+		channel4.clock_divider = value & 0x07;
+		channel4.lfsr_width = (value >> 3) & 0x01;
+		channel4.clock_shift = value >> 4;
+		return;
+
+	case SOUND_NR44:
+		// Channel is triggered
+		if (value >> 7) {
+			channel4.enabled = true;
+			channel2.current_volume = channel2.initial_volume;
+			channel4.length_current = channel4.length_initial;
+			channel4.ticks = 0;
+			channel4.lfsr = 0;
+		}
+		channel4.length_enabled = (value >> 6) & 0x01;
+		return;
+
 	// Channel 3 wave data
 	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
@@ -345,10 +456,7 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		master_volume_left  = (value >> 4) & 0x07;
 		return;
 
-	case SOUND_NR41:
-	case SOUND_NR42:
-	case SOUND_NR43:
-	case SOUND_NR44:
+	default:
 		return; // Unimplemented
 	}
 }
