@@ -10,6 +10,44 @@ typedef int16_t AudioSample;
 uint8_t master_volume_left = 0;
 uint8_t master_volume_right = 0;
 
+unsigned apu_ticks = 0;
+unsigned apu_clock_step = 0;
+bool apu_tick_length = false;
+bool apu_tick_envelope = false;
+bool apu_tick_sweep = false;
+
+void apu_tick_clocks() {
+	apu_tick_length = false;
+	apu_tick_envelope = false;
+	apu_tick_sweep = false;
+
+	apu_ticks++;
+	if (apu_ticks > AUDIO_SAMPLE_RATE / 512) {
+		apu_ticks = 0;
+		apu_clock_step++;
+		apu_clock_step %= 8;
+
+		switch (apu_clock_step) {
+
+		case 0: case 4:
+			apu_tick_length = true;
+			break;
+
+		case 1: case 3: case 5:
+			break;
+
+		case 2: case 6:
+			apu_tick_length = true;
+			apu_tick_sweep = true;
+			break;
+
+		case 7:
+			apu_tick_envelope = true;
+			break;
+		}
+	}
+}
+
 struct PulseChannel {
 	bool enabled;
 	unsigned length_initial;
@@ -17,14 +55,14 @@ struct PulseChannel {
 	unsigned length_ticks;
 	unsigned length_enabled;
 
-	unsigned sweep_ticks;
+	unsigned sweep_current;
 	unsigned sweep_direction;
 	unsigned sweep_step;
 	unsigned sweep_pace;
 
 	// These are private internal variables
 	unsigned current_volume;
-	unsigned envelope_ticks;
+	unsigned envelope_current;
 	unsigned sample_rate;
 	unsigned ticks;
 	unsigned duty_step;
@@ -70,7 +108,7 @@ struct NoiseChannel {
 	unsigned envelope_direction;
 	unsigned initial_volume;
 	unsigned current_volume;
-	unsigned envelope_ticks;
+	unsigned envelope_current;
 	unsigned ticks;
 
 	uint16_t lfsr; // linear feedback shift register
@@ -102,45 +140,43 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
-	if (channel->length_enabled) {
-		channel->length_ticks++;
-		if (channel->length_ticks > AUDIO_SAMPLE_RATE / 256) {
-			channel->length_current++;
-			if (channel->length_current == 64) {
-				channel->length_current = channel->length_initial;
-				channel->enabled = false;
-			}
-			channel->length_ticks = 0;
+	if (channel->length_enabled && apu_tick_length) {
+		channel->length_current++;
+		if (channel->length_current == 64) {
+			channel->length_current = channel->length_initial;
+			channel->enabled = false;
 		}
 	}
 
-	if (channel->sweep_pace != 0) {
-		channel->sweep_ticks++;
-		if (channel->sweep_ticks > (AUDIO_SAMPLE_RATE / 128) * channel->sweep_pace) {
+	if (channel->sweep_pace != 0 && apu_tick_sweep) {
+		channel->sweep_current++;
+		if (channel->sweep_current == channel->sweep_pace) {
+			channel->sweep_current = 0;
+
 			if (channel->sweep_direction == 0)
 				channel->period_value = channel->period_value + channel->period_value / (1 << channel->sweep_step);
 			else
 				channel->period_value = channel->period_value - channel->period_value / (1 << channel->sweep_step);
+
+			// Period value overflowed
 			if (channel->period_value > 0x7FF) {
 				channel->period_value %= 0x7FF;
 				channel->enabled = false;
-				channel->sweep_ticks = 0;
 				return 0;
 			}
-			channel->sweep_ticks = 0;
 		}
 	}
 
 	channel->sample_rate = 1048576 / (2048 - channel->period_value);
 
-	if (channel->envelope_pace != 0) {
-		channel->envelope_ticks++;
-		if (channel->envelope_ticks > (AUDIO_SAMPLE_RATE / 64) * channel->envelope_pace) {
+	if (channel->envelope_pace != 0 && apu_tick_envelope) {
+		channel->envelope_current++;
+		if (channel->envelope_current == channel->envelope_pace) {
+			channel->envelope_current = 0;
 			if (channel->envelope_direction && channel->current_volume < 15)
 				channel->current_volume++;
 			else if (!channel->envelope_direction && channel->current_volume > 0)
 				channel->current_volume--;
-			channel->envelope_ticks = 0;
 		}
 	}
 
@@ -161,15 +197,11 @@ uint8_t generate_wave_channel(struct WaveChannel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
-	if (channel->length_enabled) {
-		channel->length_ticks++;
-		if (channel->length_ticks > AUDIO_SAMPLE_RATE / 256) {
-			channel->length_current++;
-			if (channel->length_current == 256) {
-				channel->length_current = channel->length_initial;
-				channel->enabled = false;
-			}
-			channel->length_ticks = 0;
+	if (channel->length_enabled && apu_tick_length) {
+		channel->length_current++;
+		if (channel->length_current == 256) {
+			channel->length_current = channel->length_initial;
+			channel->enabled = false;
 		}
 	}
 
@@ -199,15 +231,11 @@ uint8_t generate_noise_channel(struct NoiseChannel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
-	if (channel->length_enabled) {
-		channel->length_ticks++;
-		if (channel->length_ticks > AUDIO_SAMPLE_RATE / 256) {
-			channel->length_current++;
-			if (channel->length_current == 64) {
-				channel->length_current = channel->length_initial;
-				channel->enabled = false;
-			}
-			channel->length_ticks = 0;
+	if (channel->length_enabled && apu_tick_length) {
+		channel->length_current++;
+		if (channel->length_current == 64) {
+			channel->length_current = channel->length_initial;
+			channel->enabled = false;
 		}
 	}
 
@@ -216,14 +244,14 @@ uint8_t generate_noise_channel(struct NoiseChannel *channel) {
 	else
 		channel->sample_rate = 262144 / (channel->clock_divider * (1 << channel->clock_shift));
 
-	if (channel->envelope_pace != 0) {
-		channel->envelope_ticks++;
-		if (channel->envelope_ticks > (AUDIO_SAMPLE_RATE / 64) * channel->envelope_pace) {
+	if (channel->envelope_pace != 0 && apu_tick_envelope) {
+		channel->envelope_current++;
+		if (channel->envelope_current == channel->envelope_pace) {
+			channel->envelope_current = 0;
 			if (channel->envelope_direction && channel->current_volume < 15)
 				channel->current_volume++;
 			else if (!channel->envelope_direction && channel->current_volume > 0)
 				channel->current_volume--;
-			channel->envelope_ticks = 0;
 		}
 	}
 
@@ -253,6 +281,8 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	for (int i = 0; i < frame_count; i++) {
 		if (!master_controls.apu_enabled)
 			samples[i] = 0;
+
+		apu_tick_clocks();
 
 		// Each channel is in the range [0, 15]
 		AudioSample sample1 = generate_pulse_channel(&channel1);
@@ -310,9 +340,10 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		// Channel is triggered
 		if (value >> 7) {
 			channel1.enabled = true;
+			channel1.envelope_current = 0;
+			channel1.sweep_current = 0;
 			channel1.current_volume = channel1.initial_volume;
 			channel1.length_current = channel1.length_initial;
-			channel1.envelope_ticks = 0;
 			channel1.ticks = 0;
 			channel1.duty_step = 0;
 		}
@@ -352,9 +383,9 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel2.enabled = true;
 			channel2.current_volume = channel2.initial_volume;
 			channel2.length_current = channel2.length_initial;
-			channel2.envelope_ticks = 0;
 			channel2.ticks = 0;
 			channel2.duty_step = 0;
+			channel2.envelope_current = 0;
 		}
 		channel2.length_enabled = (value >> 6) & 0x01;
 		channel2.period_value &= ~(0xFF00);
@@ -423,6 +454,7 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel2.current_volume = channel2.initial_volume;
 			channel4.length_current = channel4.length_initial;
 			channel4.ticks = 0;
+			channel4.envelope_current = 0;
 			channel4.lfsr = 0;
 		}
 		channel4.length_enabled = (value >> 6) & 0x01;
