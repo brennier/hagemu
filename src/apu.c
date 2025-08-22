@@ -281,8 +281,10 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
 
 	for (int i = 0; i < frame_count; i++) {
-		if (!master_controls.apu_enabled)
+		if (!master_controls.apu_enabled) {
 			samples[i] = 0;
+			continue;
+		}
 
 		apu_tick_clocks();
 
@@ -298,7 +300,8 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		sample3 = 2 * sample3 - 15;
 		sample4 = 2 * sample4 - 15;
 
-		uint8_t master_volume = master_volume_left + master_volume_right;
+		// Master volume is never mute (it translates the values [0,7] into [1,8])
+		uint8_t master_volume = (master_volume_left + 1) + (master_volume_right + 1);
 
 		samples[i] = 32 * master_volume * (sample1 + sample2 + sample3 + sample4);
 	}
