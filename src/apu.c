@@ -8,6 +8,7 @@
 typedef int16_t AudioSample;
 
 struct PulseChannel {
+	bool enabled;
 	unsigned length_initial;
 	unsigned length_current;
 	unsigned length_ticks;
@@ -35,6 +36,7 @@ struct PulseChannel {
 } channel1 = { 0 }, channel2 = { 0 };
 
 struct WaveChannel {
+	bool enabled;
 	unsigned length_initial;
 	unsigned length_current;
 	unsigned length_ticks;
@@ -72,7 +74,7 @@ const bool duty_cycle_form[4][8] = {
 };
 
 uint8_t generate_pulse_channel(struct PulseChannel *channel) {
-	if (!channel->dac_enabled)
+	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
 	if (channel->length_enabled) {
@@ -81,7 +83,7 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 			channel->length_current++;
 			if (channel->length_current == 64) {
 				channel->length_current = channel->length_initial;
-				channel->dac_enabled = false;
+				channel->enabled = false;
 			}
 			channel->length_ticks = 0;
 		}
@@ -96,7 +98,7 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 				channel->period_value = channel->period_value - channel->period_value / (1 << channel->sweep_step);
 			if (channel->period_value > 0x7FF) {
 				channel->period_value %= 0x7FF;
-				channel->dac_enabled = false;
+				channel->enabled = false;
 				channel->sweep_ticks = 0;
 				return 0;
 			}
@@ -131,7 +133,7 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 }
 
 uint8_t generate_wave_channel(struct WaveChannel *channel) {
-	if (!channel->dac_enabled)
+	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
 	if (channel->length_enabled) {
@@ -140,7 +142,7 @@ uint8_t generate_wave_channel(struct WaveChannel *channel) {
 			channel->length_current++;
 			if (channel->length_current == 256) {
 				channel->length_current = channel->length_initial;
-				channel->dac_enabled = false;
+				channel->enabled = false;
 			}
 			channel->length_ticks = 0;
 		}
@@ -212,8 +214,10 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		channel1.current_volume = value >> 4;
 		if (channel1.initial_volume || channel1.envelope_direction)
 			channel1.dac_enabled = true;
-		else
+		else {
 			channel1.dac_enabled = false;
+			channel1.enabled = false;
+		}
 		return;
 
 	case SOUND_NR13:
@@ -224,7 +228,9 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR14:
 		// Channel is triggered
 		if (value >> 7) {
+			channel1.enabled = true;
 			channel1.current_volume = channel1.initial_volume;
+			channel1.length_current = channel1.length_initial;
 			channel1.envelope_ticks = 0;
 			channel1.ticks = 0;
 			channel1.duty_step = 0;
@@ -248,8 +254,10 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		channel2.current_volume = value >> 4;
 		if (channel2.initial_volume || channel2.envelope_direction)
 			channel2.dac_enabled = true;
-		else
+		else {
 			channel2.dac_enabled = false;
+			channel2.enabled = false;
+		}
 		return;
 
 	case SOUND_NR23:
@@ -260,7 +268,9 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR24:
 		// Channel is triggered
 		if (value >> 7) {
+			channel2.enabled = true;
 			channel2.current_volume = channel2.initial_volume;
+			channel2.length_current = channel2.length_initial;
 			channel2.envelope_ticks = 0;
 			channel2.ticks = 0;
 			channel2.duty_step = 0;
@@ -272,6 +282,8 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR30:
 		channel3.dac_enabled = value >> 7;
+		if (!channel3.dac_enabled)
+			channel3.enabled = false;
 		return;
 
 	case SOUND_NR31:
@@ -290,6 +302,8 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR34:
 		// Channel is triggered
 		if (value >> 7) {
+			channel3.enabled = true;
+			channel3.length_current = channel3.length_initial;
 			channel3.ticks = 0;
 			channel3.wave_step = 0;
 		}
