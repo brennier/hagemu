@@ -41,28 +41,37 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Pass dmg-acid2 test rom
 - [ ] Finish the APU (Audio Processing Unit)
   - [x] Setup sound and add an audio callback function
+  - [x] Sychronize the length, sweep, and envelope timers
   - [ ] Correctly downsample using a low-pass filter
  - [ ] Finish Master controls
     - [x] Turn APU on/off
+    - [x] Mono volume control
     - [ ] Panning left/right per channel
     - [ ] Volume control left/right per channel
-  - [ ] Finish channels 1 and 2 (pulse waves)
+  - [x] Finish channels 1 and 2 (pulse waves)
     - [x] Turn DAC on/off
     - [x] Basic volume
     - [x] Correct frequency
     - [x] Wave duty
-    - [x] Envelope (maybe incorrect?)
-    - [x] Reset trigger (maybe incorrect?)
-    - [ ] Sweep
-    - [ ] Length timer
-  - [ ] Finish channel 3 (custom waveform)
+    - [x] Envelope
+    - [x] Reset trigger
+    - [x] Sweep (channel 1 only)
+    - [x] Length timer
+  - [x] Finish channel 3 (custom waveform)
     - [x] Turn DAC on/off
     - [x] Correct frequency
     - [x] Basic volume
     - [x] Read and output the custom wave data
-    - [x] Reset trigger (maybe incorrect?)
-    - [ ] Length timer
-  - [ ] Finish channel 4 (random noise)
+    - [x] Reset trigger
+    - [x] Length timer
+  - [x] Finish channel 4 (random noise)
+    - [x] Turn DAC on/off
+    - [x] Basic volume
+    - [x] Correct frequency
+    - [x] Linear-feedback shift register
+    - [x] Envelope
+    - [x] Reset trigger
+    - [x] Length timer
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
   - [x] MCB1 (Basic support)
   - [ ] MCB1 (Full support)
