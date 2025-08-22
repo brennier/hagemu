@@ -8,6 +8,11 @@
 typedef int16_t AudioSample;
 
 struct PulseChannel {
+	unsigned length_initial;
+	unsigned length_current;
+	unsigned length_ticks;
+	unsigned length_enabled;
+
 	unsigned sweep_ticks;
 	unsigned sweep_direction;
 	unsigned sweep_step;
@@ -30,6 +35,11 @@ struct PulseChannel {
 } channel1 = { 0 }, channel2 = { 0 };
 
 struct WaveChannel {
+	unsigned length_initial;
+	unsigned length_current;
+	unsigned length_ticks;
+	unsigned length_enabled;
+
 	// These are private internal variables
 	unsigned sample_rate;
 	unsigned ticks;
@@ -64,6 +74,18 @@ const bool duty_cycle_form[4][8] = {
 uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 	if (!channel->dac_enabled)
 		return 0;
+
+	if (channel->length_enabled) {
+		channel->length_ticks++;
+		if (channel->length_ticks > AUDIO_SAMPLE_RATE / 256) {
+			channel->length_current++;
+			if (channel->length_current == 64) {
+				channel->length_current = channel->length_initial;
+				channel->dac_enabled = false;
+			}
+			channel->length_ticks = 0;
+		}
+	}
 
 	if (channel->sweep_pace != 0) {
 		channel->sweep_ticks++;
@@ -111,6 +133,18 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 uint8_t generate_wave_channel(struct WaveChannel *channel) {
 	if (!channel->dac_enabled)
 		return 0;
+
+	if (channel->length_enabled) {
+		channel->length_ticks++;
+		if (channel->length_ticks > AUDIO_SAMPLE_RATE / 256) {
+			channel->length_current++;
+			if (channel->length_current == 256) {
+				channel->length_current = channel->length_initial;
+				channel->dac_enabled = false;
+			}
+			channel->length_ticks = 0;
+		}
+	}
 
 	channel->sample_rate = 2097152 / (2048 - channel->period_value);
 
@@ -167,6 +201,8 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR11:
 		channel1.wave_duty = value >> 6;
+		channel1.length_initial = value & 0x3F;
+		channel1.length_current = channel1.length_initial;
 		return;
 
 	case SOUND_NR12:
@@ -193,6 +229,7 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel1.ticks = 0;
 			channel1.duty_step = 0;
 		}
+		channel1.length_enabled = (value >> 6) & 0x01;
 		channel1.period_value &= ~(0xFF00);
 		channel1.period_value |= (value & 0x07) << 8;
 		return;
@@ -200,6 +237,8 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	// CHANNEL 2
 	case SOUND_NR21:
 		channel2.wave_duty = value >> 6;
+		channel2.length_initial = value & 0x3F;
+		channel2.length_current = channel2.length_initial;
 		return;
 
 	case SOUND_NR22:
@@ -226,6 +265,7 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel2.ticks = 0;
 			channel2.duty_step = 0;
 		}
+		channel2.length_enabled = (value >> 6) & 0x01;
 		channel2.period_value &= ~(0xFF00);
 		channel2.period_value |= (value & 0x07) << 8;
 		return;
@@ -235,7 +275,8 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR31:
-		return; // Unimplemented
+		channel3.length_initial = value;
+		return;
 
 	case SOUND_NR32:
 		channel3.volume_level = (value >> 5) & 0x03;
@@ -252,6 +293,7 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel3.ticks = 0;
 			channel3.wave_step = 0;
 		}
+		channel3.length_enabled = (value >> 6) & 0x01;
 		channel3.period_value &= ~(0xFF00);
 		channel3.period_value |= (value & 0x07) << 8;
 		return;
