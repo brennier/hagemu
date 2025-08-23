@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 
 	InitAudioDevice();
 	SetAudioStreamBufferSizeDefault(MAX_BYTES_PER_AUDIO_CALLBACK);
-	AudioStream audio_stream = LoadAudioStream(AUDIO_SAMPLE_RATE, 16, 1);
+	AudioStream audio_stream = LoadAudioStream(AUDIO_SAMPLE_RATE, 16, 2);
 	SetAudioStreamCallback(audio_stream, apu_generate_frames);
 	PlayAudioStream(audio_stream);
 

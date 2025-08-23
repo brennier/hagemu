@@ -296,10 +296,22 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		sample3 = 2 * sample3 - 15;
 		sample4 = 2 * sample4 - 15;
 
-		// Master volume is never mute (it translates the values [0,7] into [1,8])
-		uint8_t master_volume = (master_volume_left + 1) + (master_volume_right + 1);
+		AudioSample left = 0;
+		left += master_controls.channel1_left * sample1;
+		left += master_controls.channel2_left * sample2;
+		left += master_controls.channel3_left * sample3;
+		left += master_controls.channel4_left * sample4;
+		left *= 16 * (master_volume_left + 1);
 
-		samples[i] = 32 * master_volume * (sample1 + sample2 + sample3 + sample4);
+		AudioSample right = 0;
+		right += master_controls.channel1_right * sample1;
+		right += master_controls.channel2_right * sample2;
+		right += master_controls.channel3_right * sample3;
+		right += master_controls.channel4_right * sample4;
+		right *= 16 * (master_volume_right + 1);
+
+		samples[2 * i + 0] = left;
+		samples[2 * i + 1] = right;
 	}
 }
 
