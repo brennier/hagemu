@@ -2,8 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define AUDIO_SAMPLE_RATE (96000 * 2)
-#define MAX_VOLUME 32000
+#define AUDIO_SAMPLE_RATE (2 * 1024 * 1024)
 
 typedef int16_t AudioSample;
 

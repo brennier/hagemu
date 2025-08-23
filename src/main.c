@@ -13,7 +13,7 @@
 #define SCREEN_WIDTH 160 * SCALE_FACTOR
 #define SCREEN_HEIGHT 144 * SCALE_FACTOR
 #define MAX_BYTES_PER_AUDIO_CALLBACK 2048
-#define AUDIO_SAMPLE_RATE (96000 * 2)
+#define AUDIO_SAMPLE_RATE (2 * 1024 * 1024)
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
