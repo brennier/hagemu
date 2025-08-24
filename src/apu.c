@@ -3,6 +3,8 @@
 #include <stdio.h>
 
 #define AUDIO_SAMPLE_RATE (2 * 1024 * 1024)
+#define OUTPUT_SAMPLE_RATE 65536
+#define DECIMATION_FACTOR (AUDIO_SAMPLE_RATE / OUTPUT_SAMPLE_RATE)
 
 typedef int16_t AudioSample;
 
@@ -281,13 +283,16 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 			continue;
 		}
 
-		apu_tick_clocks();
+		AudioSample sample1, sample2, sample3, sample4;
+		for (int j = 0; j < DECIMATION_FACTOR; j++) {
+			apu_tick_clocks();
 
-		// Each channel is in the range [0, 15]
-		AudioSample sample1 = generate_pulse_channel(&channel1);
-		AudioSample sample2 = generate_pulse_channel(&channel2);
-		AudioSample sample3 = generate_wave_channel(&channel3);
-		AudioSample sample4 = generate_noise_channel(&channel4);
+			// Each channel is in the range [0, 15]
+			sample1 = generate_pulse_channel(&channel1);
+			sample2 = generate_pulse_channel(&channel2);
+			sample3 = generate_wave_channel(&channel3);
+			sample4 = generate_noise_channel(&channel4);
+		}
 
 		// Adjust the samples to be [-15, 15]
 		sample1 = 2 * sample1 - 15;
