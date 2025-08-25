@@ -312,6 +312,8 @@ AudioSample buttersworth_filter_right(AudioSample x) {
 	return (AudioSample)(y0 * 32767.0);
 }
 
+double j = 0.0;
+
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
 
@@ -322,10 +324,10 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		}
 
 		AudioSample left = 0, right = 0;
-		AudioSample sample1, sample2, sample3, sample4;
+		AudioSample sample1 = 0, sample2 = 0, sample3 = 0, sample4 = 0;
 
 		for (int k = 0; k < 5; k++) {
-			for (int j = 0; j < DECIMATION_FACTOR; j++) {
+			for (; j < DECIMATION_FACTOR; j++) {
 				apu_tick_clocks();
 
 				// Each channel is in the range [0, 15]
@@ -334,6 +336,8 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 				sample3 = generate_wave_channel(&channel3);
 				sample4 = generate_noise_channel(&channel4);
 			}
+
+			j -= DECIMATION_FACTOR;
 
 			// Adjust the samples to be [-15, 15]
 			sample1 = 2 * sample1 - 15;
