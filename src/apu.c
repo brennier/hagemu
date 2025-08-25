@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #define AUDIO_SAMPLE_RATE (2 * 1024 * 1024)
-#define OUTPUT_SAMPLE_RATE (48000 * 4)
+#define OUTPUT_SAMPLE_RATE (48000 * 5)
 #define DECIMATION_FACTOR ((double)AUDIO_SAMPLE_RATE / (double)OUTPUT_SAMPLE_RATE)
 
 typedef int16_t AudioSample;
@@ -274,11 +274,11 @@ uint8_t generate_noise_channel(struct NoiseChannel *channel) {
 		return 0;
 }
 
-const double a1 = -1.10917838;
-const double a2 = 0.39808875;
-const double b0 = 0.07222759;
-const double b1 = 0.14445519;
-const double b2 = 0.07222759;
+const double a1 = -1.27958194;
+const double a2 = 0.47753396;
+const double b0 = 0.04948800;
+const double b1 = 0.09897601;
+const double b2 = 0.04948800;
 
 AudioSample buttersworth_filter_left(AudioSample x) {
 	static double x1, x2, y1, y2;
@@ -316,7 +316,7 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		AudioSample left = 0, right = 0;
 		AudioSample sample1, sample2, sample3, sample4;
 
-		for (int k = 0; k < 4; k++) {
+		for (int k = 0; k < 5; k++) {
 			for (int j = 0; j < DECIMATION_FACTOR; j++) {
 				apu_tick_clocks();
 
