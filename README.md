@@ -42,8 +42,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
 - [ ] Finish the APU (Audio Processing Unit)
   - [x] Setup sound and add an audio callback function
   - [x] Synchronize the length, sweep, and envelope timers
-  - [ ] Produce a sound sample every 2MHz
-  - [ ] Downsample from 2MHz to 48kHz (or something similar)
+  - [x] Downsample from 2MHz to 48kHz (or something similar)
   - [ ] Synchronize the sample rates of the individual sound channels
   - [ ] Synchronize the APU along with the CPU and PPU
   - [ ] Fill the sound buffer directly instead of using a callback

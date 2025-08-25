@@ -50,7 +50,6 @@ struct PulseChannel {
 	bool enabled;
 	bool dac_enabled;
 	unsigned ticks;
-	unsigned sample_rate;
 	unsigned period_value;
 
 	unsigned length_initial;
@@ -76,7 +75,6 @@ struct WaveChannel {
 	bool enabled;
 	bool dac_enabled;
 	unsigned ticks;
-	unsigned sample_rate;
 	unsigned period_value;
 
 	unsigned length_initial;
@@ -93,7 +91,6 @@ struct NoiseChannel {
 	bool enabled;
 	bool dac_enabled;
 	unsigned ticks;
-	unsigned sample_rate;
 
 	unsigned length_initial;
 	unsigned length_current;
@@ -165,8 +162,6 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 		}
 	}
 
-	channel->sample_rate = 1048576 / (2048 - channel->period_value);
-
 	if (channel->envelope_pace != 0 && apu_tick_envelope) {
 		channel->envelope_current++;
 		if (channel->envelope_current == channel->envelope_pace) {
@@ -179,7 +174,7 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 	}
 
 	channel->ticks++;
-	if (channel->ticks > AUDIO_SAMPLE_RATE / channel->sample_rate) {
+	if (channel->ticks > 2 * (2048 - channel->period_value)) {
 		channel->duty_wave_index++;
 		channel->duty_wave_index %= 8;
 		channel->ticks = 0;
@@ -203,10 +198,8 @@ uint8_t generate_wave_channel(struct WaveChannel *channel) {
 		}
 	}
 
-	channel->sample_rate = 2097152 / (2048 - channel->period_value);
-
 	channel->ticks++;
-	if (channel->ticks > AUDIO_SAMPLE_RATE / channel->sample_rate) {
+	if (channel->ticks > 2048 - channel->period_value) {
 		channel->wave_index++;
 		channel->wave_index %= 32;
 		channel->ticks = 0;
@@ -237,11 +230,6 @@ uint8_t generate_noise_channel(struct NoiseChannel *channel) {
 		}
 	}
 
-	if (!channel->lfsr_clock_divider)
-		channel->sample_rate = 524288 / (1 << channel->lfsr_clock_shift);
-	else
-		channel->sample_rate = 262144 / (channel->lfsr_clock_divider * (1 << channel->lfsr_clock_shift));
-
 	if (channel->envelope_pace != 0 && apu_tick_envelope) {
 		channel->envelope_current++;
 		if (channel->envelope_current == channel->envelope_pace) {
@@ -253,8 +241,15 @@ uint8_t generate_noise_channel(struct NoiseChannel *channel) {
 		}
 	}
 
+	unsigned tick_rate = 0;
+
+	if (!channel->lfsr_clock_divider)
+		tick_rate = 4 * (1 << channel->lfsr_clock_shift);
+	else
+		tick_rate = 8 * (channel->lfsr_clock_divider * (1 << channel->lfsr_clock_shift));
+
 	channel->ticks++;
-	if (channel->ticks > AUDIO_SAMPLE_RATE / channel->sample_rate) {
+	if (channel->ticks > tick_rate) {
 		bool next_bit = (channel->lfsr ^ (channel->lfsr >> 1)) & 0x01;
 		next_bit = !next_bit;
 		channel->lfsr &= ~(0x8000);
@@ -409,7 +404,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel1.sweep_current = 0;
 			channel1.volume_current = channel1.volume_initial;
 			channel1.length_current = channel1.length_initial;
-			channel1.ticks = 0;
 			channel1.duty_wave_index = 0;
 		}
 		channel1.length_enabled = (value >> 6) & 0x01;
@@ -448,7 +442,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel2.enabled = true;
 			channel2.volume_current = channel2.volume_initial;
 			channel2.length_current = channel2.length_initial;
-			channel2.ticks = 0;
 			channel2.duty_wave_index = 0;
 			channel2.envelope_current = 0;
 		}
@@ -481,7 +474,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		if (value >> 7) {
 			channel3.enabled = true;
 			channel3.length_current = channel3.length_initial;
-			channel3.ticks = 0;
 			channel3.wave_index = 0;
 		}
 		channel3.length_enabled = (value >> 6) & 0x01;
@@ -518,7 +510,6 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel4.enabled = true;
 			channel4.volume_current = channel4.volume_initial;
 			channel4.length_current = channel4.length_initial;
-			channel4.ticks = 0;
 			channel4.envelope_current = 0;
 			channel4.lfsr = 0;
 		}
