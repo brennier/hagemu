@@ -8,9 +8,6 @@
 
 typedef int16_t AudioSample;
 
-uint8_t master_volume_left = 0;
-uint8_t master_volume_right = 0;
-
 unsigned apu_ticks = 0;
 unsigned apu_clock_step = 0;
 bool apu_tick_length = false;
@@ -115,6 +112,8 @@ struct NoiseChannel {
 } channel4 = { 0 };
 
 struct {
+	uint8_t volume_left;
+	uint8_t volume_right;
 	bool apu_enabled;
 	bool channel1_right;
 	bool channel1_left;
@@ -350,14 +349,14 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 			left += master_controls.channel2_left * sample2;
 			left += master_controls.channel3_left * sample3;
 			left += master_controls.channel4_left * sample4;
-			left *= 16 * (master_volume_left + 1);
+			left *= 16 * (master_controls.volume_left + 1);
 
 			right = 0;
 			right += master_controls.channel1_right * sample1;
 			right += master_controls.channel2_right * sample2;
 			right += master_controls.channel3_right * sample3;
 			right += master_controls.channel4_right * sample4;
-			right *= 16 * (master_volume_right + 1);
+			right *= 16 * (master_controls.volume_right + 1);
 
 			left = buttersworth_filter_left(left);
 			right = buttersworth_filter_right(right);
@@ -550,8 +549,8 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR50:
-		master_volume_right = value & 0x07;
-		master_volume_left  = (value >> 4) & 0x07;
+		master_controls.volume_right = value & 0x07;
+		master_controls.volume_left  = (value >> 4) & 0x07;
 		return;
 
 	default:
@@ -563,7 +562,7 @@ uint8_t apu_audio_register_read(uint16_t address) {
 	switch (address) {
 
 	case SOUND_NR50:
-		return (master_volume_left << 4) | master_volume_right;
+		return (master_controls.volume_left << 4) | master_controls.volume_right;
 
 	case SOUND_NR10: case SOUND_NR11: case SOUND_NR12: case SOUND_NR13:
 	case SOUND_NR14: case SOUND_NR21: case SOUND_NR22: case SOUND_NR23:
