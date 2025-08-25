@@ -3,8 +3,8 @@
 #include <stdio.h>
 
 #define AUDIO_SAMPLE_RATE (2 * 1024 * 1024)
-#define OUTPUT_SAMPLE_RATE 65536
-#define DECIMATION_FACTOR (AUDIO_SAMPLE_RATE / OUTPUT_SAMPLE_RATE)
+#define OUTPUT_SAMPLE_RATE (48000 * 4)
+#define DECIMATION_FACTOR ((double)AUDIO_SAMPLE_RATE / (double)OUTPUT_SAMPLE_RATE)
 
 typedef int16_t AudioSample;
 
@@ -274,6 +274,36 @@ uint8_t generate_noise_channel(struct NoiseChannel *channel) {
 		return 0;
 }
 
+const double a1 = -1.10917838;
+const double a2 = 0.39808875;
+const double b0 = 0.07222759;
+const double b1 = 0.14445519;
+const double b2 = 0.07222759;
+
+AudioSample buttersworth_filter_left(AudioSample x) {
+	static double x1, x2, y1, y2;
+
+	double dx = (double)x / 32767.0;
+	double y = b0 * dx + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+	x2 = x1;
+	x1 = dx;
+	y2 = y1;
+	y1 = y;
+	return (AudioSample)(y * 32767.0);
+}
+
+AudioSample buttersworth_filter_right(AudioSample x) {
+	static double x1, x2, y1, y2;
+
+	double dx = (double)x / 32767.0;
+	double y = b0 * dx + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+	x2 = x1;
+	x1 = dx;
+	y2 = y1;
+	y1 = y;
+	return (AudioSample)(y * 32767.0);
+}
+
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
 
@@ -283,36 +313,43 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 			continue;
 		}
 
+		AudioSample left = 0, right = 0;
 		AudioSample sample1, sample2, sample3, sample4;
-		for (int j = 0; j < DECIMATION_FACTOR; j++) {
-			apu_tick_clocks();
 
-			// Each channel is in the range [0, 15]
-			sample1 = generate_pulse_channel(&channel1);
-			sample2 = generate_pulse_channel(&channel2);
-			sample3 = generate_wave_channel(&channel3);
-			sample4 = generate_noise_channel(&channel4);
+		for (int k = 0; k < 4; k++) {
+			for (int j = 0; j < DECIMATION_FACTOR; j++) {
+				apu_tick_clocks();
+
+				// Each channel is in the range [0, 15]
+				sample1 = generate_pulse_channel(&channel1);
+				sample2 = generate_pulse_channel(&channel2);
+				sample3 = generate_wave_channel(&channel3);
+				sample4 = generate_noise_channel(&channel4);
+			}
+
+			// Adjust the samples to be [-15, 15]
+			sample1 = 2 * sample1 - 15;
+			sample2 = 2 * sample2 - 15;
+			sample3 = 2 * sample3 - 15;
+			sample4 = 2 * sample4 - 15;
+
+			left = 0;
+			left += master_controls.channel1_left * sample1;
+			left += master_controls.channel2_left * sample2;
+			left += master_controls.channel3_left * sample3;
+			left += master_controls.channel4_left * sample4;
+			left *= 16 * (master_volume_left + 1);
+
+			right = 0;
+			right += master_controls.channel1_right * sample1;
+			right += master_controls.channel2_right * sample2;
+			right += master_controls.channel3_right * sample3;
+			right += master_controls.channel4_right * sample4;
+			right *= 16 * (master_volume_right + 1);
+
+			left = buttersworth_filter_left(left);
+			right = buttersworth_filter_right(right);
 		}
-
-		// Adjust the samples to be [-15, 15]
-		sample1 = 2 * sample1 - 15;
-		sample2 = 2 * sample2 - 15;
-		sample3 = 2 * sample3 - 15;
-		sample4 = 2 * sample4 - 15;
-
-		AudioSample left = 0;
-		left += master_controls.channel1_left * sample1;
-		left += master_controls.channel2_left * sample2;
-		left += master_controls.channel3_left * sample3;
-		left += master_controls.channel4_left * sample4;
-		left *= 16 * (master_volume_left + 1);
-
-		AudioSample right = 0;
-		right += master_controls.channel1_right * sample1;
-		right += master_controls.channel2_right * sample2;
-		right += master_controls.channel3_right * sample3;
-		right += master_controls.channel4_right * sample4;
-		right *= 16 * (master_volume_right + 1);
 
 		samples[2 * i + 0] = left;
 		samples[2 * i + 1] = right;
