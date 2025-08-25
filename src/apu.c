@@ -274,6 +274,8 @@ uint8_t generate_noise_channel(struct NoiseChannel *channel) {
 		return 0;
 }
 
+// These constants are for a second-order IIR low-pass Butterworth filter
+// The cutoff frequency of a 240,000 Hz sample rate is 20,000 Hz
 const double a1 = -1.27958194;
 const double a2 = 0.47753396;
 const double b0 = 0.04948800;
@@ -281,27 +283,33 @@ const double b1 = 0.09897601;
 const double b2 = 0.04948800;
 
 AudioSample buttersworth_filter_left(AudioSample x) {
-	static double x1, x2, y1, y2;
+	static double x0, x1, x2, y1, y2, y0;
+	x0 = (double)x / 32767.0;
 
-	double dx = (double)x / 32767.0;
-	double y = b0 * dx + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+	// We don't use b1 and b2 since b2 = b0 and b1 = 2 * b0
+	y0 = b0 * (x0 + x1 + x1 + x2);
+	y0 -= a1 * y1 + a2 * y2;
+
 	x2 = x1;
-	x1 = dx;
+	x1 = x0;
 	y2 = y1;
-	y1 = y;
-	return (AudioSample)(y * 32767.0);
+	y1 = y0;
+	return (AudioSample)(y0 * 32767.0);
 }
 
 AudioSample buttersworth_filter_right(AudioSample x) {
-	static double x1, x2, y1, y2;
+	static double x0, x1, x2, y1, y2, y0;
+	x0 = (double)x / 32767.0;
 
-	double dx = (double)x / 32767.0;
-	double y = b0 * dx + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+	// We don't use b1 and b2 since b2 = b0 and b1 = 2 * b0
+	y0 = b0 * (x0 + x1 + x1 + x2);
+	y0 -= a1 * y1 + a2 * y2;
+
 	x2 = x1;
-	x1 = dx;
+	x1 = x0;
 	y2 = y1;
-	y1 = y;
-	return (AudioSample)(y * 32767.0);
+	y1 = y0;
+	return (AudioSample)(y0 * 32767.0);
 }
 
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
