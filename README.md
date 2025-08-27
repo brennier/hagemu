@@ -2,12 +2,13 @@
 
 This is an attempt to write a GameBoy emulator in C99. This is a personal project to learn more about computers and emulation. Raylib is used to write the pixels and handle input. The end goal is to compile this project into WebAssembly using Emscripten. At the moment, this project is still a work in progress.
 
-### Playable games (perhaps minor glitches)
+### Tested games (no noticable glitches)
 - Tetris
 - Dr. Mario
 - Super Mario Land
-- Metroid
+- Metroid II
 - Zelda: Link's Awakening
+- Pokemon Red, Blue, and Yellow
 
 ### Progress Report
 - [x] Finish the CPU
@@ -39,21 +40,17 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Implement LCD STAT interrupts
   - [x] Respond to the LCD control register (except for disabling the PPU)
   - [x] Pass dmg-acid2 test rom
-- [ ] Finish the APU (Audio Processing Unit)
+- [x] Finish the APU (Audio Processing Unit)
   - [x] Setup sound and add an audio callback function
   - [x] Synchronize the length, sweep, and envelope timers
-  - [x] Downsample from 2MHz to 48kHz (or something similar)
-  - [ ] Synchronize the sample rates of the individual sound channels
-  - [ ] Synchronize the APU along with the CPU and PPU
-  - [ ] Fill the sound buffer directly instead of using a callback
-  - [ ] Make the audio registers readable
- - [ ] Finish Master controls
+  - [x] Downsample from 2MHz to 48kHz
+  - [x] Implement a IIR butterworth low pass filter to cut down on audio aliasing
+  - [x] Synchronize the sample rates of the individual sound channels
+ - [x] Finish Master controls
     - [x] Turn APU on/off
     - [x] Mono volume control
     - [x] Panning left/right per channel
     - [x] Volume control left/right per channel
-    - [ ] VIN channel
-    - [ ] Read if the channels are on/off
   - [x] Finish channels 1 and 2 (pulse waves)
     - [x] Turn DAC on/off
     - [x] Basic volume
@@ -93,17 +90,30 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Rewrite the f register as separate bools
   - [x] Fix glitch where a sprite partially clips if it's on the left or top border
   - [x] Fix bug where window X Position is less than 7
+  - [ ] Synchronize the APU along with the CPU and PPU
+  - [ ] Fill the sound buffer directly instead of using a callback
+  - [ ] Make the audio registers readable
+  - [ ] Use float instead of int16_t for bit depth
+  - [ ] Mute a sound channel if its frequency is above 20kHz
+  - [ ] Add support for the VIN sound channel
+  - [ ] Rewrite PPU to be more modular
   - [ ] Add option to blend frames
   - [ ] Emulate the timing of the DMA
   - [ ] Add support for disabling the PPU
   - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
   - [ ] Implement the STOP instruction
   - [ ] Test the HALT instruction
+  - [ ] Add support for the serial data port
+  - [ ] Add support fort saving and loading save states
   - [ ] Rewrite the PPU using a pixel pusher renderer
   - [ ] Pass Blargg's interrupt_time test
   - [ ] Run the Mooneye Test Suite
   - [ ] Make a cool logo
   - [ ] Add a custom boot rom
+  - [ ] Use _Static_assert to ensure endianness
+  - [ ] Use some profiling tools to find critical code blocks
+  - [ ] Compile program and Raylib using -O3 and -flto and -ffast-math
+  - [ ] Make sure to disable Raylib's rshapes and rmodels modules
 - [x] Known glitches
   - [x] Pokemon Red corrupted save data
     - Fixed! My SRAM implementation was off-by-one
@@ -114,18 +124,35 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Add a simple front-end UI
   - [x] Upload to my website (https://uezu.dev/projects/hagemu)
   - [x] Automatically save and load .sav files using a local IndexedDB file system
+  - [ ] Progressive Web Application support
+    - [x] Basic support
+    - [ ] Add a service worker for caching and retrieving files without the internet
+  - [ ] Rewrite the html index file from scratch
   - [ ] Automatically cache and load the last played game
   - [ ] Select file using a mobile browser
   - [ ] Touchscreen support
   - [ ] Download and upload save files
+  - [ ] Put the loading bar where the canvas is
 - [ ] Add a UI
   - [x] Drag and drop rom files onto the window
-  - [ ] Add a custom bootrom
   - [ ] Select file using a file dialog window
+  - [ ] Add custom shaders (mostly for a grid overlay)
   - [ ] Settings menu
     - [ ] Button mapping menu
     - [ ] Audio menu
     - [ ] Color palette menu
     - [ ] Save state menu
-- [ ] Saving and loading save states
 - [ ] Add GBC functionality
+  - [ ] Double speed mode
+  - [ ] Extra work and video ram
+  - [ ] HDMA features
+  - [ ] Pass cgb-acid2
+- Links for the future
+  - Gameboy Color differences: https://jsgroth.dev/blog/posts/game-boy-color/
+  - Gameboy Color PPU: https://github.com/mattcurrie/cgb-acid2
+  - Gameboy Color HDMA: https://gbdev.io/pandocs/CGB_Registers.html
+  - Using WASM: https://gioarc.me/posts/games/wasm.html
+  - Sound info: https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
+  - General info: https://hacktix.github.io/GBEDG/
+  - Timing of the LYC STAT: https://gbdev.io/guides/lyc_timing.html
+  - Custom bootrom: https://github.com/Hacktix/Bootix
