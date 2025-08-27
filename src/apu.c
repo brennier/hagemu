@@ -67,18 +67,18 @@ void tick_sweep(struct Channel *channel) {
 	channel->sweep_current++;
 	if (channel->sweep_current == channel->sweep_pace) {
 		channel->sweep_current = 0;
-		unsigned new_period_value;
 
+		int period_adjustment;
 		if (channel->sweep_direction == 0)
-			new_period_value = channel->period_value + channel->period_value / (1 << channel->sweep_step);
+			period_adjustment = channel->period_value >> channel->sweep_step;
 		else
-			new_period_value = channel->period_value - channel->period_value / (1 << channel->sweep_step);
+			period_adjustment = - (channel->period_value >> channel->sweep_step);
 
 		// Period value overflowed
-		if (new_period_value > 0x7FF)
+		if (channel->period_value + period_adjustment > 0x7FF)
 			channel->enabled = false;
 		else
-			channel->period_value = new_period_value;
+			channel->period_value += period_adjustment;
 	}
 }
 
@@ -118,15 +118,19 @@ void tick_noise_channel(struct Channel *channel) {
 	channel->ticks++;
 	if (channel->ticks > channel->period_value) {
 		channel->ticks = 0;
-		bool next_bit = (channel->lfsr ^ (channel->lfsr >> 1)) & 0x01;
-		next_bit = !next_bit;
-		channel->lfsr &= ~(0x8000);
-		channel->lfsr |= (next_bit << 15);
-		if (channel->lfsr_width) { // if 7bit mode
-			channel->lfsr &= ~(0x80);
-			channel->lfsr |= (next_bit << 7);
-		}
+		bool next_bit = channel->lfsr & 0x01;
 		channel->lfsr >>= 1;
+
+		next_bit ^= (channel->lfsr & 0x01);
+		next_bit = !next_bit;
+
+		// Since we already shifted, we copy to the 14 bit (and maybe the 6th bit)
+		channel->lfsr &= ~(1 << 14);
+		channel->lfsr |= (next_bit << 14);
+		if (channel->lfsr_width) {
+			channel->lfsr &= ~(1 << 6);
+			channel->lfsr |= (next_bit << 6);
+		}
 	}
 }
 
@@ -465,9 +469,10 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		channel4.lfsr_width = get_bits(value, 3, 3);
 		channel4.lfsr_clock_shift = get_bits(value, 4, 7);
 		if (!channel4.lfsr_clock_divider)
-			channel4.period_value = 4 * (1 << channel4.lfsr_clock_shift);
+			channel4.period_value = 4;
 		else
-			channel4.period_value = 8 * (channel4.lfsr_clock_divider * (1 << channel4.lfsr_clock_shift));
+			channel4.period_value = 8 * channel4.lfsr_clock_divider;
+		channel4.period_value <<= channel4.lfsr_clock_shift;
 		return;
 
 	case SOUND_NR44:
