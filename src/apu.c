@@ -46,67 +46,46 @@ void apu_tick_clocks() {
 	}
 }
 
-struct PulseChannel {
+struct Channel {
+	// All channels
 	bool enabled;
 	bool dac_enabled;
 	unsigned ticks;
 	unsigned period_value;
 
+	// All channels
 	unsigned length_initial;
 	unsigned length_current;
 	unsigned length_enabled;
 
+	// Channels 1, 2, and 4
+	unsigned volume_initial;
+	unsigned volume_current;
+	unsigned envelope_current;
+	unsigned envelope_pace;
+	unsigned envelope_direction;
+
+	// Channels 1 and 2
+	unsigned duty_wave_type;
+	unsigned duty_wave_index;
+
+	// Channel 1 only
 	unsigned sweep_current;
 	unsigned sweep_direction;
 	unsigned sweep_step;
 	unsigned sweep_pace;
 
-	unsigned volume_initial;
-	unsigned volume_current;
-	unsigned envelope_current;
-	unsigned envelope_pace;
-	unsigned envelope_direction;
-
-	unsigned duty_wave_type;
-	unsigned duty_wave_index;
-} channel1 = { 0 }, channel2 = { 0 };
-
-struct WaveChannel {
-	bool enabled;
-	bool dac_enabled;
-	unsigned ticks;
-	unsigned period_value;
-
-	unsigned length_initial;
-	unsigned length_current;
-	unsigned length_enabled;
-
+	// Channel 3 only
 	unsigned volume_level;
-
 	unsigned wave_index;
 	uint8_t  wave_data[16];
-} channel3 = { 0 };
 
-struct NoiseChannel {
-	bool enabled;
-	bool dac_enabled;
-	unsigned ticks;
-
-	unsigned length_initial;
-	unsigned length_current;
-	unsigned length_enabled;
-
-	unsigned volume_initial;
-	unsigned volume_current;
-	unsigned envelope_pace;
-	unsigned envelope_direction;
-	unsigned envelope_current;
-
+	// Channel 4 only
 	uint16_t lfsr;
 	bool     lfsr_width;
 	unsigned lfsr_clock_shift;
 	unsigned lfsr_clock_divider;
-} channel4 = { 0 };
+} channel1 = { 0 }, channel2 = { 0 }, channel3 = { 0 }, channel4 = { 0 };
 
 struct {
 	uint8_t volume_left;
@@ -129,7 +108,7 @@ const bool duty_wave_forms[4][8] = {
 	{0, 1, 1, 1, 1, 1, 1, 0},
 };
 
-uint8_t generate_pulse_channel(struct PulseChannel *channel) {
+uint8_t generate_pulse_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
@@ -186,7 +165,7 @@ uint8_t generate_pulse_channel(struct PulseChannel *channel) {
 		return 0;
 }
 
-uint8_t generate_wave_channel(struct WaveChannel *channel) {
+uint8_t generate_wave_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
@@ -218,7 +197,7 @@ uint8_t generate_wave_channel(struct WaveChannel *channel) {
 		return data >> (channel->volume_level - 1);
 }
 
-uint8_t generate_noise_channel(struct NoiseChannel *channel) {
+uint8_t generate_noise_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
@@ -241,15 +220,13 @@ uint8_t generate_noise_channel(struct NoiseChannel *channel) {
 		}
 	}
 
-	unsigned tick_rate = 0;
-
 	if (!channel->lfsr_clock_divider)
-		tick_rate = 4 * (1 << channel->lfsr_clock_shift);
+		channel->period_value = 4 * (1 << channel->lfsr_clock_shift);
 	else
-		tick_rate = 8 * (channel->lfsr_clock_divider * (1 << channel->lfsr_clock_shift));
+		channel->period_value = 8 * (channel->lfsr_clock_divider * (1 << channel->lfsr_clock_shift));
 
 	channel->ticks++;
-	if (channel->ticks > tick_rate) {
+	if (channel->ticks > channel->period_value) {
 		bool next_bit = (channel->lfsr ^ (channel->lfsr >> 1)) & 0x01;
 		next_bit = !next_bit;
 		channel->lfsr &= ~(0x8000);
