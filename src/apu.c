@@ -8,44 +8,6 @@
 
 typedef int16_t AudioSample;
 
-unsigned apu_ticks = 0;
-unsigned apu_clock_step = 0;
-bool apu_tick_length = false;
-bool apu_tick_envelope = false;
-bool apu_tick_sweep = false;
-
-void apu_tick_clocks() {
-	apu_tick_length = false;
-	apu_tick_envelope = false;
-	apu_tick_sweep = false;
-
-	apu_ticks++;
-	if (apu_ticks > AUDIO_SAMPLE_RATE / 512) {
-		apu_ticks = 0;
-		apu_clock_step++;
-		apu_clock_step %= 8;
-
-		switch (apu_clock_step) {
-
-		case 0: case 4:
-			apu_tick_length = true;
-			break;
-
-		case 1: case 3: case 5:
-			break;
-
-		case 2: case 6:
-			apu_tick_length = true;
-			apu_tick_sweep = true;
-			break;
-
-		case 7:
-			apu_tick_envelope = true;
-			break;
-		}
-	}
-}
-
 struct Channel {
 	// All channels
 	bool enabled;
@@ -87,6 +49,59 @@ struct Channel {
 	unsigned lfsr_clock_divider;
 } channel1 = { 0 }, channel2 = { 0 }, channel3 = { 0 }, channel4 = { 0 };
 
+unsigned apu_ticks = 0;
+unsigned apu_clock_step = 0;
+bool apu_tick_envelope = false;
+bool apu_tick_sweep = false;
+
+void tick_length_timer(struct Channel *channel, unsigned length_max) {
+	if (!channel->length_enabled)
+		return;
+
+	channel->length_current++;
+	if (channel->length_current == length_max) {
+		channel->length_current = channel->length_initial;
+		channel->enabled = false;
+	}
+}
+
+void apu_tick_clocks() {
+	apu_tick_envelope = false;
+	apu_tick_sweep = false;
+
+	apu_ticks++;
+	if (apu_ticks > AUDIO_SAMPLE_RATE / 512) {
+		apu_ticks = 0;
+		apu_clock_step++;
+		apu_clock_step %= 8;
+
+		switch (apu_clock_step) {
+
+		case 0: case 4:
+			tick_length_timer(&channel1, 64);
+			tick_length_timer(&channel2, 64);
+			tick_length_timer(&channel3, 256);
+			tick_length_timer(&channel4, 64);
+			break;
+
+		case 1: case 3: case 5:
+			break;
+
+		case 2: case 6:
+			tick_length_timer(&channel1, 64);
+			tick_length_timer(&channel2, 64);
+			tick_length_timer(&channel3, 256);
+			tick_length_timer(&channel4, 64);
+			apu_tick_sweep = true;
+			break;
+
+		case 7:
+			apu_tick_envelope = true;
+			break;
+		}
+	}
+}
+
 struct {
 	uint8_t volume_left;
 	uint8_t volume_right;
@@ -108,17 +123,10 @@ const bool duty_wave_forms[4][8] = {
 	{0, 1, 1, 1, 1, 1, 1, 0},
 };
 
+
 uint8_t generate_pulse_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
-
-	if (channel->length_enabled && apu_tick_length) {
-		channel->length_current++;
-		if (channel->length_current == 64) {
-			channel->length_current = channel->length_initial;
-			channel->enabled = false;
-		}
-	}
 
 	if (channel->sweep_pace != 0 && apu_tick_sweep) {
 		channel->sweep_current++;
@@ -169,14 +177,6 @@ uint8_t generate_wave_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
-	if (channel->length_enabled && apu_tick_length) {
-		channel->length_current++;
-		if (channel->length_current == 256) {
-			channel->length_current = channel->length_initial;
-			channel->enabled = false;
-		}
-	}
-
 	channel->ticks++;
 	if (channel->ticks > 2048 - channel->period_value) {
 		channel->wave_index++;
@@ -200,14 +200,6 @@ uint8_t generate_wave_channel(struct Channel *channel) {
 uint8_t generate_noise_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
-
-	if (channel->length_enabled && apu_tick_length) {
-		channel->length_current++;
-		if (channel->length_current == 64) {
-			channel->length_current = channel->length_initial;
-			channel->enabled = false;
-		}
-	}
 
 	if (channel->envelope_pace != 0 && apu_tick_envelope) {
 		channel->envelope_current++;
