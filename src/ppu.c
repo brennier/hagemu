@@ -8,10 +8,22 @@
 #define SPRITE_LIMIT 10
 
 // BW color palette from lightest to darkest
-// const R5G5B5A1 ppu_default_colors[4] = { 0xFFFF, 0xAD6B, 0x5295, 0x0001 };
+/* const R5G5B5A1 ppu_default_colors[4] = { 0xFFFF, 0xAD6B, 0x5295, 0x0001 }; */
 
 // Green color palette from lightest to darkest
 const R5G5B5A1 ppu_default_colors[4] = { 0x8DD3, 0x441B, 0x3315, 0x2251 };
+
+// Alternative green color palette from lightest to darkest
+/* const R5G5B5A1 ppu_default_colors[4] = { 0x8E1D, 0x4D15, 0x3393, 0x224F }; */
+
+R5G5B5A1 convert_color(unsigned red, unsigned green, unsigned blue) {
+	R5G5B5A1 color = 0;
+	color |= 1;
+	color |= (blue >> 3) << 1;
+	color |= (green >> 3) << 6;
+	color |= (red >> 3) << 11;
+	return color;
+}
 
 R5G5B5A1 screen_buffer[144][160];
 bool is_background_nonzero[160];
