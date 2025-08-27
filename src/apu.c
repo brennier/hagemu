@@ -156,16 +156,51 @@ const bool duty_wave_forms[4][8] = {
 	{0, 1, 1, 1, 1, 1, 1, 0},
 };
 
+void tick_channels() {
+	channel1.ticks++;
+	if (channel1.ticks > 2 * (2048 - channel1.period_value)) {
+		channel1.ticks = 0;
+		channel1.duty_wave_index++;
+		channel1.duty_wave_index %= 8;
+	}
+
+	channel2.ticks++;
+	if (channel2.ticks > 2 * (2048 - channel2.period_value)) {
+		channel2.ticks = 0;
+		channel2.duty_wave_index++;
+		channel2.duty_wave_index %= 8;
+	}
+
+	channel3.ticks++;
+	if (channel3.ticks > 2048 - channel3.period_value) {
+		channel3.ticks = 0;
+		channel3.wave_index++;
+		channel3.wave_index %= 32;
+	}
+
+	channel4.ticks++;
+	if (!channel4.lfsr_clock_divider)
+		channel4.period_value = 4 * (1 << channel4.lfsr_clock_shift);
+	else
+		channel4.period_value = 8 * (channel4.lfsr_clock_divider * (1 << channel4.lfsr_clock_shift));
+
+	if (channel4.ticks > channel4.period_value) {
+		bool next_bit = (channel4.lfsr ^ (channel4.lfsr >> 1)) & 0x01;
+		next_bit = !next_bit;
+		channel4.lfsr &= ~(0x8000);
+		channel4.lfsr |= (next_bit << 15);
+		if (channel4.lfsr_width) { // if 7bit mode
+			channel4.lfsr &= ~(0x80);
+			channel4.lfsr |= (next_bit << 7);
+		}
+		channel4.lfsr >>= 1;
+		channel4.ticks = 0;
+	}
+}
+
 uint8_t generate_pulse_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
-
-	channel->ticks++;
-	if (channel->ticks > 2 * (2048 - channel->period_value)) {
-		channel->duty_wave_index++;
-		channel->duty_wave_index %= 8;
-		channel->ticks = 0;
-	}
 
  	if (duty_wave_forms[channel->duty_wave_type][channel->duty_wave_index])
 		return channel->volume_current;
@@ -176,13 +211,6 @@ uint8_t generate_pulse_channel(struct Channel *channel) {
 uint8_t generate_wave_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
-
-	channel->ticks++;
-	if (channel->ticks > 2048 - channel->period_value) {
-		channel->wave_index++;
-		channel->wave_index %= 32;
-		channel->ticks = 0;
-	}
 
 	uint8_t data = 0;
 	uint8_t wave_data = channel->wave_data[channel->wave_index / 2];
@@ -200,25 +228,6 @@ uint8_t generate_wave_channel(struct Channel *channel) {
 uint8_t generate_noise_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
-
-	if (!channel->lfsr_clock_divider)
-		channel->period_value = 4 * (1 << channel->lfsr_clock_shift);
-	else
-		channel->period_value = 8 * (channel->lfsr_clock_divider * (1 << channel->lfsr_clock_shift));
-
-	channel->ticks++;
-	if (channel->ticks > channel->period_value) {
-		bool next_bit = (channel->lfsr ^ (channel->lfsr >> 1)) & 0x01;
-		next_bit = !next_bit;
-		channel->lfsr &= ~(0x8000);
-		channel->lfsr |= (next_bit << 15);
-		if (channel->lfsr_width) { // if 7bit mode
-			channel->lfsr &= ~(0x80);
-			channel->lfsr |= (next_bit << 7);
-		}
-		channel->lfsr >>= 1;
-		channel->ticks = 0;
-	}
 
  	if (channel->lfsr & 0x01)
 		return channel->volume_current;
@@ -281,13 +290,14 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		for (int k = 0; k < 5; k++) {
 			for (; j < DECIMATION_FACTOR; j++) {
 				apu_tick_clocks();
-
-				// Each channel is in the range [0, 15]
-				sample1 = generate_pulse_channel(&channel1);
-				sample2 = generate_pulse_channel(&channel2);
-				sample3 = generate_wave_channel(&channel3);
-				sample4 = generate_noise_channel(&channel4);
+				tick_channels();
 			}
+
+			// Each channel is in the range [0, 15]
+			sample1 = generate_pulse_channel(&channel1);
+			sample2 = generate_pulse_channel(&channel2);
+			sample3 = generate_wave_channel(&channel3);
+			sample4 = generate_noise_channel(&channel4);
 
 			j -= DECIMATION_FACTOR;
 
