@@ -323,33 +323,37 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	}
 }
 
+// Use bit shifting and bitmasks to get the value of the
+// bits between bit_start and bit_end (both inclusive)
+static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit_end) {
+	return (value >> bit_start) & ((1 << (bit_end - bit_start + 1)) - 1);
+}
+
 void apu_audio_register_write(uint16_t address, uint8_t value) {
 	switch (address) {
 
 	// CHANNEL 1
 	case SOUND_NR10:
-		channel1.sweep_step = value & 0x07;
-		channel1.sweep_direction = (value >> 3) & 0x01;
-		channel1.sweep_pace = (value >> 4) & 0x07;
+		channel1.sweep_step = get_bits(value, 0, 2);
+		channel1.sweep_direction = get_bits(value, 3, 3);
+		channel1.sweep_pace = get_bits(value, 4, 6);
 		return;
 
 	case SOUND_NR11:
-		channel1.duty_wave_type = value >> 6;
-		channel1.length_initial = value & 0x3F;
+		channel1.length_initial = get_bits(value, 0, 5);
+		channel1.duty_wave_type = get_bits(value, 6, 7);
 		channel1.length_current = channel1.length_initial;
 		return;
 
 	case SOUND_NR12:
-		channel1.envelope_pace = value & 0x07;
-		channel1.envelope_direction = (value >> 3) & 0x01;
-		channel1.volume_initial = value >> 4;
-		channel1.volume_current = value >> 4;
+		channel1.envelope_pace = get_bits(value, 0, 2);
+		channel1.envelope_direction = get_bits(value, 3, 3);
+		channel1.volume_initial = get_bits(value, 4, 7);
+		channel1.volume_current = channel1.volume_initial;
 		if (channel1.volume_initial || channel1.envelope_direction)
 			channel1.dac_enabled = true;
-		else {
-			channel1.dac_enabled = false;
-			channel1.enabled = false;
-		}
+		else
+			channel1.dac_enabled = channel1.enabled = false;
 		return;
 
 	case SOUND_NR13:
@@ -359,7 +363,7 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR14:
 		// Channel is triggered
-		if (value >> 7) {
+		if (get_bits(value, 7, 7)) {
 			channel1.enabled = true;
 			channel1.envelope_current = 0;
 			channel1.sweep_current = 0;
@@ -367,29 +371,27 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 			channel1.length_current = channel1.length_initial;
 			channel1.duty_wave_index = 0;
 		}
-		channel1.length_enabled = (value >> 6) & 0x01;
+		channel1.length_enabled = get_bits(value, 6, 6);
 		channel1.period_value &= ~(0xFF00);
-		channel1.period_value |= (value & 0x07) << 8;
+		channel1.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 	// CHANNEL 2
 	case SOUND_NR21:
-		channel2.duty_wave_type = value >> 6;
-		channel2.length_initial = value & 0x3F;
+		channel2.length_initial = get_bits(value, 0, 5);
+		channel2.duty_wave_type = get_bits(value, 6, 7);
 		channel2.length_current = channel2.length_initial;
 		return;
 
 	case SOUND_NR22:
-		channel2.envelope_pace = value & 0x07;
-		channel2.envelope_direction = (value >> 3) & 0x01;
-		channel2.volume_initial = value >> 4;
-		channel2.volume_current = value >> 4;
+		channel2.envelope_pace = get_bits(value, 0, 2);
+		channel2.envelope_direction = get_bits(value, 3, 3);
+		channel2.volume_initial = get_bits(value, 4, 7);
+		channel2.volume_current = channel2.volume_initial;
 		if (channel2.volume_initial || channel2.envelope_direction)
 			channel2.dac_enabled = true;
-		else {
-			channel2.dac_enabled = false;
-			channel2.enabled = false;
-		}
+		else
+			channel2.dac_enabled = channel2.enabled = false;
 		return;
 
 	case SOUND_NR23:
@@ -399,20 +401,20 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR24:
 		// Channel is triggered
-		if (value >> 7) {
+		if (get_bits(value, 7, 7)) {
 			channel2.enabled = true;
 			channel2.volume_current = channel2.volume_initial;
 			channel2.length_current = channel2.length_initial;
 			channel2.duty_wave_index = 0;
 			channel2.envelope_current = 0;
 		}
-		channel2.length_enabled = (value >> 6) & 0x01;
+		channel2.length_enabled = get_bits(value, 6, 6);
 		channel2.period_value &= ~(0xFF00);
-		channel2.period_value |= (value & 0x07) << 8;
+		channel2.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 	case SOUND_NR30:
-		channel3.dac_enabled = value >> 7;
+		channel3.dac_enabled = get_bits(value, 7, 7);
 		if (!channel3.dac_enabled)
 			channel3.enabled = false;
 		return;
@@ -422,7 +424,7 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR32:
-		channel3.volume_level = (value >> 5) & 0x03;
+		channel3.volume_level = get_bits(value, 5, 6);
 		return;
 
 	case SOUND_NR33:
@@ -432,37 +434,35 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR34:
 		// Channel is triggered
-		if (value >> 7) {
+		if (get_bits(value, 7, 7)) {
 			channel3.enabled = true;
 			channel3.length_current = channel3.length_initial;
 			channel3.wave_index = 0;
 		}
-		channel3.length_enabled = (value >> 6) & 0x01;
+		channel3.length_enabled = get_bits(value, 6, 6);
 		channel3.period_value &= ~(0xFF00);
-		channel3.period_value |= (value & 0x07) << 8;
+		channel3.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 	case SOUND_NR41:
-		channel4.length_initial = value & 0x3F;
+		channel4.length_initial = get_bits(value, 0, 5);
 		return;
 
 	case SOUND_NR42:
-		channel4.envelope_pace = value & 0x07;
-		channel4.envelope_direction = (value >> 3) & 0x01;
-		channel4.volume_initial = value >> 4;
-		channel4.volume_current = value >> 4;
+		channel4.envelope_pace = get_bits(value, 0, 2);
+		channel4.envelope_direction = get_bits(value, 3, 3);
+		channel4.volume_initial = get_bits(value, 4, 7);
+		channel4.volume_current = channel4.volume_initial;
 		if (channel4.volume_initial || channel4.envelope_direction)
 			channel4.dac_enabled = true;
-		else {
-			channel4.dac_enabled = false;
-			channel4.enabled = false;
-		}
+		else
+			channel4.dac_enabled = channel4.enabled = false;
 		return;
 
 	case SOUND_NR43:
-		channel4.lfsr_clock_divider = value & 0x07;
-		channel4.lfsr_width = (value >> 3) & 0x01;
-		channel4.lfsr_clock_shift = value >> 4;
+		channel4.lfsr_clock_divider = get_bits(value, 0, 2);
+		channel4.lfsr_width = get_bits(value, 3, 3);
+		channel4.lfsr_clock_shift = get_bits(value, 4, 7);
 		if (!channel4.lfsr_clock_divider)
 			channel4.period_value = 4 * (1 << channel4.lfsr_clock_shift);
 		else
@@ -471,14 +471,14 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR44:
 		// Channel is triggered
-		if (value >> 7) {
+		if (get_bits(value, 7, 7)) {
 			channel4.enabled = true;
 			channel4.volume_current = channel4.volume_initial;
 			channel4.length_current = channel4.length_initial;
 			channel4.envelope_current = 0;
 			channel4.lfsr = 0;
 		}
-		channel4.length_enabled = (value >> 6) & 0x01;
+		channel4.length_enabled = get_bits(value, 6, 6);
 		return;
 
 	// Channel 3 wave data
@@ -501,12 +501,12 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR52:
-		master_controls.apu_enabled = value >> 7;
+		master_controls.apu_enabled = get_bits(value, 7, 7);
 		return;
 
 	case SOUND_NR50:
-		master_controls.volume_right = value & 0x07;
-		master_controls.volume_left  = (value >> 4) & 0x07;
+		master_controls.volume_right = get_bits(value, 0, 2);
+		master_controls.volume_left  = get_bits(value, 4, 6);
 		return;
 
 	default:
