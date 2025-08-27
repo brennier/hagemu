@@ -40,7 +40,7 @@ struct Channel {
 	// Channel 3 only
 	unsigned volume_level;
 	unsigned wave_index;
-	uint8_t  wave_data[16];
+	uint8_t  wave_data[32];
 
 	// Channel 4 only
 	uint16_t lfsr;
@@ -193,15 +193,15 @@ struct {
 } master_controls = { 0 };
 
 uint8_t channel_output_pulse(struct Channel *channel) {
+	if (!channel->dac_enabled || !channel->enabled)
+		return 0;
+
 	static const bool duty_wave_forms[4][8] = {
 		{0, 0, 0, 0, 0, 0, 0, 1},
 		{1, 0, 0, 0, 0, 0, 0, 1},
 		{1, 0, 0, 0, 0, 1, 1, 1},
 		{0, 1, 1, 1, 1, 1, 1, 0},
 	};
-
-	if (!channel->dac_enabled || !channel->enabled)
-		return 0;
 
  	if (duty_wave_forms[channel->duty_wave_type][channel->duty_wave_index])
 		return channel->volume_current;
@@ -213,12 +213,7 @@ uint8_t channel_output_wave(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
-	uint8_t data = 0;
-	if (channel->wave_index % 2)
-		data = channel->wave_data[channel->wave_index / 2] & 0x0F;
-	else
-		data = channel->wave_data[channel->wave_index / 2] >> 4;
-
+	uint8_t data = channel->wave_data[channel->wave_index];
 	if (channel->volume_level)
 		return data >> (channel->volume_level - 1);
 	else
@@ -492,8 +487,9 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		channel3.wave_data[address - 0xFF30] = value;
-		return;
+		channel3.wave_data[2 * (address - 0xFF30)] = get_bits(value, 4, 7);
+		channel3.wave_data[2 * (address - 0xFF30) + 1] = get_bits(value, 0, 3);
+	return;
 
 	case SOUND_NR51:
 		master_controls.channel1_right = (value >> 0) & 0x01;
