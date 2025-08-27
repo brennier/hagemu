@@ -49,9 +49,6 @@ struct Channel {
 	unsigned lfsr_clock_divider;
 } channel1 = { 0 }, channel2 = { 0 }, channel3 = { 0 }, channel4 = { 0 };
 
-unsigned apu_ticks = 0;
-unsigned apu_clock_step = 0;
-
 void tick_length_timer(struct Channel *channel, unsigned length_max) {
 	if (!channel->length_enabled)
 		return;
@@ -99,7 +96,48 @@ void tick_envelope(struct Channel *channel) {
 	}
 }
 
-void apu_tick_clocks() {
+void tick_channels() {
+	channel1.ticks++;
+	if (channel1.ticks > 2 * (2048 - channel1.period_value)) {
+		channel1.ticks = 0;
+		channel1.duty_wave_index++;
+		channel1.duty_wave_index %= 8;
+	}
+
+	channel2.ticks++;
+	if (channel2.ticks > 2 * (2048 - channel2.period_value)) {
+		channel2.ticks = 0;
+		channel2.duty_wave_index++;
+		channel2.duty_wave_index %= 8;
+	}
+
+	channel3.ticks++;
+	if (channel3.ticks > 2048 - channel3.period_value) {
+		channel3.ticks = 0;
+		channel3.wave_index++;
+		channel3.wave_index %= 32;
+	}
+
+	channel4.ticks++;
+	if (channel4.ticks > channel4.period_value) {
+		channel4.ticks = 0;
+		bool next_bit = (channel4.lfsr ^ (channel4.lfsr >> 1)) & 0x01;
+		next_bit = !next_bit;
+		channel4.lfsr &= ~(0x8000);
+		channel4.lfsr |= (next_bit << 15);
+		if (channel4.lfsr_width) { // if 7bit mode
+			channel4.lfsr &= ~(0x80);
+			channel4.lfsr |= (next_bit << 7);
+		}
+		channel4.lfsr >>= 1;
+	}
+}
+
+void tick_apu() {
+	static unsigned apu_ticks;
+	static unsigned apu_clock_step;
+
+	tick_channels();
 	apu_ticks++;
 	if (apu_ticks > AUDIO_SAMPLE_RATE / 512) {
 		apu_ticks = 0;
@@ -149,56 +187,14 @@ struct {
 	bool channel4_left;
 } master_controls = { 0 };
 
-const bool duty_wave_forms[4][8] = {
-	{0, 0, 0, 0, 0, 0, 0, 1},
-	{1, 0, 0, 0, 0, 0, 0, 1},
-	{1, 0, 0, 0, 0, 1, 1, 1},
-	{0, 1, 1, 1, 1, 1, 1, 0},
-};
+uint8_t channel_output_pulse(struct Channel *channel) {
+	static const bool duty_wave_forms[4][8] = {
+		{0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 1, 1, 1},
+		{0, 1, 1, 1, 1, 1, 1, 0},
+	};
 
-void tick_channels() {
-	channel1.ticks++;
-	if (channel1.ticks > 2 * (2048 - channel1.period_value)) {
-		channel1.ticks = 0;
-		channel1.duty_wave_index++;
-		channel1.duty_wave_index %= 8;
-	}
-
-	channel2.ticks++;
-	if (channel2.ticks > 2 * (2048 - channel2.period_value)) {
-		channel2.ticks = 0;
-		channel2.duty_wave_index++;
-		channel2.duty_wave_index %= 8;
-	}
-
-	channel3.ticks++;
-	if (channel3.ticks > 2048 - channel3.period_value) {
-		channel3.ticks = 0;
-		channel3.wave_index++;
-		channel3.wave_index %= 32;
-	}
-
-	channel4.ticks++;
-	if (!channel4.lfsr_clock_divider)
-		channel4.period_value = 4 * (1 << channel4.lfsr_clock_shift);
-	else
-		channel4.period_value = 8 * (channel4.lfsr_clock_divider * (1 << channel4.lfsr_clock_shift));
-
-	if (channel4.ticks > channel4.period_value) {
-		bool next_bit = (channel4.lfsr ^ (channel4.lfsr >> 1)) & 0x01;
-		next_bit = !next_bit;
-		channel4.lfsr &= ~(0x8000);
-		channel4.lfsr |= (next_bit << 15);
-		if (channel4.lfsr_width) { // if 7bit mode
-			channel4.lfsr &= ~(0x80);
-			channel4.lfsr |= (next_bit << 7);
-		}
-		channel4.lfsr >>= 1;
-		channel4.ticks = 0;
-	}
-}
-
-uint8_t generate_pulse_channel(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
@@ -208,24 +204,23 @@ uint8_t generate_pulse_channel(struct Channel *channel) {
 		return 0;
 }
 
-uint8_t generate_wave_channel(struct Channel *channel) {
+uint8_t channel_output_wave(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
 	uint8_t data = 0;
-	uint8_t wave_data = channel->wave_data[channel->wave_index / 2];
 	if (channel->wave_index % 2)
-		data = wave_data & 0x0F;
+		data = channel->wave_data[channel->wave_index / 2] & 0x0F;
 	else
-		data = wave_data >> 4;
+		data = channel->wave_data[channel->wave_index / 2] >> 4;
 
-	if (channel->volume_level == 0)
-		return 0;
-	else
+	if (channel->volume_level)
 		return data >> (channel->volume_level - 1);
+	else
+		return 0;
 }
 
-uint8_t generate_noise_channel(struct Channel *channel) {
+uint8_t channel_output_noise(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
@@ -273,33 +268,31 @@ AudioSample buttersworth_filter_right(AudioSample x) {
 	return (AudioSample)(y0 * 32767.0);
 }
 
-double j = 0.0;
-
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
+	AudioSample left, right;
+	AudioSample sample1, sample2, sample3, sample4;
 
 	for (int i = 0; i < frame_count; i++) {
 		if (!master_controls.apu_enabled) {
-			samples[i] = 0;
+			samples[2 * i + 0] = 0;
+			samples[2 * i + 1] = 0;
 			continue;
 		}
 
-		AudioSample left = 0, right = 0;
-		AudioSample sample1 = 0, sample2 = 0, sample3 = 0, sample4 = 0;
-
 		for (int k = 0; k < 5; k++) {
-			for (; j < DECIMATION_FACTOR; j++) {
-				apu_tick_clocks();
-				tick_channels();
+			static double decimation_counter = 0.0;
+			while (decimation_counter < DECIMATION_FACTOR) {
+				tick_apu();
+				decimation_counter++;
 			}
+			decimation_counter -= DECIMATION_FACTOR;
 
 			// Each channel is in the range [0, 15]
-			sample1 = generate_pulse_channel(&channel1);
-			sample2 = generate_pulse_channel(&channel2);
-			sample3 = generate_wave_channel(&channel3);
-			sample4 = generate_noise_channel(&channel4);
-
-			j -= DECIMATION_FACTOR;
+			sample1 = channel_output_pulse(&channel1);
+			sample2 = channel_output_pulse(&channel2);
+			sample3 = channel_output_wave(&channel3);
+			sample4 = channel_output_noise(&channel4);
 
 			// Adjust the samples to be [-15, 15]
 			sample1 = 2 * sample1 - 15;
@@ -470,6 +463,10 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 		channel4.lfsr_clock_divider = value & 0x07;
 		channel4.lfsr_width = (value >> 3) & 0x01;
 		channel4.lfsr_clock_shift = value >> 4;
+		if (!channel4.lfsr_clock_divider)
+			channel4.period_value = 4 * (1 << channel4.lfsr_clock_shift);
+		else
+			channel4.period_value = 8 * (channel4.lfsr_clock_divider * (1 << channel4.lfsr_clock_shift));
 		return;
 
 	case SOUND_NR44:
