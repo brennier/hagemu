@@ -96,40 +96,37 @@ void tick_envelope(struct Channel *channel) {
 	}
 }
 
-void tick_channels() {
-	channel1.ticks++;
-	if (channel1.ticks > 2 * (2048 - channel1.period_value)) {
-		channel1.ticks = 0;
-		channel1.duty_wave_index++;
-		channel1.duty_wave_index %= 8;
+void tick_pulse_channel(struct Channel *channel) {
+	channel->ticks++;
+	if (channel->ticks > 2 * (2048 - channel->period_value)) {
+		channel->ticks = 0;
+		channel->duty_wave_index++;
+		channel->duty_wave_index %= 8;
 	}
+}
 
-	channel2.ticks++;
-	if (channel2.ticks > 2 * (2048 - channel2.period_value)) {
-		channel2.ticks = 0;
-		channel2.duty_wave_index++;
-		channel2.duty_wave_index %= 8;
+void tick_wave_channel(struct Channel *channel) {
+	channel->ticks++;
+	if (channel->ticks > 2048 - channel->period_value) {
+		channel->ticks = 0;
+		channel->wave_index++;
+		channel->wave_index %= 32;
 	}
+}
 
-	channel3.ticks++;
-	if (channel3.ticks > 2048 - channel3.period_value) {
-		channel3.ticks = 0;
-		channel3.wave_index++;
-		channel3.wave_index %= 32;
-	}
-
-	channel4.ticks++;
-	if (channel4.ticks > channel4.period_value) {
-		channel4.ticks = 0;
-		bool next_bit = (channel4.lfsr ^ (channel4.lfsr >> 1)) & 0x01;
+void tick_noise_channel(struct Channel *channel) {
+	channel->ticks++;
+	if (channel->ticks > channel->period_value) {
+		channel->ticks = 0;
+		bool next_bit = (channel->lfsr ^ (channel->lfsr >> 1)) & 0x01;
 		next_bit = !next_bit;
-		channel4.lfsr &= ~(0x8000);
-		channel4.lfsr |= (next_bit << 15);
-		if (channel4.lfsr_width) { // if 7bit mode
-			channel4.lfsr &= ~(0x80);
-			channel4.lfsr |= (next_bit << 7);
+		channel->lfsr &= ~(0x8000);
+		channel->lfsr |= (next_bit << 15);
+		if (channel->lfsr_width) { // if 7bit mode
+			channel->lfsr &= ~(0x80);
+			channel->lfsr |= (next_bit << 7);
 		}
-		channel4.lfsr >>= 1;
+		channel->lfsr >>= 1;
 	}
 }
 
@@ -137,7 +134,11 @@ void tick_apu() {
 	static unsigned apu_ticks;
 	static unsigned apu_clock_step;
 
-	tick_channels();
+	tick_pulse_channel(&channel1);
+	tick_pulse_channel(&channel2);
+	tick_wave_channel(&channel3);
+	tick_noise_channel(&channel4);
+
 	apu_ticks++;
 	if (apu_ticks > AUDIO_SAMPLE_RATE / 512) {
 		apu_ticks = 0;
