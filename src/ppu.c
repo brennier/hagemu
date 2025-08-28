@@ -36,7 +36,7 @@ bool window_triggered = false;
 void ppu_draw_scanline();
 void ppu_draw_sprites();
 void ppu_draw_background();
-void ppu_draw_window(uint8_t bg_row, int bg_col);
+void ppu_draw_window();
 
 enum PPUMode {
 	HBLANK,
@@ -113,129 +113,93 @@ bool ppu_frame_finished(int current_cycle) {
 	return current_cycle > 70224;
 }
 
+R5G5B5A1 apply_color(unsigned color_index, uint8_t palette_data) {
+	uint8_t default_color_index = (palette_data >> 2 * color_index) & 0x03;
+	return ppu_default_colors[default_color_index];
+}
+
 void ppu_draw_scanline() {
+	// Clear the line with default background color
+	for (int i = 0; i < 160; i++) {
+		line_buffer_indices[i]  = 0;
+		line_buffer_palettes[i] = 0;
+	}
+
+	if (mmu_read(WIN_SCROLL_Y) == current_line)
+		window_triggered = true;
+
 	if (mmu_get_bit(BG_ENABLE)) {
 		ppu_draw_background();
 
-		if (mmu_read(WIN_SCROLL_Y) == current_line)
-			window_triggered = true;
-
-		int win_start_col = mmu_read(WIN_SCROLL_X) - 7;
-		if (window_triggered && mmu_get_bit(WINDOW_ENABLE) && win_start_col < 160) {
-			ppu_draw_window(current_window_line, win_start_col);
-			current_window_line++;
-		}
-	} else {
-		for (int i = 0; i < 160; i++)
-			screen_buffer[current_line][i] = ppu_default_colors[0];
+		if (window_triggered && mmu_get_bit(WINDOW_ENABLE))
+			ppu_draw_window();
 	}
 
 	if (mmu_get_bit(OBJECTS_ENABLE))
 		ppu_draw_sprites();
 
-	for (int i = 0; i < 160; i++) {
-		uint8_t color_index = line_buffer_indices[i];
-		uint8_t palette = line_buffer_palettes[i];
-		color_index = (palette >> 2 * color_index) & 0x03;
-		screen_buffer[current_line][i] = ppu_default_colors[color_index];
-	}
+	for (int i = 0; i < 160; i++)
+		screen_buffer[current_line][i] = apply_color(line_buffer_indices[i], line_buffer_palettes[i]);
+}
+
+uint16_t get_color_index(uint16_t map_area_start, uint16_t data_block_start, unsigned row, unsigned col) {
+	int map_row = row / 8;
+	int map_col = col / 8;
+	int tile_pixel_row = row % 8;
+	int tile_pixel_col = col % 8;
+
+	// Get tile index
+	uint8_t tile_index = mmu_read(map_area_start + 32 * map_row + map_col);
+
+	// Convert tile index to raw tile data
+	uint16_t data_block_1 = data_block_start;
+	uint16_t data_block_2 = 0x8800;
+	uint16_t tile_start;
+	if (tile_index < 128)
+		tile_start = data_block_1 + 16 * tile_index + 2 * tile_pixel_row;
+	else
+		tile_start = data_block_2 + 16 * (tile_index - 128) + 2 * tile_pixel_row;
+
+	// Get the relevant bits from the bit plane
+	uint8_t bit_plane0 = mmu_read(tile_start);
+	uint8_t bit_plane1 = mmu_read(tile_start + 1);
+	bit_plane0 >>= 7 - tile_pixel_col;
+	bit_plane1 >>= 7 - tile_pixel_col;
+	bit_plane0 &= 0x01;
+	bit_plane1 &= 0x01;
+
+	// Return the color index
+	return (bit_plane1 << 1) | bit_plane0;
 }
 
 void ppu_draw_background() {
-	// Get tile indices
-	uint8_t tile_indices[32];
-	uint8_t bg_row = current_line + mmu_read(BG_SCROLL_Y);
-	int tile_index_row = bg_row / 8;
-	int tile_pixel_row = bg_row % 8;
-	uint16_t tile_map_start = mmu_get_bit(BG_TILE_MAP_AREA) ? 0x9C00 : 0x9800;
-
-	for (int col = 0; col < 32; col++)
-		tile_indices[col] = mmu_read(tile_map_start + 32 * tile_index_row + col);
-
-	// Convert indices to raw tile data
-	uint8_t raw_tile_data[32 * 2];
-	uint16_t data_block_1 = mmu_get_bit(BG_TILE_DATA_AREA) ? 0x8000 : 0x9000;
-	uint16_t data_block_2 = 0x8800;
-
-	for (int col = 0; col < 32; col++) {
-		uint16_t tile_start;
-		if (tile_indices[col] < 128)
-			tile_start = data_block_1 + 16 * tile_indices[col] + 2 * tile_pixel_row;
-		else
-			tile_start = data_block_2 + 16 * (tile_indices[col] - 128) + 2 * tile_pixel_row;
-		raw_tile_data[2 * col] = mmu_read(tile_start);
-		raw_tile_data[2 * col + 1] = mmu_read(tile_start + 1);
-	}
-
-	// Convert raw tile data into 2bpp format
-	uint16_t tile_data[256];
-	for (int i = 0; i < 64; i += 2) {
-		uint8_t byte1 = raw_tile_data[i];
-		uint8_t byte2 = raw_tile_data[i + 1];
-		for (int col = 0; col < 8; col++) {
-			bool bit1 = (byte1 & 0x80) >> 7;
-			bool bit2 = (byte2 & 0x80) >> 7;
-			tile_data[i * 4 + col] = (bit2 << 1) | bit1;
-			byte1 <<= 1;
-			byte2 <<= 1;
-		}
-	}
-
-	uint8_t bg_start_col = mmu_read(BG_SCROLL_X);
-	uint16_t cropped_tile_data[160];
-	for (int i = 0; i < 160; i++)
-		cropped_tile_data[i] = tile_data[((uint8_t)bg_start_col + i) % 256];
+	uint16_t tile_map_start = mmu_get_bit(BG_TILE_MAP_AREA)  ? 0x9C00 : 0x9800;
+	uint16_t data_block_1   = mmu_get_bit(BG_TILE_DATA_AREA) ? 0x8000 : 0x9000;
+	uint8_t  bg_row         = (current_line + mmu_read(BG_SCROLL_Y)) % 256;
 
 	for (int i = 0; i < 160; i++) {
-		line_buffer_indices[i] = cropped_tile_data[i];
+		uint8_t bg_col = (mmu_read(BG_SCROLL_X) + i) % 256;
+		line_buffer_indices[i] = get_color_index(tile_map_start, data_block_1, bg_row, bg_col);
 		line_buffer_palettes[i] = mmu_read(BG_PALETTE);
 	}
 }
 
-void ppu_draw_window(uint8_t window_row, int col_start) {
-	// Get tile indices
-	uint8_t tile_indices[32];
-	int tile_index_row = window_row / 8;
-	int tile_pixel_row = window_row % 8;
-	uint16_t tile_map_start = mmu_get_bit(WINDOW_TILE_MAP_AREA) ? 0x9C00 : 0x9800;
+void ppu_draw_window() {
+	uint16_t tile_map_start   = mmu_get_bit(WINDOW_TILE_MAP_AREA) ? 0x9C00 : 0x9800;
+	uint16_t data_block_1     = mmu_get_bit(BG_TILE_DATA_AREA) ? 0x8000 : 0x9000;
+	uint8_t  window_row       = current_window_line;
+	int      window_col_start = mmu_read(WIN_SCROLL_X) - 7;
 
-	for (int col = 0; col < 32; col++)
-		tile_indices[col] = mmu_read(tile_map_start + 32 * tile_index_row + col);
-
-	// Convert indices to raw tile data
-	uint8_t raw_tile_data[32 * 2];
-	uint16_t data_block_1 = mmu_get_bit(BG_TILE_DATA_AREA) ? 0x8000 : 0x9000;
-	uint16_t data_block_2 = 0x8800;
-
-	for (int col = 0; col < 32; col++) {
-		uint16_t tile_start;
-		if (tile_indices[col] < 128)
-			tile_start = data_block_1 + 16 * tile_indices[col] + 2 * tile_pixel_row;
-		else
-			tile_start = data_block_2 + 16 * (tile_indices[col] - 128) + 2 * tile_pixel_row;
-		raw_tile_data[2 * col] = mmu_read(tile_start);
-		raw_tile_data[2 * col + 1] = mmu_read(tile_start + 1);
-	}
-
-	// Convert raw tile data into 2bpp format
-	uint16_t tile_data[256];
-	for (int i = 0; i < 64; i += 2) {
-		uint8_t byte1 = raw_tile_data[i];
-		uint8_t byte2 = raw_tile_data[i + 1];
-		for (int col = 0; col < 8; col++) {
-			bool bit1 = (byte1 & 0x80) >> 7;
-			bool bit2 = (byte2 & 0x80) >> 7;
-			tile_data[i * 4 + col] = (bit2 << 1) | bit1;
-			byte1 <<= 1;
-			byte2 <<= 1;
-		}
-	}
-
-	for (int i = col_start; i < 160; i++) {
+	for (int i = window_col_start; i < 160; i++) {
 		if (i < 0) continue;
-		line_buffer_indices[i]  = tile_data[i - col_start];
+		uint8_t window_col = (i - window_col_start) % 256;
+		line_buffer_indices[i] = get_color_index(tile_map_start, data_block_1, window_row, window_col);
 		line_buffer_palettes[i] = mmu_read(BG_PALETTE);
 	}
+
+	// If the window was actually displayed at all, increment the window counter
+	if (window_col_start < 160)
+		current_window_line++;
 }
 
 
@@ -342,3 +306,4 @@ void ppu_draw_sprites() {
 R5G5B5A1* ppu_get_frame() {
 	return (R5G5B5A1*)screen_buffer;
 }
+
