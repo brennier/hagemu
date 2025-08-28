@@ -46,7 +46,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [x] Downsample from 2MHz to 48kHz
   - [x] Implement a IIR butterworth low pass filter to cut down on audio aliasing
   - [x] Synchronize the sample rates of the individual sound channels
- - [x] Finish Master controls
+  - [x] Finish Master controls
     - [x] Turn APU on/off
     - [x] Mono volume control
     - [x] Panning left/right per channel
@@ -76,6 +76,7 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
     - [x] Reset trigger
     - [x] Length timer
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
+  - [ ] Separate MBC code into its own file
   - [x] MCB1 (Basic support)
   - [ ] MCB1 (Full support)
   - [x] MCB3 (except for Real Time Clock)
@@ -156,3 +157,10 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - General info: https://hacktix.github.io/GBEDG/
   - Timing of the LYC STAT: https://gbdev.io/guides/lyc_timing.html
   - Custom bootrom: https://github.com/Hacktix/Bootix
+- Links about MBC3's real-time clock
+  - MBC3 .sav format: https://bgb.bircd.org/rtcsave.html
+  - MBC3 RTC test rom: https://github.com/aaaaaa123456789/rtc3test
+  - Discussion about MBC3 RTC: https://www.reddit.com/r/EmuDev/comments/12vk8io/gameboy_color_mbc3_rtc/
+  - MBC3 Pandocs: https://gbdev.io/pandocs/MBC3.html
+  - More detail about the implementation: https://hacktix.github.io/GBEDG/mbcs/mbc3/ 
+
