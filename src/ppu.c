@@ -27,7 +27,9 @@ R5G5B5A1 convert_color(unsigned red, unsigned green, unsigned blue) {
 
 R5G5B5A1 screen_buffer[144][160];
 
-bool is_background_nonzero[160];
+uint8_t line_buffer_indices[160];
+uint8_t line_buffer_palettes[160];
+
 int current_line = 0;
 int current_window_line = 0;
 bool window_triggered = false;
@@ -35,7 +37,6 @@ void ppu_draw_scanline();
 void ppu_draw_sprites();
 void ppu_draw_background();
 void ppu_draw_window(uint8_t bg_row, int bg_col);
-void apply_palette(uint16_t *array_2bbp, int array_length, uint16_t palette_location);
 
 enum PPUMode {
 	HBLANK,
@@ -132,6 +133,12 @@ void ppu_draw_scanline() {
 	if (mmu_get_bit(OBJECTS_ENABLE))
 		ppu_draw_sprites();
 
+	for (int i = 0; i < 160; i++) {
+		uint8_t color_index = line_buffer_indices[i];
+		uint8_t palette = line_buffer_palettes[i];
+		color_index = (palette >> 2 * color_index) & 0x03;
+		screen_buffer[current_line][i] = ppu_default_colors[color_index];
+	}
 }
 
 void ppu_draw_background() {
@@ -179,18 +186,10 @@ void ppu_draw_background() {
 	for (int i = 0; i < 160; i++)
 		cropped_tile_data[i] = tile_data[((uint8_t)bg_start_col + i) % 256];
 
-	for (int i = 0; i < 160; i++)
-		if (cropped_tile_data[i] != 0)
-			is_background_nonzero[i] = true;
-		else
-			is_background_nonzero[i] = false;
-
-	// Convert 2bpp format to RGBA5551 format
-	apply_palette(cropped_tile_data, 160, BG_PALETTE);
-
-	// Copy scanline to screen_buffer
-	for (int i = 0; i < 160; i++)
-		screen_buffer[current_line][i] = cropped_tile_data[i];
+	for (int i = 0; i < 160; i++) {
+		line_buffer_indices[i] = cropped_tile_data[i];
+		line_buffer_palettes[i] = mmu_read(BG_PALETTE);
+	}
 }
 
 void ppu_draw_window(uint8_t window_row, int col_start) {
@@ -232,22 +231,10 @@ void ppu_draw_window(uint8_t window_row, int col_start) {
 		}
 	}
 
-	uint16_t cropped_tile_data[160];
 	for (int i = col_start; i < 160; i++) {
-		if (i < 0)
-			continue;
-		cropped_tile_data[i] = tile_data[i - col_start];
-		if (cropped_tile_data[i] != 0)
-			is_background_nonzero[i] = true;
-		else
-			is_background_nonzero[i] = false;
-	}
-
-	apply_palette(cropped_tile_data + col_start, 160 - col_start, BG_PALETTE);
-	for (int i = col_start; i < 160; i++) {
-		if (i < 0)
-			continue;
-		screen_buffer[current_line][i] = cropped_tile_data[i];
+		if (i < 0) continue;
+		line_buffer_indices[i]  = tile_data[i - col_start];
+		line_buffer_palettes[i] = mmu_read(BG_PALETTE);
 	}
 }
 
@@ -334,49 +321,24 @@ void ppu_draw_sprites() {
 				sprite_pixels[col] = (bit2 << 1) | bit1;
 		}
 
-		uint16_t colored_sprite_pixels[8];
-		for (int i = 0; i < 8; i++)
-			colored_sprite_pixels[i] = sprite_pixels[i];
-
-		if (palette_select)
-			apply_palette(colored_sprite_pixels, 8, OBJ1_PALETTE);
-		else
-			apply_palette(colored_sprite_pixels, 8, OBJ0_PALETTE);
-
 		for (int i = 0; i < 8; i++) {
 			if (x_position + i < 0 || x_position + i >= 160)
 				continue;
 			else if (sprite_pixels[i] == 0)
 				continue;
-			else if (background_has_priority && is_background_nonzero[x_position + i])
+			else if (background_has_priority && line_buffer_indices[x_position + i])
 				continue;
 			else
-				screen_buffer[current_line][x_position + i] = colored_sprite_pixels[i];
+				line_buffer_indices[x_position + i] = sprite_pixels[i];
+
+			if (palette_select)
+				line_buffer_palettes[x_position + i] = mmu_read(OBJ1_PALETTE);
+			else
+				line_buffer_palettes[x_position + i] = mmu_read(OBJ0_PALETTE);
 		}
 	}
 }
 
 R5G5B5A1* ppu_get_frame() {
 	return (R5G5B5A1*)screen_buffer;
-}
-
-void apply_palette(uint16_t *array_2bbp, int array_length, uint16_t palette_location) {
-	uint8_t palette_data = mmu_read(palette_location);
-	R5G5B5A1 palette_color0 = ppu_default_colors[palette_data & 0x03];
-	palette_data >>= 2;
-	R5G5B5A1 palette_color1 = ppu_default_colors[palette_data & 0x03];
-	palette_data >>= 2;
-	R5G5B5A1 palette_color2 = ppu_default_colors[palette_data & 0x03];
-	palette_data >>= 2;
-	R5G5B5A1 palette_color3 = ppu_default_colors[palette_data & 0x03];
-
-	for (int i = 0; i < array_length; i++) {
-		switch (array_2bbp[i]) {
-
-			case 0: array_2bbp[i] = palette_color0; break;
-			case 1: array_2bbp[i] = palette_color1; break;
-			case 2: array_2bbp[i] = palette_color2; break;
-			case 3: array_2bbp[i] = palette_color3; break;
-		}
-	}
 }
