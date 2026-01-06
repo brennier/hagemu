@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 #include "mmu.h"
 #include "clock.h"
 #include "ppu.h"
@@ -297,69 +299,61 @@ const int ram_size_table[] = {
 
 #ifdef PLATFORM_WEB
 char* get_sram_name(char* rom_name) {
-	char* sram_name = NULL;
-	char* rom_name_end = rom_name;
-	char* rom_name_start = rom_name;
+	// Returns the string "/savedata/[basename].sav" where [basename] is the basename part of rom_name.
+	// It is up to the caller to free the memory for the string.
+	char* basename_begin = strrchr(rom_name, '/');
+	char* basename_end = strrchr(rom_name, '.');
 
-	while (*rom_name_end)
-		rom_name_end++;
-	while (*rom_name_end != '.')
-		rom_name_end--;
+	if (basename_begin == NULL)
+		basename_begin = rom_name;
+	else
+		basename_begin++;
 
-	rom_name_start = rom_name_end;
-	while (rom_name_start > rom_name && *rom_name_start != '/')
-		rom_name_start--;
+	size_t basename_length;
+	if (basename_end != NULL)
+		basename_length = basename_end - basename_begin;
+	else
+		basename_length = strlen(basename_begin);
 
-	if (*rom_name_start == '/')
-		rom_name_start++;
+	// The new length is the basename_length plus "/savedata/" plus ".sav" plus 1 for '\0'
+	size_t sram_name_length = basename_length + strlen("/savedata/") + strlen(".sav") + 1;
+	char* sram_name = malloc(sram_name_length * sizeof(char));
 
-	size_t rom_name_length = rom_name_end - rom_name_start;
-	sram_name = malloc(10 + rom_name_length + 5);
-	char *sram_name_pos = sram_name;
-	*(sram_name_pos++) = '/';
-	*(sram_name_pos++) = 's';
-	*(sram_name_pos++) = 'a';
-	*(sram_name_pos++) = 'v';
-	*(sram_name_pos++) = 'e';
-	*(sram_name_pos++) = 'd';
-	*(sram_name_pos++) = 'a';
-	*(sram_name_pos++) = 't';
-	*(sram_name_pos++) = 'a';
-	*(sram_name_pos++) = '/';
+	if (sram_name == NULL) {
+		printf("Warning: Failed to allocate memory for the save data file name.\n");
+		return NULL;
+	}
 
-	while (rom_name_start != rom_name_end)
-		*(sram_name_pos++) = *(rom_name_start++);
-
-	*(sram_name_pos++) = '.';
-	*(sram_name_pos++) = 's';
-	*(sram_name_pos++) = 'a';
-	*(sram_name_pos++) = 'v';
-	*(sram_name_pos++) = '\0';
+	strcpy(sram_name, "/savedata/");
+	strncat(sram_name, basename_begin, basename_length);
+	sram_name[strlen("/savedata/") + basename_length] = '\0'; // Manually null-terminate result
+	strcat(sram_name, ".sav");
 
 	return sram_name;
 }
 #else
 char* get_sram_name(char* rom_name) {
-	char* sram_name = NULL;
-	char* rom_name_end = rom_name;
+	// Creates a new string by copying the rom_name replacing the extension with '.sav'
+	char* last_dot = strrchr(rom_name, '.');
 
-	while (*rom_name_end)
-		rom_name_end++;
-	while (*rom_name_end != '.')
-		rom_name_end--;
+	size_t basename_length;
+	if (last_dot != NULL)
+		basename_length = last_dot - rom_name;
+	else
+		basename_length = strlen(rom_name);
 
-	size_t rom_name_length = rom_name_end - rom_name;
+	// The new length is the basename_length plus five characters (4 for ".sav" and 1 for '\0')
+	size_t sram_name_length = basename_length + strlen(".sav") + 1;
+	char* sram_name = malloc(sram_name_length * sizeof(char));
 
-	sram_name = malloc(rom_name_length + 5);
-	char* sram_name_pos = sram_name;
-	while (rom_name != rom_name_end)
-		*(sram_name_pos++) = *(rom_name++);
+	if (sram_name == NULL) {
+		printf("Warning: Failed to allocate memory for the save data file name.\n");
+		return NULL;
+	}
 
-	*(sram_name_pos++) = '.';
-	*(sram_name_pos++) = 's';
-	*(sram_name_pos++) = 'a';
-	*(sram_name_pos++) = 'v';
-	*(sram_name_pos++) = '\0';
+	strncpy(sram_name, rom_name, basename_length);
+	sram_name[basename_length] = '\0'; // Manually null-terminate result
+	strcat(sram_name, ".sav");
 
 	return sram_name;
 }
