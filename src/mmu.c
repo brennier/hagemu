@@ -302,23 +302,20 @@ char* get_sram_name(char* rom_name) {
 	// Returns the string "/savedata/[basename].sav" where [basename] is the basename part of rom_name.
 	// It is up to the caller to free the memory for the string.
 	char* basename_begin = strrchr(rom_name, '/');
-	char* basename_end = strrchr(rom_name, '.');
-
 	if (basename_begin == NULL)
 		basename_begin = rom_name;
 	else
 		basename_begin++;
 
+	char* basename_end = strrchr(rom_name, '.');
 	size_t basename_length;
 	if (basename_end != NULL)
 		basename_length = basename_end - basename_begin;
 	else
 		basename_length = strlen(basename_begin);
 
-	// The new length is the basename_length plus "/savedata/" plus ".sav" plus 1 for '\0'
-	size_t sram_name_length = basename_length + strlen("/savedata/") + strlen(".sav") + 1;
-	char* sram_name = malloc(sram_name_length * sizeof(char));
-
+	// Allocate memory for the full sram_path (remember to add 1 for '\0')
+	char* sram_name = malloc(strlen("/savedata/") + basename_length + strlen(".sav") + 1);
 	if (sram_name == NULL) {
 		printf("Warning: Failed to allocate memory for the save data file name.\n");
 		return NULL;
@@ -333,28 +330,25 @@ char* get_sram_name(char* rom_name) {
 }
 #else
 char* get_sram_name(char* rom_name) {
-	// Creates a new string by copying the rom_name replacing the extension with '.sav'
-	char* last_dot = strrchr(rom_name, '.');
-
-	size_t basename_length;
-	if (last_dot != NULL)
-		basename_length = last_dot - rom_name;
-	else
-		basename_length = strlen(rom_name);
-
-	// The new length is the basename_length plus five characters (4 for ".sav" and 1 for '\0')
-	size_t sram_name_length = basename_length + strlen(".sav") + 1;
-	char* sram_name = malloc(sram_name_length * sizeof(char));
-
+	char* sram_name = strdup(rom_name);
 	if (sram_name == NULL) {
 		printf("Warning: Failed to allocate memory for the save data file name.\n");
 		return NULL;
 	}
 
-	strncpy(sram_name, rom_name, basename_length);
-	sram_name[basename_length] = '\0'; // Manually null-terminate result
-	strcat(sram_name, ".sav");
+	// Remove the extension if present
+	char* last_dot = strrchr(sram_name, '.');
+	if (last_dot != NULL)
+		*last_dot = '\0';
 
+	// Adjust the allocated size of sram_name to fit the ".sav" and the final NULL
+	sram_name = realloc(sram_name, strlen(sram_name) + strlen(".sav") + 1);
+	if (sram_name == NULL) {
+		printf("Warning: Failed to allocate memory for the save data file name.\n");
+		return NULL;
+	}
+
+	strcat(sram_name, ".sav");
 	return sram_name;
 }
 #endif
@@ -442,8 +436,7 @@ void mmu_load_rom(char* rom_name) {
 	printf("RAM size is %ld KiB\n", cartridge_ram_size / 1024);
 
 	// Reset the cartridge ram
-	for (int i = 0; i < MAX_SRAM_SIZE; i++)
-		cartridge_ram[i] = 0xFF;
+	memset(cartridge_ram, 0xFF, MAX_SRAM_SIZE);
 
 	switch (rom_memory[CARTRIDGE_TYPE]) {
 
