@@ -330,11 +330,12 @@ char* get_sram_name(char* rom_name) {
 }
 #else
 char* get_sram_name(char* rom_name) {
-	char* sram_name = strdup(rom_name);
+	char* sram_name = malloc(strlen(rom_name) + 1);
 	if (sram_name == NULL) {
 		printf("Warning: Failed to allocate memory for the save data file name.\n");
 		return NULL;
 	}
+	strcpy(sram_name, rom_name);
 
 	// Remove the extension if present
 	char* last_dot = strrchr(sram_name, '.');
