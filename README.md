@@ -1,8 +1,17 @@
-## Hagemu is a GameBoy emulator
+<h1><img align="center" height="75" src="hagemu_logo.png">Hagemu is a GameBoy emulator</h1>
 
-This is an attempt to write a GameBoy emulator in C99. This is a personal project to learn more about computers and emulation. Raylib is used to write the pixels and handle input. The end goal is to compile this project into WebAssembly using Emscripten. At the moment, this project is still a work in progress.
+This is an attempt to write a GameBoy emulator in C99. This is a personal project to learn more about computers and emulation. Raylib is used to write the pixels and handle input. Emscripten is used to compile the project into WebAssembly. At the moment, this project is still a work in progress.
+
+## You can run this emulator inside your web browser!
+You can try out this emulator in your web browser at this link: https://uezu.dev/projects/hagemu/
+
+Disclaimers:
+ - You need to use a keyboard or game controller. There is no key remapping or touch screen support at the moment.
+ - To run a .gb file, please drag and drop the file directly onto the web page.
 
 ### Tested games (no noticable glitches)
+Most original gameboy games should run fine. If you find any glitches, please let me know.
+The following games have been tested:
 - Tetris
 - Dr. Mario
 - Super Mario Land
@@ -10,7 +19,9 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
 - Zelda: Link's Awakening
 - Pokemon Red, Blue, and Yellow
 
-### Progress Report
+<details>
+  <summary><h3>Progress Report (click here to expand)</h3></summary>
+
 - [x] Finish the CPU
   - [x] Parse opcodes
   - [x] Implement double registers
@@ -148,6 +159,11 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - [ ] Extra work and video ram
   - [ ] HDMA features
   - [ ] Pass cgb-acid2
+</details>
+
+<details>
+  <summary><h3>Links for the future (click here to expand)</h3></summary>
+
 - Links for the future
   - Gameboy Color differences: https://jsgroth.dev/blog/posts/game-boy-color/
   - Gameboy Color PPU: https://github.com/mattcurrie/cgb-acid2
@@ -163,4 +179,4 @@ This is an attempt to write a GameBoy emulator in C99. This is a personal projec
   - Discussion about MBC3 RTC: https://www.reddit.com/r/EmuDev/comments/12vk8io/gameboy_color_mbc3_rtc/
   - MBC3 Pandocs: https://gbdev.io/pandocs/MBC3.html
   - More detail about the implementation: https://hacktix.github.io/GBEDG/mbcs/mbc3/ 
-
+</details>
