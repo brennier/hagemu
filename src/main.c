@@ -82,6 +82,11 @@ int main(int argc, char *argv[]) {
 		if (rom_loaded == false) {
 			BeginDrawing();
 			ClearBackground(GREEN1);
+			DrawText("Compilation Date: " __DATE__,
+				 SCALE_FACTOR,
+				 SCREEN_HEIGHT - 5 * SCALE_FACTOR,
+				 4 * SCALE_FACTOR,
+				 GREEN3);
 			DrawTextCentered(
 				"Please drop a .gb file onto this window",
 				SCREEN_WIDTH / 2,
