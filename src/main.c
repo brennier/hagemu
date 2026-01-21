@@ -33,20 +33,29 @@ void DrawTextCentered(char* text, int x, int y, int font_size, Color color) {
 		);
 }
 
+bool load_romfile(char* filename) {
+	printf("Loading the rom path '%s'\n", filename);
+	if (!FileExists(filename)) {
+		fprintf(stderr, "Error: The file '%s' doesn't exist\n", filename);
+		return false;
+	}
+	cpu_reset();
+	mmu_load_rom(filename);
+	return true;
+}
+
+bool load_dropped_file() {
+	if (IsFileDropped()) {
+		FilePathList dropped_files = LoadDroppedFiles();
+		bool result = load_romfile(dropped_files.paths[0]);
+		UnloadDroppedFiles(dropped_files);
+		return result;
+	}
+	return false;
+}
+
 int main(int argc, char *argv[]) {
 	web_setup_filesystem(); // Does nothing unless PLATFORM_WEB is defined
-	bool rom_loaded = false;
-
-	if (argc == 2) {
-		printf("Loading the rom path '%s'\n", argv[1]);
-		mmu_load_rom(argv[1]);
-		rom_loaded = true;
-		cpu_reset();
-	}
-	else if (argc > 2) {
-		fprintf(stderr, "Error: Too many arguments\n");
-		exit(EXIT_FAILURE);
-	}
 
 	SetTraceLogLevel(LOG_WARNING);
 	SetTargetFPS(60);
@@ -69,35 +78,40 @@ int main(int argc, char *argv[]) {
 	Texture2D background_texture = LoadTextureFromImage(background_image);
 	UnloadImage(background_image);
 
-	while (WindowShouldClose() != true) {
-		if (IsFileDropped()) {
-			FilePathList dropped_files = LoadDroppedFiles();
-			printf("Loading the rom path '%s'\n", dropped_files.paths[0]);
-			mmu_load_rom(dropped_files.paths[0]);
-			UnloadDroppedFiles(dropped_files);
-			rom_loaded = true;
-			cpu_reset();
-		}
+	bool rom_loaded = false;
+	if (argc == 2) {
+		rom_loaded = load_romfile(argv[1]);
+	} else if (argc > 2) {
+		fprintf(stderr, "Error: Too many arguments\n");
+		exit(EXIT_FAILURE);
+	}
 
-		if (rom_loaded == false) {
-			BeginDrawing();
-			ClearBackground(GREEN1);
-			DrawText("Compilation Date: " __DATE__,
-				 SCALE_FACTOR,
-				 SCREEN_HEIGHT - 5 * SCALE_FACTOR,
-				 4 * SCALE_FACTOR,
-				 GREEN3);
-			DrawTextCentered(
-				"Please drop a .gb file onto this window",
-				SCREEN_WIDTH / 2,
-				SCREEN_HEIGHT / 2,
-				7 * SCALE_FACTOR,
-				GREEN3
-				);
-			DrawFPS(10, 10);
-			EndDrawing();
-			continue;
-		}
+	while (WindowShouldClose() != true && !rom_loaded) {
+		BeginDrawing();
+		ClearBackground(GREEN1);
+		DrawText("Compilation Date: " __DATE__,
+			 SCALE_FACTOR,
+			 SCREEN_HEIGHT - 5 * SCALE_FACTOR,
+			 4 * SCALE_FACTOR,
+			 GREEN3);
+		DrawTextCentered(
+			"Please drop a .gb file onto this window",
+			SCREEN_WIDTH / 2,
+			SCREEN_HEIGHT / 2,
+			7 * SCALE_FACTOR,
+			GREEN3
+			);
+		DrawFPS(10, 10);
+		EndDrawing();
+
+		if (load_dropped_file())
+			rom_loaded = true;
+	}
+
+	while (WindowShouldClose() != true) {
+		load_dropped_file();
+
+		set_emulator_inputs();
 
 		mmu_joypad_inputs[JOYPAD_RIGHT]  = IsKeyDown(KEY_RIGHT) | IsKeyDown(KEY_D);
 		mmu_joypad_inputs[JOYPAD_LEFT]   = IsKeyDown(KEY_LEFT)  | IsKeyDown(KEY_A);
