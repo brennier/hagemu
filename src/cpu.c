@@ -7,43 +7,45 @@
 
 // When using cpu.reg.f or cpu.wreg.af,
 // make sure to call update_f_register() and/or update_f_flags()
-union {
+union HagemuCPU {
 	// Regular 8-bit registers
 	struct {
 		uint8_t f, a, c, b, e, d, l, h;
 	} reg;
+
 	// Wide 16-bit registers
 	struct {
 		uint16_t af, bc, de, hl, sp, pc;
 	} wreg;
+
+	struct {
+		uint16_t padding[6];
+		// flags that correspond to the f register
+		bool carry;
+		bool half_carry;
+		bool subtract;
+		bool zero;
+
+		// other misc flags
+		bool master_interrupt;
+		bool master_interrupt_pending;
+		bool is_halted;
+	} flags;
 } cpu = { 0 };
-
-struct {
-	// flags that correspond to the f register
-	bool carry;
-	bool half_carry;
-	bool subtract;
-	bool zero;
-
-	// other misc flags
-	bool master_interrupt;
-	bool master_interrupt_pending;
-	bool is_halted;
-} cpu_flags = { 0 };
 
 static inline void update_f_register() {
 	cpu.reg.f = 0;
-	cpu.reg.f |= cpu_flags.carry << 4;
-	cpu.reg.f |= cpu_flags.half_carry << 5;
-	cpu.reg.f |= cpu_flags.subtract << 6;
-	cpu.reg.f |= cpu_flags.zero << 7;
+	cpu.reg.f |= cpu.flags.carry << 4;
+	cpu.reg.f |= cpu.flags.half_carry << 5;
+	cpu.reg.f |= cpu.flags.subtract << 6;
+	cpu.reg.f |= cpu.flags.zero << 7;
 }
 
 static inline void update_f_flags() {
-	cpu_flags.carry      = cpu.reg.f & (0x01 << 4);
-	cpu_flags.half_carry = cpu.reg.f & (0x01 << 5);
-	cpu_flags.subtract   = cpu.reg.f & (0x01 << 6);
-	cpu_flags.zero       = cpu.reg.f & (0x01 << 7);
+	cpu.flags.carry      = cpu.reg.f & (0x01 << 4);
+	cpu.flags.half_carry = cpu.reg.f & (0x01 << 5);
+	cpu.flags.subtract   = cpu.reg.f & (0x01 << 6);
+	cpu.flags.zero       = cpu.reg.f & (0x01 << 7);
 }
 
 void cpu_reset() {
@@ -60,9 +62,9 @@ void cpu_reset() {
 	cpu.wreg.pc = 0x0100;
 
 	// Various flags
-	cpu_flags.master_interrupt = false;
-	cpu_flags.master_interrupt_pending = false;
-	cpu_flags.is_halted = false;
+	cpu.flags.master_interrupt = false;
+	cpu.flags.master_interrupt_pending = false;
+	cpu.flags.is_halted = false;
 	update_f_flags();
 }
 
@@ -157,7 +159,7 @@ static void handle_interrupts() {
 	if (!interrupts) return;
 
 	increment_clock(2);
-	cpu_flags.master_interrupt = false;
+	cpu.flags.master_interrupt = false;
 	push_stack(cpu.wreg.pc);
 
 	if (interrupts & 0x01) {
@@ -187,10 +189,10 @@ static inline uint8_t op_rlc(uint8_t value) {
 	int highest_bit = value >> 7;
 	value <<= 1;
 	value |= highest_bit;
-	cpu_flags.carry      = highest_bit;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	cpu.flags.carry      = highest_bit;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	return value;
 }
 
@@ -198,42 +200,42 @@ static inline uint8_t op_rrc(uint8_t value) {
 	int lowest_bit = value & 0x01;
 	value >>= 1;
 	value |= (lowest_bit << 7);
-	cpu_flags.carry      = lowest_bit;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	cpu.flags.carry      = lowest_bit;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	return value;
 }
 
 static inline uint8_t op_rr(uint8_t value) {
 	int lowest_bit = value & 0x01;
 	value >>= 1;
-	value |= (cpu_flags.carry << 7);
-	cpu_flags.carry      = lowest_bit;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	value |= (cpu.flags.carry << 7);
+	cpu.flags.carry      = lowest_bit;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	return value;
 }
 
 static inline uint8_t op_rl(uint8_t value) {
 	int highest_bit = value >> 7;
 	value <<= 1;
-	value |= cpu_flags.carry;
-	cpu_flags.carry      = highest_bit;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	value |= cpu.flags.carry;
+	cpu.flags.carry      = highest_bit;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	return value;
 }
 
 static inline uint8_t op_sla(uint8_t value) {
 	int highest_bit = value >> 7;
 	value <<= 1;
-	cpu_flags.carry      = highest_bit;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	cpu.flags.carry      = highest_bit;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	return value;
 }
 
@@ -242,19 +244,19 @@ static inline uint8_t op_sra(uint8_t value) {
 	int highest_bit = value & 0x80;
 	value >>= 1;
 	value |= highest_bit;
-	cpu_flags.carry      = lowest_bit;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	cpu.flags.carry      = lowest_bit;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	return value;
 }
 
 static inline uint8_t op_srl(uint8_t value) {
-	cpu_flags.carry = value & 0x01;
+	cpu.flags.carry = value & 0x01;
 	value >>= 1;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	return value;
 }
 
@@ -262,17 +264,17 @@ static inline uint8_t op_swap(uint8_t value) {
 	uint8_t lower = (value & 0x0F);
 	uint8_t upper = (value & 0xF0);
 	value = (lower << 4) | (upper >> 4);
-	cpu_flags.carry      = false;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	cpu.flags.carry      = false;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	return value;
 }
 
 static inline void op_bit(int bit_num, uint8_t value) {
-	cpu_flags.half_carry = true;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !(value & (1 << bit_num));
+	cpu.flags.half_carry = true;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !(value & (1 << bit_num));
 }
 
 static inline uint8_t op_res(int bit_num, uint8_t value) {
@@ -287,57 +289,57 @@ static inline uint8_t op_set(int bit_num, uint8_t value) {
 
 static inline void op_add8(uint8_t value) {
 	uint8_t result       = cpu.reg.a + value;
-	cpu_flags.carry      = result < cpu.reg.a;
-	cpu_flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
-	cpu_flags.zero       = !result;
-	cpu_flags.subtract   = false;
+	cpu.flags.carry      = result < cpu.reg.a;
+	cpu.flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
+	cpu.flags.zero       = !result;
+	cpu.flags.subtract   = false;
 	cpu.reg.a            = result;
 }
 
 static inline void op_adc(uint8_t value) {
-	bool oldcarry        = cpu_flags.carry;
+	bool oldcarry        = cpu.flags.carry;
 	uint8_t result       = cpu.reg.a + value + oldcarry;
-	cpu_flags.carry      = (value == 0xFF && oldcarry == 1) || (result < cpu.reg.a);
-	cpu_flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !result;
+	cpu.flags.carry      = (value == 0xFF && oldcarry == 1) || (result < cpu.reg.a);
+	cpu.flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !result;
 	cpu.reg.a            = result;
 }
 
 static inline void op_sub(uint8_t value) {
 	uint8_t result       = cpu.reg.a - value;
-	cpu_flags.carry      = result > cpu.reg.a;
-	cpu_flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
-	cpu_flags.subtract   = true;
-	cpu_flags.zero       = !result;
+	cpu.flags.carry      = result > cpu.reg.a;
+	cpu.flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
+	cpu.flags.subtract   = true;
+	cpu.flags.zero       = !result;
 	cpu.reg.a            = result;
 }
 
 static inline void op_sbc(uint8_t value) {
-	bool oldcarry        = cpu_flags.carry;
+	bool oldcarry        = cpu.flags.carry;
 	uint8_t result       = cpu.reg.a - value - oldcarry;
-        cpu_flags.carry      = (value == 0xFF && oldcarry == 1) || (result > cpu.reg.a);
-	cpu_flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
-	cpu_flags.subtract   = true;
-	cpu_flags.zero       = !result;
+        cpu.flags.carry      = (value == 0xFF && oldcarry == 1) || (result > cpu.reg.a);
+	cpu.flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
+	cpu.flags.subtract   = true;
+	cpu.flags.zero       = !result;
 	cpu.reg.a            = result;
 }
 
 static inline void op_inc(uint8_t *location) {
 	uint8_t value = *location;
 	value++;
-	cpu_flags.half_carry = !(value & 0x0F);
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !value;
+	cpu.flags.half_carry = !(value & 0x0F);
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !value;
 	*location            = value;
 }
 
 static inline void op_dec(uint8_t *location) {
 	uint8_t value = *location;
 	value--;
-	cpu_flags.half_carry = (value & 0x0F) == 0x0F;
-	cpu_flags.subtract   = true;
-	cpu_flags.zero       = !value;
+	cpu.flags.half_carry = (value & 0x0F) == 0x0F;
+	cpu.flags.subtract   = true;
+	cpu.flags.zero       = !value;
 	*location            = value;
 }
 
@@ -363,7 +365,7 @@ static inline void op_ret_cond(bool condition) {
 
 static inline void op_reti() {
 	op_ret();
-	cpu_flags.master_interrupt = true;
+	cpu.flags.master_interrupt = true;
 }
 
 static inline void op_rst(uint16_t address) {
@@ -381,41 +383,41 @@ static inline void op_jr(bool condition) {
 
 static inline void op_and(uint8_t value) {
 	cpu.reg.a           &= value;
-	cpu_flags.carry      = false;
-	cpu_flags.half_carry = true;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !cpu.reg.a;
+	cpu.flags.carry      = false;
+	cpu.flags.half_carry = true;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !cpu.reg.a;
 }
 
 static inline void op_or(uint8_t value) {
 	cpu.reg.a           |= value;
-	cpu_flags.carry      = false;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !cpu.reg.a;
+	cpu.flags.carry      = false;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !cpu.reg.a;
 }
 
 static inline void op_xor(uint8_t value) {
 	cpu.reg.a           ^= value;
-	cpu_flags.carry      = false;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = !cpu.reg.a;
+	cpu.flags.carry      = false;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = !cpu.reg.a;
 }
 
 static inline void op_cp(uint8_t value) {
 	uint8_t result       = cpu.reg.a - value;
-	cpu_flags.carry      = result > cpu.reg.a;
-	cpu_flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
-	cpu_flags.subtract   = true;
-	cpu_flags.zero       = !result;
+	cpu.flags.carry      = result > cpu.reg.a;
+	cpu.flags.half_carry = (cpu.reg.a ^ value ^ result) & 0x10;
+	cpu.flags.subtract   = true;
+	cpu.flags.zero       = !result;
 }
 
 static inline void op_add16(uint16_t *destination, uint16_t value) {
 	uint16_t result      = *(destination) + value;
-	cpu_flags.carry      = result < (*destination);
-	cpu_flags.half_carry = ((*destination) ^ value ^ result) & 0x1000;
-	cpu_flags.subtract   = false;
+	cpu.flags.carry      = result < (*destination);
+	cpu.flags.half_carry = ((*destination) ^ value ^ result) & 0x1000;
+	cpu.flags.subtract   = false;
 	*destination         = result;
 	increment_clock(1);
 }
@@ -430,20 +432,20 @@ static inline void op_call(bool condition) {
 
 static inline void op_daa() {
 	unsigned offset = 0;
-	if (!cpu_flags.subtract) {
-		if (cpu_flags.half_carry || (cpu.reg.a & 0x0F) > 0x09)
+	if (!cpu.flags.subtract) {
+		if (cpu.flags.half_carry || (cpu.reg.a & 0x0F) > 0x09)
 			offset |= 0x06;
-		if (cpu_flags.carry || cpu.reg.a > 0x99)
+		if (cpu.flags.carry || cpu.reg.a > 0x99)
 			offset |= 0x60;
-		cpu_flags.carry |= (cpu.reg.a > (0xFF - offset));
+		cpu.flags.carry |= (cpu.reg.a > (0xFF - offset));
 		cpu.reg.a += offset;
 	} else {
-		if (cpu_flags.half_carry) offset |= 0x06;
-		if (cpu_flags.carry)      offset |= 0x60;
+		if (cpu.flags.half_carry) offset |= 0x06;
+		if (cpu.flags.carry)      offset |= 0x60;
 		cpu.reg.a -= offset;
 	}
-	cpu_flags.half_carry = false;
-	cpu_flags.zero = !cpu.reg.a;
+	cpu.flags.half_carry = false;
+	cpu.flags.zero = !cpu.reg.a;
 }
 
 static inline void op_nop() {
@@ -469,22 +471,22 @@ static inline void op_dec16(uint16_t *location) {
 
 static inline void op_rlca() {
 	cpu.reg.a = op_rlc(cpu.reg.a);
-	cpu_flags.zero = false;
+	cpu.flags.zero = false;
 }
 
 static inline void op_rrca() {
 	cpu.reg.a = op_rrc(cpu.reg.a);
-	cpu_flags.zero = false;
+	cpu.flags.zero = false;
 }
 
 static inline void op_rla() {
 	cpu.reg.a = op_rl(cpu.reg.a);
-	cpu_flags.zero = false;
+	cpu.flags.zero = false;
 }
 
 static inline void op_rra() {
 	cpu.reg.a = op_rr(cpu.reg.a);
-	cpu_flags.zero = false;
+	cpu.flags.zero = false;
 }
 
 static inline void op_store16(uint16_t address, uint16_t value) {
@@ -503,21 +505,21 @@ static inline void op_stop() {
 }
 
 static inline void op_cpl() {
-	cpu_flags.half_carry = true;
-	cpu_flags.subtract   = true;
+	cpu.flags.half_carry = true;
+	cpu.flags.subtract   = true;
 	cpu.reg.a            = ~cpu.reg.a;
 }
 
 static inline void op_scf() {
-	cpu_flags.carry      = true;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
+	cpu.flags.carry      = true;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
 }
 
 static inline void op_ccf() {
-	cpu_flags.carry      = !cpu_flags.carry;
-	cpu_flags.half_carry = false;
-	cpu_flags.subtract   = false;
+	cpu.flags.carry      = !cpu.flags.carry;
+	cpu.flags.half_carry = false;
+	cpu.flags.subtract   = false;
 }
 
 static inline void op_inc_addr(uint16_t address) {
@@ -542,35 +544,35 @@ static inline void op_pop(uint16_t *destination) {
 
 static inline void op_add_sp_offset(uint8_t value) {
 	uint16_t result      = cpu.wreg.sp + (int8_t)value;
-	cpu_flags.carry      = ((cpu.wreg.sp & 0x00FF) + value) & 0x0100;
-	cpu_flags.half_carry = (cpu.wreg.sp ^ value ^ result) & 0x10;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = false;
+	cpu.flags.carry      = ((cpu.wreg.sp & 0x00FF) + value) & 0x0100;
+	cpu.flags.half_carry = (cpu.wreg.sp ^ value ^ result) & 0x10;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = false;
 	cpu.wreg.sp          = result;
 	increment_clock(2);
 }
 
 static inline void op_load_hl_sp_offset(uint8_t value) {
 	uint16_t result      = cpu.wreg.sp + (int8_t)value;
-	cpu_flags.carry      = ((cpu.wreg.sp & 0x00FF) + value) & 0x0100;
-	cpu_flags.half_carry = (cpu.wreg.sp ^ value ^ result) & 0x10;
-	cpu_flags.subtract   = false;
-	cpu_flags.zero       = false;
+	cpu.flags.carry      = ((cpu.wreg.sp & 0x00FF) + value) & 0x0100;
+	cpu.flags.half_carry = (cpu.wreg.sp ^ value ^ result) & 0x10;
+	cpu.flags.subtract   = false;
+	cpu.flags.zero       = false;
 	cpu.wreg.hl          = result;
 	increment_clock(1);
 }
 
 static inline void op_di() {
-	cpu_flags.master_interrupt_pending = false;
-	cpu_flags.master_interrupt = false;
+	cpu.flags.master_interrupt_pending = false;
+	cpu.flags.master_interrupt = false;
 }
 
 static inline void op_ei() {
-	cpu_flags.master_interrupt_pending = true;
+	cpu.flags.master_interrupt_pending = true;
 }
 
 static inline void op_halt() {
-	cpu_flags.is_halted = true;
+	cpu.flags.is_halted = true;
 }
 
 static inline void op_load_sp_hl() {
@@ -708,7 +710,7 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x1E: op_load8(&cpu.reg.e, fetch_immediate8());        break;
 	case 0x1F: op_rra();                                        break;
 
-	case 0x20: op_jr(!cpu_flags.zero);                          break;
+	case 0x20: op_jr(!cpu.flags.zero);                          break;
 	case 0x21: op_load16(&cpu.wreg.hl, fetch_immediate16());    break;
 	case 0x22: op_store(cpu.wreg.hl++, cpu.reg.a);              break;
 	case 0x23: op_inc16(&cpu.wreg.hl);                          break;
@@ -716,7 +718,7 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x25: op_dec(&cpu.reg.h);                              break;
 	case 0x26: op_load8(&cpu.reg.h, fetch_immediate8());        break;
 	case 0x27: op_daa();                                        break;
-	case 0x28: op_jr(cpu_flags.zero);                           break;
+	case 0x28: op_jr(cpu.flags.zero);                           break;
 	case 0x29: op_add16(&cpu.wreg.hl, cpu.wreg.hl);             break;
 	case 0x2A: op_load8(&cpu.reg.a, fetch_byte(cpu.wreg.hl++)); break;
 	case 0x2B: op_dec16(&cpu.wreg.hl);                          break;
@@ -725,7 +727,7 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x2E: op_load8(&cpu.reg.l, fetch_immediate8());        break;
 	case 0x2F: op_cpl();                                        break;
 
-	case 0x30: op_jr(!cpu_flags.carry);                         break;
+	case 0x30: op_jr(!cpu.flags.carry);                         break;
 	case 0x31: op_load16(&cpu.wreg.sp, fetch_immediate16());    break;
 	case 0x32: op_store(cpu.wreg.hl--, cpu.reg.a);              break;
 	case 0x33: op_inc16(&cpu.wreg.sp);                          break;
@@ -733,7 +735,7 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x35: op_dec_addr(cpu.wreg.hl);                        break;
 	case 0x36: op_store(cpu.wreg.hl, fetch_immediate8());       break;
 	case 0x37: op_scf();                                        break;
-	case 0x38: op_jr(cpu_flags.carry);                          break;
+	case 0x38: op_jr(cpu.flags.carry);                          break;
 	case 0x39: op_add16(&cpu.wreg.hl, cpu.wreg.sp);             break;
 	case 0x3A: op_load8(&cpu.reg.a, fetch_byte(cpu.wreg.hl--)); break;
 	case 0x3B: op_dec16(&cpu.wreg.sp);                          break;
@@ -878,36 +880,36 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0xBE: op_cp(fetch_byte(cpu.wreg.hl));                  break;
 	case 0xBF: op_cp(cpu.reg.a);                                break;
 
-	case 0xC0: op_ret_cond(!cpu_flags.zero);                    break;
+	case 0xC0: op_ret_cond(!cpu.flags.zero);                    break;
 	case 0xC1: op_pop(&cpu.wreg.bc);                            break;
-	case 0xC2: op_jump(!cpu_flags.zero);                        break;
+	case 0xC2: op_jump(!cpu.flags.zero);                        break;
 	case 0xC3: op_jump(true);                                   break;
-	case 0xC4: op_call(!cpu_flags.zero);                        break;
+	case 0xC4: op_call(!cpu.flags.zero);                        break;
 	case 0xC5: op_push(cpu.wreg.bc);                            break;
 	case 0xC6: op_add8(fetch_immediate8());                     break;
 	case 0xC7: op_rst(0x00);                                    break;
-	case 0xC8: op_ret_cond(cpu_flags.zero);                     break;
+	case 0xC8: op_ret_cond(cpu.flags.zero);                     break;
 	case 0xC9: op_ret();                                        break;
-	case 0xCA: op_jump(cpu_flags.zero);                         break;
+	case 0xCA: op_jump(cpu.flags.zero);                         break;
 	case 0xCB: process_cb_opcode(fetch_immediate8());           break;
-	case 0xCC: op_call(cpu_flags.zero);                         break;
+	case 0xCC: op_call(cpu.flags.zero);                         break;
 	case 0xCD: op_call(true);                                   break;
 	case 0xCE: op_adc(fetch_immediate8());                      break;
 	case 0xCF: op_rst(0x08);                                    break;
 
-	case 0xD0: op_ret_cond(!cpu_flags.carry);                   break;
+	case 0xD0: op_ret_cond(!cpu.flags.carry);                   break;
 	case 0xD1: cpu.wreg.de = pop_stack();                       break;
-	case 0xD2: op_jump(!cpu_flags.carry);                       break;
+	case 0xD2: op_jump(!cpu.flags.carry);                       break;
 	case 0xD3: error_no_opcode(opcode_byte);                    break;
-	case 0xD4: op_call(!cpu_flags.carry);                       break;
+	case 0xD4: op_call(!cpu.flags.carry);                       break;
 	case 0xD5: op_push(cpu.wreg.de);                            break;
 	case 0xD6: op_sub(fetch_immediate8());                      break;
 	case 0xD7: op_rst(0x10);                                    break;
-	case 0xD8: op_ret_cond(cpu_flags.carry);                    break;
+	case 0xD8: op_ret_cond(cpu.flags.carry);                    break;
 	case 0xD9: op_reti();                                       break;
-	case 0xDA: op_jump(cpu_flags.carry);                        break;
+	case 0xDA: op_jump(cpu.flags.carry);                        break;
 	case 0xDB: error_no_opcode(opcode_byte);                    break;
-	case 0xDC: op_call(cpu_flags.carry);                        break;
+	case 0xDC: op_call(cpu.flags.carry);                        break;
 	case 0xDD: error_no_opcode(opcode_byte);                    break;
 	case 0xDE: op_sbc(fetch_immediate8());                      break;
 	case 0xDF: op_rst(0x18);                                    break;
@@ -955,17 +957,17 @@ int cpu_do_next_instruction() {
 	int old_clock = clock_get();
 
 	if (mmu_read(INTERRUPT_FLAGS) & mmu_read(INTERRUPT_ENABLE))
-		cpu_flags.is_halted = false;
+		cpu.flags.is_halted = false;
 
-	if (cpu_flags.is_halted) {
+	if (cpu.flags.is_halted) {
 		increment_clock(1);
 		return 4; // clock only incremented once
 	}
 
-	if (cpu_flags.master_interrupt_pending) {
-		cpu_flags.master_interrupt_pending = false;
-		cpu_flags.master_interrupt = true;
-	} else if (cpu_flags.master_interrupt) {
+	if (cpu.flags.master_interrupt_pending) {
+		cpu.flags.master_interrupt_pending = false;
+		cpu.flags.master_interrupt = true;
+	} else if (cpu.flags.master_interrupt) {
 		handle_interrupts();
 	}
 
