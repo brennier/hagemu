@@ -21,7 +21,54 @@
 #define GREEN3 (Color){ 48, 102, 87, 255 }
 #define GREEN4 (Color){ 36, 76, 64, 255 }
 
-Texture2D screen_texture;
+enum AppState {
+	HAGEMU_NO_ROM,
+	HAGEMU_PAUSE_MENU,
+	HAGEMU_GAME_RUNNING,
+};
+
+struct HagemuApp {
+	enum AppState state;
+	char* rom_filename;
+	Texture2D screen_texture;
+	AudioStream audio_stream;
+};
+
+bool hagemu_app_setup(struct HagemuApp *app) {
+	SetTraceLogLevel(LOG_WARNING);
+	SetTargetFPS(60);
+	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hagemu GameBoy Emulator");
+	SetExitKey(KEY_NULL);
+
+	app->state = HAGEMU_NO_ROM;
+
+	// setup audio
+	InitAudioDevice();
+	SetAudioStreamBufferSizeDefault(MAX_BYTES_PER_AUDIO_CALLBACK);
+	app->audio_stream = LoadAudioStream(AUDIO_SAMPLE_RATE, 16, 2);
+	SetAudioStreamCallback(app->audio_stream, apu_generate_frames);
+	PlayAudioStream(app->audio_stream);
+
+	// setup screen texture
+	Image background_image = (Image){
+		.data = NULL,
+		.width = 160,
+		.height = 144,
+		.mipmaps = 1,
+		.format = PIXELFORMAT_UNCOMPRESSED_R5G5B5A1,
+	};
+	app->screen_texture = LoadTextureFromImage(background_image);
+	UnloadImage(background_image);
+	return true;
+}
+
+void hagemu_app_cleanup(struct HagemuApp *app) {
+	mmu_save_sram_file();
+	CloseAudioDevice();
+	UnloadTexture(app->screen_texture);
+	UnloadAudioStream(app->audio_stream);
+	CloseWindow();
+}
 
 void DrawTextCentered(char* text, int x, int y, int font_size, Color color) {
 	int text_width = MeasureText(text, font_size);
@@ -33,60 +80,46 @@ void DrawTextCentered(char* text, int x, int y, int font_size, Color color) {
 		);
 }
 
-bool load_romfile(char* filename) {
+bool hagemu_app_load_rom(struct HagemuApp *app, char* filename) {
 	printf("Loading the rom path '%s'\n", filename);
 	if (!FileExists(filename)) {
 		fprintf(stderr, "Error: The file '%s' doesn't exist\n", filename);
 		return false;
 	}
+	app->rom_filename = filename;
+	app->state = HAGEMU_GAME_RUNNING;
 	cpu_reset();
 	mmu_load_rom(filename);
 	return true;
 }
 
-bool load_dropped_file() {
+bool hagemu_app_load_dropped_file(struct HagemuApp *app) {
 	if (IsFileDropped()) {
 		FilePathList dropped_files = LoadDroppedFiles();
-		bool result = load_romfile(dropped_files.paths[0]);
+		bool result = hagemu_app_load_rom(app, dropped_files.paths[0]);
 		UnloadDroppedFiles(dropped_files);
 		return result;
 	}
 	return false;
 }
 
+void hagemu_app_run(struct HagemuApp *app) {
+}
+
 int main(int argc, char *argv[]) {
 	web_setup_filesystem(); // Does nothing unless PLATFORM_WEB is defined
 
-	SetTraceLogLevel(LOG_WARNING);
-	SetTargetFPS(60);
-	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hagemu GameBoy Emulator");
-	SetExitKey(KEY_NULL);
+	struct HagemuApp app = { 0 };
+	hagemu_app_setup(&app);
 
-	InitAudioDevice();
-	SetAudioStreamBufferSizeDefault(MAX_BYTES_PER_AUDIO_CALLBACK);
-	AudioStream audio_stream = LoadAudioStream(AUDIO_SAMPLE_RATE, 16, 2);
-	SetAudioStreamCallback(audio_stream, apu_generate_frames);
-	PlayAudioStream(audio_stream);
-
-	Image background_image = (Image){
-		.data = NULL,
-		.width = 160,
-		.height = 144,
-		.mipmaps = 1,
-		.format = PIXELFORMAT_UNCOMPRESSED_R5G5B5A1,
-	};
-	Texture2D background_texture = LoadTextureFromImage(background_image);
-	UnloadImage(background_image);
-
-	bool rom_loaded = false;
 	if (argc == 2) {
-		rom_loaded = load_romfile(argv[1]);
+		hagemu_app_load_rom(&app, argv[1]);
 	} else if (argc > 2) {
 		fprintf(stderr, "Error: Too many arguments\n");
 		exit(EXIT_FAILURE);
 	}
 
-	while (WindowShouldClose() != true && !rom_loaded) {
+	while (WindowShouldClose() != true && app.state == HAGEMU_NO_ROM) {
 		BeginDrawing();
 		ClearBackground(GREEN1);
 		DrawText("Compilation Date: " __DATE__,
@@ -104,14 +137,11 @@ int main(int argc, char *argv[]) {
 		DrawFPS(10, 10);
 		EndDrawing();
 
-		if (load_dropped_file())
-			rom_loaded = true;
+		hagemu_app_load_dropped_file(&app);
 	}
 
 	while (WindowShouldClose() != true) {
-		load_dropped_file();
-
-		set_emulator_inputs();
+		hagemu_app_load_dropped_file(&app);
 
 		mmu_joypad_inputs[JOYPAD_RIGHT]  = IsKeyDown(KEY_RIGHT) | IsKeyDown(KEY_D);
 		mmu_joypad_inputs[JOYPAD_LEFT]   = IsKeyDown(KEY_LEFT)  | IsKeyDown(KEY_A);
@@ -143,19 +173,14 @@ int main(int argc, char *argv[]) {
 			ppu_update(current_cycle);
 		}
 
-		UpdateTexture(background_texture, ppu_get_frame());
+		UpdateTexture(app.screen_texture, ppu_get_frame());
 
 		BeginDrawing();
-		DrawTextureEx(background_texture, (Vector2){ 0, 0 }, 0, SCALE_FACTOR, WHITE);
+		DrawTextureEx(app.screen_texture, (Vector2){ 0, 0 }, 0, SCALE_FACTOR, WHITE);
 		DrawFPS(10, 10);
 		EndDrawing();
 	}
 
-	mmu_save_sram_file();
-	UnloadTexture(background_texture);
-	UnloadAudioStream(audio_stream);
-	CloseAudioDevice();
-	CloseWindow();
-
+	hagemu_app_cleanup(&app);
 	return 0;
 }
