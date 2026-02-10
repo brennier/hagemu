@@ -1,44 +1,66 @@
 CC = gcc
 CFLAGS = -O3 -std=c99 -Wall -pedantic
-SOURCES = $(wildcard src/*.c)
-OBJECTS = $(patsubst src/%.c,build/%.o,$(SOURCES))
+SOURCES = $(wildcard src/hagemu_core/*.c)
+OBJECTS = $(patsubst src/hagemu_core/%.c,build/%.o,$(SOURCES))
 
 # Use different linker libraries and output names depending on the OS
 ifeq ($(OS),Windows_NT)
-	LFLAGS = -lraylib -lopengl32 -lgdi32 -lwinmm
+	LFLAGS = -lhagemu -lraylib -lopengl32 -lgdi32 -lwinmm
 # Maybe add -mwindows later
 	OUTPUT = hagemu.exe
 else
-	LFLAGS = -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
+	LFLAGS = -lhagemu -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 	OUTPUT = hagemu
 endif
 
-${OUTPUT}: build/libraylib.a ${OBJECTS}
+${OUTPUT}: build/libhagemu.a build/hagemu.h build/libraylib.a build/raylib.h build/main.o
 	@printf %s "Linking object files..."
 	@${CC} $^ -o $@ -L build ${LFLAGS} >/dev/null
 	@echo sucessful!
 	@echo ${OUTPUT} was sucessfully created!
 
-build/raylib.h:
+build/libhagemu.a: ${OBJECTS}
+	@mkdir -p build
+	@printf %s "Linking Hagemu Core..."
+	@ar rcs $@ $^ -o $@
+	@ranlib $@
+
+build/hagemu.h: src/hagemu_core/hagemu_core.h
 	@mkdir -p build
 	@printf %s "Copying $(notdir $@) into build folder..."
-	@cp lib/raylib/src/raylib.h $@
+	@cp $^ $@
 	@echo sucessfull!
 
-build/%.o: src/%.c build/raylib.h makefile
+build/raylib.h: lib/raylib/src/raylib.h
+	@mkdir -p build
+	@printf %s "Copying $(notdir $@) into build folder..."
+	@cp $^ $@
+	@echo sucessfull!
+
+build/%.o: src/hagemu_core/%.c
 	@mkdir -p build
 	@printf %s "Compiling $(notdir $<) into object code..."
-	@${CC} ${CFLAGS} -o $@ -I build -c $< >/dev/null
+	@${CC} ${CFLAGS} -c $< -o $@ -I build
 	@echo sucessfull!
 
-build/libraylib.a: makefile
+build/main.o: src/hagemu_app/main.c
 	@mkdir -p build
+	@printf %s "Compiling $(notdir $<) into object code..."
+	@${CC} ${CFLAGS} -c $< -o $@ -I build
+	@echo sucessfull!
+
+build/libraylib.a: lib/raylib/src/libraylib.a
+	@mkdir -p build
+	@printf %s "Copying $(notdir $@) into build folder..."
+	@cp $^ $@
+	@echo sucessfull!
+
+lib/raylib/src/libraylib.a:
 	@printf %s "Building Raylib..."
-	@make -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP -B >/dev/null
-	@cp lib/raylib/src/libraylib.a $@
+	@make -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP -B
 	@echo sucessful!
 
-build/libraylib_web.a: makefile
+build/libraylib_web.a:
 	@sh lib/emsdk/emsdk install latest
 	@sh lib/emsdk/emsdk activate latest
 	@mkdir -p build
@@ -47,7 +69,7 @@ build/libraylib_web.a: makefile
 	@cp lib/raylib/src/libraylib.web.a build/libraylib_web.a
 	@echo sucessful!
 
-web: makefile build/raylib.h build/libraylib_web.a
+web: build/raylib.h build/libraylib_web.a
 	@sh lib/emsdk/emsdk install latest
 	@sh lib/emsdk/emsdk activate latest
 	@cp lib/emsdk/upstream/emscripten/cache/sysroot/include/emscripten.h build
@@ -59,7 +81,6 @@ web: makefile build/raylib.h build/libraylib_web.a
 clean:
 	@echo Cleaning up build files and executables...
 	@rm -rf build ${OUTPUT}
-	@make clean -C lib/raylib/src
 
 test: ${OUTPUT}
 	./${OUTPUT} roms/dmg-acid2.gb

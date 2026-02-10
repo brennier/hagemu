@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "raylib.h"
-#include "hagemu_core.h"
+#include "hagemu.h"
 #include "web.h" // Does nothing unless PLATFORM_WEB is defined
 
 #define SCALE_FACTOR 5
