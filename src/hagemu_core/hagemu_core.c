@@ -16,7 +16,7 @@ void hagemu_next_instruction() {
 	cpu_do_next_instruction();
 }
 
-bool hagemu_load_rom(const char* filepath) {
+void hagemu_load_rom(const char* filepath) {
 	mmu_load_rom(filepath);
 	hagemu_reset();
 }
@@ -50,6 +50,10 @@ const uint16_t* hagemu_get_framebuffer() {
 	return (const uint16_t*)ppu_get_frame();
 }
 
-void hagemu_audio_callback(int16_t* buffer, unsigned max_samples) {
+void hagemu_audio_callback(void* buffer, unsigned max_samples) {
 	apu_generate_frames(buffer, max_samples);
+};
+
+void hagemu_save_sram_file() {
+	mmu_save_sram_file();
 };

@@ -21,12 +21,12 @@ typedef enum HagemuButton {
 void hagemu_start();
 void hagemu_reset();
 
-bool hagemu_load_rom(const char* path);
+void hagemu_load_rom(const char* path);
 void hagemu_next_instruction();
 void hagemu_run_frame();
 void hagemu_press_button(HagemuButton button);
-
+void hagemu_audio_callback(void* buffer, unsigned max_samples);
+void hagemu_save_sram_file();
 const R5G5B5A1* hagemu_get_framebuffer();
-bool gb_get_audio_samples(int16_t* buffer, unsigned max_samples);
 
 #endif
