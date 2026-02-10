@@ -102,22 +102,20 @@ The following games have been tested:
   - [x] Rewrite the f register as separate bools
   - [x] Fix glitch where a sprite partially clips if it's on the left or top border
   - [x] Fix bug where window X Position is less than 7
-  - [ ] Synchronize the APU along with the CPU and PPU
+  - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Fill the sound buffer directly instead of using a callback
   - [ ] Make the audio registers readable
-  - [ ] Use float instead of int16_t for bit depth
+  - [ ] Maybe use float instead of int16_t for audio bit depth
+  - [ ] Maybe use RGBA8888 instead of RGBA5551 pixel format
   - [ ] Mute a sound channel if its frequency is above 20kHz
   - [ ] Add support for the VIN sound channel
   - [ ] Rewrite PPU to be more modular
   - [ ] Add option to blend frames
   - [ ] Emulate the timing of the DMA
   - [ ] Add support for disabling the PPU
-  - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
   - [ ] Implement the STOP instruction
   - [ ] Test the HALT instruction
   - [ ] Add support for the serial data port
-  - [ ] Add support fort saving and loading save states
-  - [ ] Rewrite the PPU using a pixel pusher renderer
   - [ ] Pass Blargg's interrupt_time test
   - [ ] Run the Mooneye Test Suite
   - [ ] Make a cool logo
@@ -159,6 +157,17 @@ The following games have been tested:
   - [ ] Extra work and video ram
   - [ ] HDMA features
   - [ ] Pass cgb-acid2
+- [ ] Future Refactoring Ideas
+  - [x] Separate the core from the interface
+  - [ ] Switch from Raylib to SDL3
+  - [ ] Synchronize the APU along with the CPU and PPU
+  - [ ] Separate cart.c and joypad.c from mmu.c
+  - [ ] Use CMake instead of make
+  - [ ] Organize all state into a gameboy struct
+  - [ ] Support save/load states
+  - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
+  - [ ] Rewrite the PPU using a pixel pusher renderer
+  - [ ] Remove the union type punning of the CPU registers
 </details>
 
 <details>
