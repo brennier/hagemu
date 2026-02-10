@@ -306,6 +306,6 @@ void ppu_draw_sprites() {
 	}
 }
 
-R5G5B5A1* ppu_get_frame() {
-	return (R5G5B5A1*)screen_buffer;
+const R5G5B5A1* ppu_get_frame() {
+	return (const R5G5B5A1*)screen_buffer;
 }

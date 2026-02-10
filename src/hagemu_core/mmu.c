@@ -298,7 +298,7 @@ const int ram_size_table[] = {
 };
 
 #ifdef PLATFORM_WEB
-char* get_sram_name(char* rom_name) {
+char* get_sram_name(const char* rom_name) {
 	// Returns the string "/savedata/[basename].sav" where [basename] is the basename part of rom_name.
 	// It is up to the caller to free the memory for the string.
 	char* basename_begin = strrchr(rom_name, '/');
@@ -329,7 +329,7 @@ char* get_sram_name(char* rom_name) {
 	return sram_name;
 }
 #else
-char* get_sram_name(char* rom_name) {
+char* get_sram_name(const char* rom_name) {
 	char* sram_name = malloc(strlen(rom_name) + 1);
 	if (sram_name == NULL) {
 		printf("Warning: Failed to allocate memory for the save data file name.\n");
@@ -391,7 +391,7 @@ void mmu_save_sram_file() {
 	fclose(save_file);
 }
 
-void mmu_load_rom(char* rom_name) {
+void mmu_load_rom(const char* rom_name) {
 	if (rom_memory != NULL) {
 		printf("Freeing previously read rom...\n");
 		free(rom_memory);

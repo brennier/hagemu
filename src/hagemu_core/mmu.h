@@ -115,7 +115,7 @@ enum special_bit {
 	LYC_INTERRUPT_SELECT = 0xFF416,
 };
 
-void mmu_load_rom(char* rom_name);
+void mmu_load_rom(const char* rom_name);
 void mmu_save_sram_file();
 
 uint8_t mmu_read(uint16_t address);
