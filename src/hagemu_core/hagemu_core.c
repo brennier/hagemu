@@ -52,8 +52,8 @@ const uint16_t* hagemu_get_framebuffer() {
 
 void hagemu_audio_callback(void* buffer, unsigned max_samples) {
 	apu_generate_frames(buffer, max_samples);
-};
+}
 
 void hagemu_save_sram_file() {
 	mmu_save_sram_file();
-};
+}

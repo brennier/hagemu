@@ -4,9 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// 0bRRRRRGGGGGBBBBBA
-typedef uint16_t R5G5B5A1;
-
 typedef enum HagemuButton {
 	HAGEMU_BUTTON_A,
 	HAGEMU_BUTTON_B,
@@ -27,6 +24,8 @@ void hagemu_run_frame();
 void hagemu_press_button(HagemuButton button);
 void hagemu_audio_callback(void* buffer, unsigned max_samples);
 void hagemu_save_sram_file();
-const R5G5B5A1* hagemu_get_framebuffer();
+
+// Pixel format is RGBA5551 (i.e. 0bRRRRRGGGGGBBBBBA)
+const uint16_t* hagemu_get_framebuffer();
 
 #endif
