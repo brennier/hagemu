@@ -3,11 +3,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "raylib.h"
-#include "ppu.h"
-#include "mmu.h"
-#include "cpu.h"
+#include "hagemu_core.h"
 #include "web.h" // Does nothing unless PLATFORM_WEB is defined
-#include "apu.h"
 
 #define SCALE_FACTOR 5
 #define SCREEN_WIDTH 160 * SCALE_FACTOR
@@ -46,7 +43,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	InitAudioDevice();
 	SetAudioStreamBufferSizeDefault(MAX_BYTES_PER_AUDIO_CALLBACK);
 	app->audio_stream = LoadAudioStream(AUDIO_SAMPLE_RATE, 16, 2);
-	SetAudioStreamCallback(app->audio_stream, apu_generate_frames);
+	SetAudioStreamCallback(app->audio_stream, hagemu_audio_callback);
 	PlayAudioStream(app->audio_stream);
 
 	// setup screen texture
@@ -63,7 +60,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 }
 
 void hagemu_app_cleanup(struct HagemuApp *app) {
-	mmu_save_sram_file();
+	hagemu_save_sram_file();
 	CloseAudioDevice();
 	UnloadTexture(app->screen_texture);
 	UnloadAudioStream(app->audio_stream);
@@ -88,8 +85,8 @@ bool hagemu_app_load_rom(struct HagemuApp *app, char* filename) {
 	}
 	app->rom_filename = filename;
 	app->state = HAGEMU_GAME_RUNNING;
-	cpu_reset();
-	mmu_load_rom(filename);
+	hagemu_reset();
+	hagemu_load_rom(filename);
 	return true;
 }
 
@@ -143,37 +140,53 @@ int main(int argc, char *argv[]) {
 	while (WindowShouldClose() != true) {
 		hagemu_app_load_dropped_file(&app);
 
-		mmu_joypad_inputs[JOYPAD_RIGHT]  = IsKeyDown(KEY_RIGHT) | IsKeyDown(KEY_D);
-		mmu_joypad_inputs[JOYPAD_LEFT]   = IsKeyDown(KEY_LEFT)  | IsKeyDown(KEY_A);
-		mmu_joypad_inputs[JOYPAD_UP]     = IsKeyDown(KEY_UP)    | IsKeyDown(KEY_W);
-		mmu_joypad_inputs[JOYPAD_DOWN]   = IsKeyDown(KEY_DOWN)  | IsKeyDown(KEY_S);
-		mmu_joypad_inputs[JOYPAD_A]      = IsKeyDown(KEY_L)     | IsKeyDown(KEY_SPACE);
-		mmu_joypad_inputs[JOYPAD_B]      = IsKeyDown(KEY_K);
-		mmu_joypad_inputs[JOYPAD_START]  = IsKeyDown(KEY_X)     | IsKeyDown(KEY_ESCAPE);
-		mmu_joypad_inputs[JOYPAD_SELECT] = IsKeyDown(KEY_Z);
+		if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
+			hagemu_press_button(HAGEMU_BUTTON_RIGHT);
+
+		if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
+			hagemu_press_button(HAGEMU_BUTTON_LEFT);
+
+		if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
+			hagemu_press_button(HAGEMU_BUTTON_UP);
+
+		if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
+			hagemu_press_button(HAGEMU_BUTTON_DOWN);
+
+		if (IsKeyDown(KEY_L)) hagemu_press_button(HAGEMU_BUTTON_A);
+		if (IsKeyDown(KEY_K)) hagemu_press_button(HAGEMU_BUTTON_B);
+		if (IsKeyDown(KEY_X)) hagemu_press_button(HAGEMU_BUTTON_START);
+		if (IsKeyDown(KEY_Z)) hagemu_press_button(HAGEMU_BUTTON_SELECT);
+
 
 		if (IsGamepadAvailable(0)) {
-			mmu_joypad_inputs[JOYPAD_RIGHT]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
-			mmu_joypad_inputs[JOYPAD_LEFT]   |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT);
-			mmu_joypad_inputs[JOYPAD_UP]     |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_UP);
-			mmu_joypad_inputs[JOYPAD_DOWN]   |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN);
-			mmu_joypad_inputs[JOYPAD_A]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
-			mmu_joypad_inputs[JOYPAD_B]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
-			mmu_joypad_inputs[JOYPAD_START]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_RIGHT);
-			mmu_joypad_inputs[JOYPAD_SELECT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT);
+			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT))
+				hagemu_press_button(HAGEMU_BUTTON_RIGHT);
+
+			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT))
+				hagemu_press_button(HAGEMU_BUTTON_LEFT);
+
+			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_UP))
+				hagemu_press_button(HAGEMU_BUTTON_UP);
+
+			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN))
+				hagemu_press_button(HAGEMU_BUTTON_DOWN);
+
+			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT))
+				hagemu_press_button(HAGEMU_BUTTON_A);
+
+			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN))
+				hagemu_press_button(HAGEMU_BUTTON_B);
+
+			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_RIGHT))
+				hagemu_press_button(HAGEMU_BUTTON_START);
+
+			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT))
+				hagemu_press_button(HAGEMU_BUTTON_SELECT);
 		}
 
-		for (int i = 0; i < 8; i++)
-			if (mmu_joypad_inputs[i])
-				mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
+		hagemu_run_frame();
 
-		int current_cycle = 0;
-		while (!ppu_frame_finished(current_cycle)) {
-			current_cycle += cpu_do_next_instruction();
-			ppu_update(current_cycle);
-		}
-
-		UpdateTexture(app.screen_texture, ppu_get_frame());
+		UpdateTexture(app.screen_texture, hagemu_get_framebuffer());
 
 		BeginDrawing();
 		DrawTextureEx(app.screen_texture, (Vector2){ 0, 0 }, 0, SCALE_FACTOR, WHITE);
