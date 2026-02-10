@@ -1,4 +1,3 @@
-CC = gcc
 CFLAGS = -O3 -std=c99 -Wall -pedantic
 SOURCES = $(wildcard src/hagemu_core/*.c)
 OBJECTS = $(patsubst src/hagemu_core/%.c,build/%.o,$(SOURCES))
@@ -14,16 +13,17 @@ else
 endif
 
 ${OUTPUT}: build/libhagemu.a build/hagemu.h build/libraylib.a build/raylib.h build/main.o
-	@printf %s "Linking object files..."
+	@printf %s "Linking together the final executable..."
 	@${CC} $^ -o $@ -L build ${LFLAGS} >/dev/null
 	@echo sucessful!
 	@echo ${OUTPUT} was sucessfully created!
 
 build/libhagemu.a: ${OBJECTS}
 	@mkdir -p build
-	@printf %s "Linking Hagemu Core..."
+	@printf %s "Linking together the emulator core..."
 	@ar rcs $@ $^ -o $@
 	@ranlib $@
+	@echo sucessful!
 
 build/hagemu.h: src/hagemu_core/hagemu_core.h
 	@mkdir -p build
@@ -83,4 +83,4 @@ clean:
 	@rm -rf build ${OUTPUT}
 
 test: ${OUTPUT}
-	./${OUTPUT} roms/dmg-acid2.gb
+	./${OUTPUT} roms/test.gb
