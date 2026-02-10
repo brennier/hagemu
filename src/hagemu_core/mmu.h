@@ -3,17 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-enum JOYPAD_INPUTS {
-	JOYPAD_RIGHT,
-	JOYPAD_LEFT,
-	JOYPAD_UP,
-	JOYPAD_DOWN,
-	JOYPAD_A,
-	JOYPAD_B,
-	JOYPAD_SELECT,
-	JOYPAD_START
-};
-
 extern bool mmu_joypad_inputs[8];
 
 enum special_address {

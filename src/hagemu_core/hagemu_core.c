@@ -29,21 +29,10 @@ void hagemu_run_frame() {
 	}
 }
 
-void hagemu_press_button(HagemuButton button) {
-	switch (button) {
-
-	case HAGEMU_BUTTON_A: mmu_joypad_inputs[JOYPAD_A] = true; break;
-	case HAGEMU_BUTTON_B: mmu_joypad_inputs[JOYPAD_B] = true; break;
-	case HAGEMU_BUTTON_START: mmu_joypad_inputs[JOYPAD_START] = true; break;
-	case HAGEMU_BUTTON_SELECT: mmu_joypad_inputs[JOYPAD_SELECT] = true; break;
-
-	case HAGEMU_BUTTON_UP: mmu_joypad_inputs[JOYPAD_UP] = true; break;
-	case HAGEMU_BUTTON_DOWN: mmu_joypad_inputs[JOYPAD_DOWN] = true; break;
-	case HAGEMU_BUTTON_RIGHT: mmu_joypad_inputs[JOYPAD_RIGHT] = true; break;
-	case HAGEMU_BUTTON_LEFT: mmu_joypad_inputs[JOYPAD_LEFT] = true; break;
-	}
-
-	mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
+void hagemu_set_button(HagemuButton button, bool is_down) {
+	mmu_joypad_inputs[button] = is_down;
+	if (is_down)
+		mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 }
 
 const uint16_t* hagemu_get_framebuffer() {

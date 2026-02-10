@@ -140,49 +140,37 @@ int main(int argc, char *argv[]) {
 	while (WindowShouldClose() != true) {
 		hagemu_app_load_dropped_file(&app);
 
-		if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
-			hagemu_press_button(HAGEMU_BUTTON_RIGHT);
+		bool button_state[HAGEMU_BUTTON_COUNT];
 
-		if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
-			hagemu_press_button(HAGEMU_BUTTON_LEFT);
+		button_state[HAGEMU_BUTTON_RIGHT] = IsKeyDown(KEY_RIGHT);
+		button_state[HAGEMU_BUTTON_LEFT]  = IsKeyDown(KEY_LEFT);
+		button_state[HAGEMU_BUTTON_UP]    = IsKeyDown(KEY_UP);
+		button_state[HAGEMU_BUTTON_DOWN]  = IsKeyDown(KEY_DOWN);
 
-		if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
-			hagemu_press_button(HAGEMU_BUTTON_UP);
+		button_state[HAGEMU_BUTTON_RIGHT] |= IsKeyDown(KEY_D);
+		button_state[HAGEMU_BUTTON_LEFT]  |= IsKeyDown(KEY_A);
+		button_state[HAGEMU_BUTTON_UP]    |= IsKeyDown(KEY_W);
+		button_state[HAGEMU_BUTTON_DOWN]  |= IsKeyDown(KEY_S);
 
-		if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
-			hagemu_press_button(HAGEMU_BUTTON_DOWN);
-
-		if (IsKeyDown(KEY_L)) hagemu_press_button(HAGEMU_BUTTON_A);
-		if (IsKeyDown(KEY_K)) hagemu_press_button(HAGEMU_BUTTON_B);
-		if (IsKeyDown(KEY_X)) hagemu_press_button(HAGEMU_BUTTON_START);
-		if (IsKeyDown(KEY_Z)) hagemu_press_button(HAGEMU_BUTTON_SELECT);
-
+		button_state[HAGEMU_BUTTON_A]      = IsKeyDown(KEY_L);
+		button_state[HAGEMU_BUTTON_B]      = IsKeyDown(KEY_K);
+		button_state[HAGEMU_BUTTON_START]  = IsKeyDown(KEY_X);
+		button_state[HAGEMU_BUTTON_SELECT] = IsKeyDown(KEY_Z);
 
 		if (IsGamepadAvailable(0)) {
-			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT))
-				hagemu_press_button(HAGEMU_BUTTON_RIGHT);
+			button_state[HAGEMU_BUTTON_RIGHT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
+			button_state[HAGEMU_BUTTON_LEFT]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT);
+			button_state[HAGEMU_BUTTON_UP]    |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_UP);
+			button_state[HAGEMU_BUTTON_DOWN]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN);
 
-			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT))
-				hagemu_press_button(HAGEMU_BUTTON_LEFT);
-
-			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_UP))
-				hagemu_press_button(HAGEMU_BUTTON_UP);
-
-			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN))
-				hagemu_press_button(HAGEMU_BUTTON_DOWN);
-
-			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT))
-				hagemu_press_button(HAGEMU_BUTTON_A);
-
-			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN))
-				hagemu_press_button(HAGEMU_BUTTON_B);
-
-			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_RIGHT))
-				hagemu_press_button(HAGEMU_BUTTON_START);
-
-			if (IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT))
-				hagemu_press_button(HAGEMU_BUTTON_SELECT);
+			button_state[HAGEMU_BUTTON_A]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+			button_state[HAGEMU_BUTTON_B]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+			button_state[HAGEMU_BUTTON_START]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_RIGHT);
+			button_state[HAGEMU_BUTTON_SELECT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT);
 		}
+
+		for (HagemuButton b = 0; b < HAGEMU_BUTTON_COUNT; b++)
+			hagemu_set_button(b, button_state[b]);
 
 		hagemu_run_frame();
 
