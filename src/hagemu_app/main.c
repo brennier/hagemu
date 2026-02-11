@@ -29,9 +29,10 @@ enum AppState {
 struct HagemuApp {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
-	enum AppState state;
+	SDL_Texture *screen_texture;
+
 	char* rom_filename;
-	/* Texture2D screen_texture; */
+	enum AppState state;
 	/* AudioStream audio_stream; */
 };
 
@@ -55,11 +56,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
-	/* SetTraceLogLevel(LOG_WARNING); */
 	/* SetTargetFPS(60); */
-	/* InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hagemu GameBoy Emulator"); */
-	/* SetExitKey(KEY_NULL); */
-
 
 	/* // setup audio */
 	/* InitAudioDevice(); */
@@ -68,16 +65,14 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	/* SetAudioStreamCallback(app->audio_stream, hagemu_audio_callback); */
 	/* PlayAudioStream(app->audio_stream); */
 
-	/* // setup screen texture */
-	/* Image background_image = (Image){ */
-	/* 	.data = NULL, */
-	/* 	.width = 160, */
-	/* 	.height = 144, */
-	/* 	.mipmaps = 1, */
-	/* 	.format = PIXELFORMAT_UNCOMPRESSED_R5G5B5A1, */
-	/* }; */
-	/* app->screen_texture = LoadTextureFromImage(background_image); */
-	/* UnloadImage(background_image); */
+	app->screen_texture = SDL_CreateTexture(app->renderer,
+						SDL_PIXELFORMAT_RGBA5551,
+						SDL_TEXTUREACCESS_STREAMING,
+						160, 144);
+	if (!app->screen_texture) {
+		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
+		return false;
+	}
 
 	return true;
 }
@@ -86,9 +81,9 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 	printf("Cleaning up!\n");
 
 	/* CloseAudioDevice(); */
-	/* UnloadTexture(app->screen_texture); */
 	/* UnloadAudioStream(app->audio_stream); */
 
+	SDL_DestroyTexture(app->screen_texture);
 	SDL_DestroyRenderer(app->renderer);
 	SDL_DestroyWindow(app->window);
 	SDL_Quit();
@@ -135,14 +130,20 @@ int main(int argc, char *argv[]) {
 	struct HagemuApp app = { 0 };
 	hagemu_app_setup(&app);
 
-	SDL_Delay(5000);
+	if (argc == 2) {
+		hagemu_load_rom(argv[1]);
+	} else if (argc > 2) {
+		fprintf(stderr, "Error: Too many arguments\n");
+		exit(EXIT_FAILURE);
+	}
 
-	/* if (argc == 2) { */
-	/* 	hagemu_app_load_rom(&app, argv[1]); */
-	/* } else if (argc > 2) { */
-	/* 	fprintf(stderr, "Error: Too many arguments\n"); */
-	/* 	exit(EXIT_FAILURE); */
-	/* } */
+	while (true) {
+		hagemu_run_frame();
+
+		SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), 2 * 160);
+		SDL_RenderTexture(app.renderer, app.screen_texture, NULL, NULL);
+		SDL_RenderPresent(app.renderer);
+	}
 
 	/* while (WindowShouldClose() != true && app.state == HAGEMU_NO_ROM) { */
 	/* 	BeginDrawing(); */
@@ -199,10 +200,6 @@ int main(int argc, char *argv[]) {
 
 		/* for (HagemuButton b = 0; b < HAGEMU_BUTTON_COUNT; b++) */
 		/* 	hagemu_set_button(b, button_state[b]); */
-
-		/* hagemu_run_frame(); */
-
-		/* UpdateTexture(app.screen_texture, hagemu_get_framebuffer()); */
 
 	/* 	BeginDrawing(); */
 	/* 	DrawTextureEx(app.screen_texture, (Vector2){ 0, 0 }, 0, SCALE_FACTOR, WHITE); */
