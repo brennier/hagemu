@@ -120,22 +120,12 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 /* 		); */
 /* } */
 
-bool hagemu_app_load_rom(struct HagemuApp *app, char* filename) {
+bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	printf("Loading the rom path '%s'\n", filename);
 	hagemu_load_rom(filename);
 	app->state = HAGEMU_GAME_RUNNING;
 	return true;
 }
-
-/* bool hagemu_app_load_dropped_file(struct HagemuApp *app) { */
-/* 	if (IsFileDropped()) { */
-/* 		FilePathList dropped_files = LoadDroppedFiles(); */
-/* 		bool result = hagemu_app_load_rom(app, dropped_files.paths[0]); */
-/* 		UnloadDroppedFiles(dropped_files); */
-/* 		return result; */
-/* 	} */
-/* 	return false; */
-/* } */
 
 void hagemu_handle_keypress(SDL_Scancode scancode, bool is_pressed) {
 	HagemuButton button;
@@ -187,6 +177,10 @@ void hagemu_handle_events(struct HagemuApp *app) {
 		case SDL_EVENT_KEY_UP:
 			hagemu_handle_keypress(app->event.key.scancode, false);
 			break;
+		case SDL_EVENT_DROP_FILE:
+		case SDL_EVENT_DROP_TEXT:
+			hagemu_app_load_rom(app, app->event.drop.data);
+			break;
 		default:
 			break;
 		}
@@ -223,7 +217,6 @@ int main(int argc, char *argv[]) {
 		/* 	); */
 		/* DrawFPS(10, 10); */
 
-		/* hagemu_app_load_dropped_file(&app); */
 		hagemu_handle_events(&app);
 
 		bool status = true;
@@ -235,7 +228,6 @@ int main(int argc, char *argv[]) {
 	}
 
 	while (app.state != HAGEMU_QUIT) {
-		/* hagemu_app_load_dropped_file(&app); */
 		hagemu_handle_events(&app);
 
 		hagemu_run_frame();
