@@ -11,9 +11,8 @@
 #define SCALE_FACTOR 5
 #define WINDOW_WIDTH 160 * SCALE_FACTOR
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
-#define MAX_BYTES_PER_AUDIO_CALLBACK 2048
-#define AUDIO_SAMPLE_RATE 48000
 #define APP_VERSION "0.1"
+#define AUDIO_SAMPLE_RATE 48000
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
@@ -32,12 +31,18 @@ struct HagemuApp {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	SDL_Texture *screen_texture;
+	SDL_AudioStream *audio_stream;
 	SDL_Event event;
-
-	char* rom_filename;
 	enum AppState state;
-	/* AudioStream audio_stream; */
 };
+
+void hagemu_app_feed_audio_stream(void *userdata, SDL_AudioStream *astream, int additional_amount, int total_amount)
+{
+	unsigned additional_samples = additional_amount / sizeof(uint16_t);
+	uint16_t samples[additional_samples];
+	hagemu_audio_callback(&samples, additional_samples / 2);
+	SDL_PutAudioStreamData(astream, samples, additional_amount);
+}
 
 bool hagemu_app_setup(struct HagemuApp *app) {
 	app->state = HAGEMU_NO_ROM;
@@ -66,13 +71,6 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
-	/* // setup audio */
-	/* InitAudioDevice(); */
-	/* SetAudioStreamBufferSizeDefault(MAX_BYTES_PER_AUDIO_CALLBACK); */
-	/* app->audio_stream = LoadAudioStream(AUDIO_SAMPLE_RATE, 16, 2); */
-	/* SetAudioStreamCallback(app->audio_stream, hagemu_audio_callback); */
-	/* PlayAudioStream(app->audio_stream); */
-
 	app->screen_texture = SDL_CreateTexture(app->renderer,
 						SDL_PIXELFORMAT_RGBA5551,
 						SDL_TEXTUREACCESS_STREAMING,
@@ -83,15 +81,27 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
+
+	SDL_AudioSpec spec = {
+		.format = SDL_AUDIO_S16,   // 16-bit signed int format
+		.channels = 2,             // Stereo
+		.freq = AUDIO_SAMPLE_RATE, // 48000 Hz
+	};
+
+	app->audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, hagemu_app_feed_audio_stream, NULL);
+	if (!app->audio_stream) {
+		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
+		return false;
+	}
+	SDL_ResumeAudioStreamDevice(app->audio_stream);
+
 	return true;
 }
 
 void hagemu_app_cleanup(struct HagemuApp *app) {
 	printf("Cleaning up!\n");
 
-	/* CloseAudioDevice(); */
-	/* UnloadAudioStream(app->audio_stream); */
-
+	SDL_DestroyAudioStream(app->audio_stream);
 	SDL_DestroyTexture(app->screen_texture);
 	SDL_DestroyRenderer(app->renderer);
 	SDL_DestroyWindow(app->window);
@@ -116,7 +126,6 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 /* 		fprintf(stderr, "Error: The file '%s' doesn't exist\n", filename); */
 /* 		return false; */
 /* 	} */
-/* 	app->rom_filename = filename; */
 /* 	app->state = HAGEMU_GAME_RUNNING; */
 /* 	hagemu_reset(); */
 /* 	hagemu_load_rom(filename); */
@@ -241,5 +250,5 @@ int main(int argc, char *argv[]) {
 	/* } */
 
 	hagemu_app_cleanup(&app);
-	return 0;
+	return EXIT_SUCCESS;
 }
