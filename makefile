@@ -4,11 +4,11 @@ OBJECTS = $(patsubst src/hagemu_core/%.c,build/%.o,$(SOURCES))
 
 # Use different linker libraries and output names depending on the OS
 ifeq ($(OS),Windows_NT)
-	LFLAGS = -lhagemu -lraylib -lopengl32 -lgdi32 -lwinmm
+	LFLAGS = -lSDL3 -lhagemu -lopengl32 -lgdi32 -lwinmm
 # Maybe add -mwindows later
 	OUTPUT = hagemu.exe
 else
-	LFLAGS = -lhagemu -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
+	LFLAGS = -lSDL3 -lhagemu -lGL -lm -lpthread -ldl -lrt -lX11
 	OUTPUT = hagemu
 endif
 
