@@ -25,12 +25,14 @@ enum AppState {
 	HAGEMU_NO_ROM,
 	HAGEMU_PAUSE_MENU,
 	HAGEMU_GAME_RUNNING,
+	HAGEMU_QUIT,
 };
 
 struct HagemuApp {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	SDL_Texture *screen_texture;
+	SDL_Event event;
 
 	char* rom_filename;
 	enum AppState state;
@@ -131,6 +133,20 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 /* 	return false; */
 /* } */
 
+void hagemu_handle_events(struct HagemuApp *app) {
+	while (SDL_PollEvent(&app->event)) {
+		switch (app->event.type) {
+
+		case SDL_EVENT_QUIT:
+			app->state = HAGEMU_QUIT;
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+
 int main(int argc, char *argv[]) {
 	web_setup_filesystem(); // Does nothing unless PLATFORM_WEB is defined
 
@@ -138,13 +154,15 @@ int main(int argc, char *argv[]) {
 	hagemu_app_setup(&app);
 
 	if (argc == 2) {
+		app.state = HAGEMU_GAME_RUNNING;
 		hagemu_load_rom(argv[1]);
 	} else if (argc > 2) {
 		fprintf(stderr, "Error: Too many arguments\n");
 		exit(EXIT_FAILURE);
 	}
 
-	while (true) {
+	while (app.state != HAGEMU_QUIT) {
+		hagemu_handle_events(&app);
 		hagemu_run_frame();
 
 		SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), 2 * 160);
