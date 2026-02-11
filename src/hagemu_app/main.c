@@ -13,6 +13,7 @@
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define MAX_BYTES_PER_AUDIO_CALLBACK 2048
 #define AUDIO_SAMPLE_RATE 48000
+#define APP_VERSION "0.1"
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
@@ -39,6 +40,8 @@ struct HagemuApp {
 bool hagemu_app_setup(struct HagemuApp *app) {
 	app->state = HAGEMU_NO_ROM;
 
+	SDL_SetAppMetadata(WINDOW_TITLE, APP_VERSION, NULL);
+
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
 		fprintf(stderr, "Error initializing SDL3: %s\n", SDL_GetError());
 		return false;
@@ -56,7 +59,10 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
-	/* SetTargetFPS(60); */
+	if (!SDL_SetRenderVSync(app->renderer, 1)) {
+		fprintf(stderr, "Error failed to set vsync: %s\n", SDL_GetError());
+		return false;
+	}
 
 	/* // setup audio */
 	/* InitAudioDevice(); */
@@ -69,6 +75,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 						SDL_PIXELFORMAT_RGBA5551,
 						SDL_TEXTUREACCESS_STREAMING,
 						160, 144);
+	SDL_SetTextureScaleMode(app->screen_texture, SDL_SCALEMODE_NEAREST);
 	if (!app->screen_texture) {
 		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
 		return false;
