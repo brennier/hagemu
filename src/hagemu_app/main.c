@@ -133,6 +133,32 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 /* 	return false; */
 /* } */
 
+void hagemu_handle_keypress(SDL_Scancode scancode, bool is_pressed) {
+	HagemuButton button;
+
+	switch (scancode) {
+
+	case SDL_SCANCODE_L: button = HAGEMU_BUTTON_A; break;
+	case SDL_SCANCODE_K: button = HAGEMU_BUTTON_B; break;
+	case SDL_SCANCODE_X: button = HAGEMU_BUTTON_START;  break;
+	case SDL_SCANCODE_Z: button = HAGEMU_BUTTON_SELECT; break;
+
+	case SDL_SCANCODE_W: button = HAGEMU_BUTTON_UP;    break;
+	case SDL_SCANCODE_A: button = HAGEMU_BUTTON_LEFT;  break;
+	case SDL_SCANCODE_S: button = HAGEMU_BUTTON_DOWN;  break;
+	case SDL_SCANCODE_D: button = HAGEMU_BUTTON_RIGHT; break;
+
+	case SDL_SCANCODE_UP:    button = HAGEMU_BUTTON_UP;    break;
+	case SDL_SCANCODE_LEFT:  button = HAGEMU_BUTTON_LEFT;  break;
+	case SDL_SCANCODE_RIGHT: button = HAGEMU_BUTTON_RIGHT; break;
+	case SDL_SCANCODE_DOWN:  button = HAGEMU_BUTTON_DOWN;  break;
+
+	default: return;
+	}
+
+	hagemu_set_button(button, is_pressed);
+}
+
 void hagemu_handle_events(struct HagemuApp *app) {
 	while (SDL_PollEvent(&app->event)) {
 		switch (app->event.type) {
@@ -140,12 +166,17 @@ void hagemu_handle_events(struct HagemuApp *app) {
 		case SDL_EVENT_QUIT:
 			app->state = HAGEMU_QUIT;
 			break;
+		case SDL_EVENT_KEY_DOWN:
+			hagemu_handle_keypress(app->event.key.scancode, true);
+			break;
+		case SDL_EVENT_KEY_UP:
+			hagemu_handle_keypress(app->event.key.scancode, false);
+			break;
 		default:
 			break;
 		}
 	}
 }
-
 
 int main(int argc, char *argv[]) {
 	web_setup_filesystem(); // Does nothing unless PLATFORM_WEB is defined
@@ -194,23 +225,6 @@ int main(int argc, char *argv[]) {
 	/* while (WindowShouldClose() != true) { */
 	/* 	hagemu_app_load_dropped_file(&app); */
 
-		/* bool button_state[HAGEMU_BUTTON_COUNT]; */
-
-		/* button_state[HAGEMU_BUTTON_RIGHT] = IsKeyDown(KEY_RIGHT); */
-		/* button_state[HAGEMU_BUTTON_LEFT]  = IsKeyDown(KEY_LEFT); */
-		/* button_state[HAGEMU_BUTTON_UP]    = IsKeyDown(KEY_UP); */
-		/* button_state[HAGEMU_BUTTON_DOWN]  = IsKeyDown(KEY_DOWN); */
-
-		/* button_state[HAGEMU_BUTTON_RIGHT] |= IsKeyDown(KEY_D); */
-		/* button_state[HAGEMU_BUTTON_LEFT]  |= IsKeyDown(KEY_A); */
-		/* button_state[HAGEMU_BUTTON_UP]    |= IsKeyDown(KEY_W); */
-		/* button_state[HAGEMU_BUTTON_DOWN]  |= IsKeyDown(KEY_S); */
-
-		/* button_state[HAGEMU_BUTTON_A]      = IsKeyDown(KEY_L); */
-		/* button_state[HAGEMU_BUTTON_B]      = IsKeyDown(KEY_K); */
-		/* button_state[HAGEMU_BUTTON_START]  = IsKeyDown(KEY_X); */
-		/* button_state[HAGEMU_BUTTON_SELECT] = IsKeyDown(KEY_Z); */
-
 		/* if (IsGamepadAvailable(0)) { */
 		/* 	button_state[HAGEMU_BUTTON_RIGHT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT); */
 		/* 	button_state[HAGEMU_BUTTON_LEFT]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT); */
@@ -223,13 +237,7 @@ int main(int argc, char *argv[]) {
 		/* 	button_state[HAGEMU_BUTTON_SELECT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT); */
 		/* } */
 
-		/* for (HagemuButton b = 0; b < HAGEMU_BUTTON_COUNT; b++) */
-		/* 	hagemu_set_button(b, button_state[b]); */
-
-	/* 	BeginDrawing(); */
-	/* 	DrawTextureEx(app.screen_texture, (Vector2){ 0, 0 }, 0, SCALE_FACTOR, WHITE); */
 	/* 	DrawFPS(10, 10); */
-	/* 	EndDrawing(); */
 	/* } */
 
 	hagemu_app_cleanup(&app);
