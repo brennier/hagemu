@@ -12,7 +12,7 @@ else
 	OUTPUT = hagemu
 endif
 
-${OUTPUT}: build/libhagemu.a build/hagemu.h build/libraylib.a build/raylib.h build/main.o
+${OUTPUT}: build/libhagemu.a build/hagemu.h build/main.o
 	@printf %s "Linking together the final executable..."
 	@${CC} $^ -o $@ -L build ${LFLAGS} >/dev/null
 	@echo sucessful!
@@ -31,12 +31,6 @@ build/hagemu.h: src/hagemu_core/hagemu_core.h
 	@cp $^ $@
 	@echo sucessfull!
 
-build/raylib.h: lib/raylib/src/raylib.h
-	@mkdir -p build
-	@printf %s "Copying $(notdir $@) into build folder..."
-	@cp $^ $@
-	@echo sucessfull!
-
 build/%.o: src/hagemu_core/%.c
 	@mkdir -p build
 	@printf %s "Compiling $(notdir $<) into object code..."
@@ -49,38 +43,21 @@ build/main.o: src/hagemu_app/main.c
 	@${CC} ${CFLAGS} -c $< -o $@ -I build
 	@echo sucessfull!
 
-build/libraylib.a: lib/raylib/src/libraylib.a
-	@mkdir -p build
-	@printf %s "Copying $(notdir $@) into build folder..."
-	@cp $^ $@
-	@echo sucessfull!
-
-lib/raylib/src/libraylib.a:
-	@printf %s "Building Raylib..."
-	@make -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP -B
-	@echo sucessful!
-
-build/libraylib_web.a:
+web:
 	@sh lib/emsdk/emsdk install latest
 	@sh lib/emsdk/emsdk activate latest
-	@mkdir -p build
-	@printf %s "Building Raylib using emcc..."
-	@source lib/emsdk/emsdk_env.sh && make -C lib/raylib/src PLATFORM=PLATFORM_WEB -B >/dev/null
-	@cp lib/raylib/src/libraylib.web.a build/libraylib_web.a
-	@echo sucessful!
-
-web: build/raylib.h build/libraylib_web.a
-	@sh lib/emsdk/emsdk install latest
-	@sh lib/emsdk/emsdk activate latest
-	@cp lib/emsdk/upstream/emscripten/cache/sysroot/include/emscripten.h build
-	@source lib/emsdk/emsdk_env.sh && emcc -DPLATFORM_WEB -O3 -flto -lidbfs.js src/*.c -o build/main.html -I build -L build -lraylib_web -s USE_GLFW=3 -s ASYNCIFY
-	@rm build/main.html
-	@cp src/index.html build/index.html
-	@cd build && python -m http.server 8000
+	@mkdir -p web_build
+	@cp src/hagemu_core/hagemu_core.h web_build/hagemu.h
+	@cp lib/emsdk/upstream/emscripten/cache/sysroot/include/emscripten.h web_build
+	@source lib/emsdk/emsdk_env.sh && emcc -DPLATFORM_WEB -O3 -flto -lidbfs.js src/hagemu_core/*.c src/hagemu_app/*.c -o web_build/main.html -I web_build -s USE_SDL=3 -s ASYNCIFY
+	@rm web_build/main.html
+	@cp src/hagemu_app/index.html web_build/index.html
+	@rm web_build/*.h
+	@cd web_build && python -m http.server 8000
 
 clean:
 	@echo Cleaning up build files and executables...
-	@rm -rf build ${OUTPUT}
+	@rm -rf build web_build ${OUTPUT}
 
 test: ${OUTPUT}
 	./${OUTPUT} roms/test.gb

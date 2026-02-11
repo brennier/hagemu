@@ -6,7 +6,7 @@
 
 #include "emscripten.h"
 void EMSCRIPTEN_KEEPALIVE web_sync_filesystem() {
-	mmu_save_sram_file();
+	hagemu_save_sram_file();
 	printf("Saving the game...");
 	EM_ASM(
 		FS.syncfs(false, function (err) {
