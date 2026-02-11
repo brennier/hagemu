@@ -120,17 +120,12 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 /* 		); */
 /* } */
 
-/* bool hagemu_app_load_rom(struct HagemuApp *app, char* filename) { */
-/* 	printf("Loading the rom path '%s'\n", filename); */
-/* 	if (!FileExists(filename)) { */
-/* 		fprintf(stderr, "Error: The file '%s' doesn't exist\n", filename); */
-/* 		return false; */
-/* 	} */
-/* 	app->state = HAGEMU_GAME_RUNNING; */
-/* 	hagemu_reset(); */
-/* 	hagemu_load_rom(filename); */
-/* 	return true; */
-/* } */
+bool hagemu_app_load_rom(struct HagemuApp *app, char* filename) {
+	printf("Loading the rom path '%s'\n", filename);
+	hagemu_load_rom(filename);
+	app->state = HAGEMU_GAME_RUNNING;
+	return true;
+}
 
 /* bool hagemu_app_load_dropped_file(struct HagemuApp *app) { */
 /* 	if (IsFileDropped()) { */
@@ -144,6 +139,17 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 
 void hagemu_handle_keypress(SDL_Scancode scancode, bool is_pressed) {
 	HagemuButton button;
+
+	/* if (IsGamepadAvailable(0)) { */
+	/* 	button_state[HAGEMU_BUTTON_RIGHT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT); */
+	/* 	button_state[HAGEMU_BUTTON_LEFT]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT); */
+	/* 	button_state[HAGEMU_BUTTON_UP]    |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_UP); */
+	/* 	button_state[HAGEMU_BUTTON_DOWN]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN); */
+	/* 	button_state[HAGEMU_BUTTON_A]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT); */
+	/* 	button_state[HAGEMU_BUTTON_B]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN); */
+	/* 	button_state[HAGEMU_BUTTON_START]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_RIGHT); */
+	/* 	button_state[HAGEMU_BUTTON_SELECT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT); */
+	/* } */
 
 	switch (scancode) {
 
@@ -194,60 +200,56 @@ int main(int argc, char *argv[]) {
 	hagemu_app_setup(&app);
 
 	if (argc == 2) {
-		app.state = HAGEMU_GAME_RUNNING;
-		hagemu_load_rom(argv[1]);
+		hagemu_app_load_rom(&app, argv[1]);
 	} else if (argc > 2) {
 		fprintf(stderr, "Error: Too many arguments\n");
 		exit(EXIT_FAILURE);
 	}
 
-	while (app.state != HAGEMU_QUIT) {
-		hagemu_handle_events(&app);
-		hagemu_run_frame();
+	SDL_SetRenderDrawColor(app.renderer, 138, 189, 76, 255);
 
-		SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), 2 * 160);
-		SDL_RenderTexture(app.renderer, app.screen_texture, NULL, NULL);
-		SDL_RenderPresent(app.renderer);
+	while (app.state == HAGEMU_NO_ROM) {
+		/* DrawText("Compilation Date: " __DATE__, */
+		/* 	 SCALE_FACTOR, */
+		/* 	 SCREEN_HEIGHT - 5 * SCALE_FACTOR, */
+		/* 	 4 * SCALE_FACTOR, */
+		/* 	 GREEN3); */
+		/* DrawTextCentered( */
+		/* 	"Please drop a .gb file onto this window", */
+		/* 	SCREEN_WIDTH / 2, */
+		/* 	SCREEN_HEIGHT / 2, */
+		/* 	7 * SCALE_FACTOR, */
+		/* 	GREEN3 */
+		/* 	); */
+		/* DrawFPS(10, 10); */
+
+		/* hagemu_app_load_dropped_file(&app); */
+		hagemu_handle_events(&app);
+
+		bool status = true;
+		status &= SDL_RenderClear(app.renderer);
+		status &= SDL_RenderPresent(app.renderer);
+
+		if (!status)
+			fprintf(stderr, "Error initializing SDL3: %s\n", SDL_GetError());
 	}
 
-	/* while (WindowShouldClose() != true && app.state == HAGEMU_NO_ROM) { */
-	/* 	BeginDrawing(); */
-	/* 	ClearBackground(GREEN1); */
-	/* 	DrawText("Compilation Date: " __DATE__, */
-	/* 		 SCALE_FACTOR, */
-	/* 		 SCREEN_HEIGHT - 5 * SCALE_FACTOR, */
-	/* 		 4 * SCALE_FACTOR, */
-	/* 		 GREEN3); */
-	/* 	DrawTextCentered( */
-	/* 		"Please drop a .gb file onto this window", */
-	/* 		SCREEN_WIDTH / 2, */
-	/* 		SCREEN_HEIGHT / 2, */
-	/* 		7 * SCALE_FACTOR, */
-	/* 		GREEN3 */
-	/* 		); */
-	/* 	DrawFPS(10, 10); */
-	/* 	EndDrawing(); */
+	while (app.state != HAGEMU_QUIT) {
+		/* hagemu_app_load_dropped_file(&app); */
+		hagemu_handle_events(&app);
 
-	/* 	hagemu_app_load_dropped_file(&app); */
-	/* } */
+		hagemu_run_frame();
 
-	/* while (WindowShouldClose() != true) { */
-	/* 	hagemu_app_load_dropped_file(&app); */
+		bool status = true;
 
-		/* if (IsGamepadAvailable(0)) { */
-		/* 	button_state[HAGEMU_BUTTON_RIGHT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT); */
-		/* 	button_state[HAGEMU_BUTTON_LEFT]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT); */
-		/* 	button_state[HAGEMU_BUTTON_UP]    |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_UP); */
-		/* 	button_state[HAGEMU_BUTTON_DOWN]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN); */
+		status &= SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), 2 * 160);
+		status &= SDL_RenderTexture(app.renderer, app.screen_texture, NULL, NULL);
+		status &= SDL_RenderPresent(app.renderer);
+		/* DrawFPS(10, 10); */
 
-		/* 	button_state[HAGEMU_BUTTON_A]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT); */
-		/* 	button_state[HAGEMU_BUTTON_B]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN); */
-		/* 	button_state[HAGEMU_BUTTON_START]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_RIGHT); */
-		/* 	button_state[HAGEMU_BUTTON_SELECT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT); */
-		/* } */
-
-	/* 	DrawFPS(10, 10); */
-	/* } */
+		if (!status)
+			fprintf(stderr, "Error updating the framebuffer: %s\n", SDL_GetError());
+	}
 
 	hagemu_app_cleanup(&app);
 	return EXIT_SUCCESS;
