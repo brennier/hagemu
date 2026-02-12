@@ -301,7 +301,7 @@ const int ram_size_table[] = {
 char* get_sram_name(const char* rom_name) {
 	// Returns the string "/savedata/[basename].sav" where [basename] is the basename part of rom_name.
 	// It is up to the caller to free the memory for the string.
-	char* basename_begin = strrchr(rom_name, '/');
+	const char* basename_begin = strrchr(rom_name, '/');
 	if (basename_begin == NULL)
 		basename_begin = rom_name;
 	else
