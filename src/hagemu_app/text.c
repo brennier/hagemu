@@ -20,9 +20,9 @@ bool text_init(SDL_Renderer *renderer) {
 		return false;
 	}
 
-	// Set white as a transparent color
+	// Set black as the transparent color
 	const SDL_PixelFormatDetails *format = SDL_GetPixelFormatDetails(font_surface->format);
-	Uint32 bg_color = SDL_MapRGB(format, SDL_GetSurfacePalette(font_surface), 255, 255, 255);
+	Uint32 bg_color = SDL_MapRGB(format, SDL_GetSurfacePalette(font_surface), 0, 0, 0);
 	SDL_SetSurfaceColorKey(font_surface, true, bg_color);
 
 	font_texture = SDL_CreateTextureFromSurface(renderer, font_surface);
@@ -38,7 +38,6 @@ bool text_init(SDL_Renderer *renderer) {
 void text_cleanup() {
 	SDL_DestroyTexture(font_texture);
 }
-
 
 float text_draw_char(SDL_Renderer *renderer, char c, int x, int y, int font_size) {
 	unsigned value = (unsigned)c;
@@ -57,12 +56,15 @@ float text_draw_char(SDL_Renderer *renderer, char c, int x, int y, int font_size
 	float output_width = chars_width[value]*(font_size / 10.0);
 	SDL_FRect source_rect = { x_offset, y_offset, chars_width[value], 10 };
 	SDL_FRect dest_rect = { x, y, output_width, font_size };
-	SDL_SetTextureColorMod(font_texture, 255, 255, 0);
 	SDL_RenderTexture(renderer, font_texture, &source_rect, &dest_rect);
 	return output_width;
 }
 
 void text_draw(SDL_Renderer *renderer, char* text, int x, int y, int font_size) {
+	SDL_Color color;
+	SDL_GetRenderDrawColor(renderer, &color.r, &color.g, &color.b, &color.a);
+	SDL_SetTextureColorMod(font_texture, color.r, color.g, color.b);
+
 	float float_x = (float)x;
 	for (char *c = text; *c != '\0'; c++) {
 		float_x += text_draw_char(renderer, *c, float_x, y, font_size);
