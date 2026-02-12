@@ -1,0 +1,35 @@
+{
+    "name": "Hagemu GameBoy Emulator",
+    "short_name": "Hagemu",
+    "start_url": "./",
+    "scope": ".",
+    "display": "fullscreen",
+    "background_color": "#306657",
+    "theme_color": "#20453A",
+    "icons": [
+        {
+            "src": "./images/hagemu_logo_192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "./images/hagemu_logo_512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "./images/hagemu_logo_192_maskable.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "./images/hagemu_logo_512_maskable.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
