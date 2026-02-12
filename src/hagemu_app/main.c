@@ -14,6 +14,8 @@
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
 #define AUDIO_SAMPLE_RATE 48000
+// 2 video frames worth of audio should be queued at all times
+#define AUDIO_TARGET_FRAMES (2 * (AUDIO_SAMPLE_RATE / 60))
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
@@ -38,12 +40,15 @@ struct HagemuApp {
 	enum AppState state;
 };
 
-void hagemu_app_feed_audio_stream(void *userdata, SDL_AudioStream *astream, int additional_amount, int total_amount)
+void hagemu_app_push_audio(struct HagemuApp *app)
 {
-	unsigned additional_samples = additional_amount / sizeof(uint16_t);
-	uint16_t samples[additional_samples];
-	hagemu_audio_callback(&samples, additional_samples / 2);
-	SDL_PutAudioStreamData(astream, samples, additional_amount);
+	int queued_bytes  = SDL_GetAudioStreamQueued(app->audio_stream);
+	int queued_frames = queued_bytes / 4;
+	int frames_needed = AUDIO_TARGET_FRAMES - queued_frames;
+	uint16_t temp_buffer[2 * AUDIO_TARGET_FRAMES];
+
+	hagemu_audio_callback(temp_buffer, frames_needed);
+	SDL_PutAudioStreamData(app->audio_stream, temp_buffer, 4 * frames_needed);
 }
 
 bool hagemu_app_setup(struct HagemuApp *app) {
@@ -89,7 +94,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		.freq = AUDIO_SAMPLE_RATE, // 48000 Hz
 	};
 
-	app->audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, hagemu_app_feed_audio_stream, NULL);
+	app->audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
 	if (!app->audio_stream) {
 		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
 		return false;
@@ -242,6 +247,7 @@ int main(int argc, char *argv[]) {
 		hagemu_handle_events(&app);
 
 		hagemu_run_frame();
+		hagemu_app_push_audio(&app);
 
 		bool status = true;
 
