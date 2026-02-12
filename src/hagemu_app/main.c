@@ -116,16 +116,6 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 	hagemu_save_sram_file();
 }
 
-/* void DrawTextCentered(char* text, int x, int y, int font_size, Color color) { */
-/* 	int text_width = MeasureText(text, font_size); */
-/* 	DrawText(text, */
-/* 		 x - text_width / 2, */
-/* 		 y - font_size / 2, */
-/* 		 font_size, */
-/* 		 color */
-/* 		); */
-/* } */
-
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	printf("Loading the rom path '%s'\n", filename);
 	hagemu_load_rom(filename);
@@ -209,23 +199,20 @@ int main(int argc, char *argv[]) {
 	SDL_SetRenderDrawColor(app.renderer, 138, 189, 76, 255);
 	SDL_RenderClear(app.renderer);
 	SDL_SetRenderDrawColor(app.renderer, 48, 102, 87, 255);
-	text_draw(app.renderer, "Please drop a .gb file onto this window", 10, WINDOW_HEIGHT / 2, 40);
+	text_draw_centered(app.renderer,
+			   "Please drop a .gb file onto this window",
+			   WINDOW_WIDTH / 2,
+			   WINDOW_HEIGHT / 2,
+			   7 * SCALE_FACTOR);
+	text_draw(app.renderer,
+		  "Compilation Date: " __DATE__,
+		  SCALE_FACTOR,
+		  WINDOW_HEIGHT - 5 * SCALE_FACTOR,
+		  4 * SCALE_FACTOR);
 	SDL_RenderPresent(app.renderer);
 
 	while (app.state == HAGEMU_NO_ROM) {
 		hagemu_handle_events(&app);
-		/* DrawText("Compilation Date: " __DATE__, */
-			 /* SCALE_FACTOR, */
-			 /* SCREEN_HEIGHT - 5 * SCALE_FACTOR, */
-			 /* 4 * SCALE_FACTOR, */
-			 /* GREEN3); */
-		/* DrawTextCentered( */
-			/* "Please drop a .gb file onto this window", */
-			/* SCREEN_WIDTH / 2, */
-			/* SCREEN_HEIGHT / 2, */
-			/* 7 * SCALE_FACTOR, */
-			/* GREEN3 */
-			/* ); */
 	}
 
 	while (app.state != HAGEMU_QUIT) {
