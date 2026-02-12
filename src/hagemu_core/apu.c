@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #define AUDIO_SAMPLE_RATE (2 * 1024 * 1024)
-#define OUTPUT_SAMPLE_RATE (48000 * 5)
+#define OUTPUT_SAMPLE_RATE 48000
 #define DECIMATION_FACTOR ((double)AUDIO_SAMPLE_RATE / (double)OUTPUT_SAMPLE_RATE)
 
 typedef int16_t AudioSample;
@@ -230,44 +230,6 @@ uint8_t channel_output_noise(struct Channel *channel) {
 		return 0;
 }
 
-// These constants are for a second-order IIR low-pass Butterworth filter
-// The cutoff frequency of a 240,000 Hz sample rate is 20,000 Hz
-const double a1 = -1.27958194;
-const double a2 = 0.47753396;
-const double b0 = 0.04948800;
-const double b1 = 0.09897601;
-const double b2 = 0.04948800;
-
-AudioSample buttersworth_filter_left(AudioSample x) {
-	static double x0, x1, x2, y1, y2, y0;
-	x0 = (double)x / 32767.0;
-
-	// We don't use b1 and b2 since b2 = b0 and b1 = 2 * b0
-	y0 = b0 * (x0 + x1 + x1 + x2);
-	y0 -= a1 * y1 + a2 * y2;
-
-	x2 = x1;
-	x1 = x0;
-	y2 = y1;
-	y1 = y0;
-	return (AudioSample)(y0 * 32767.0);
-}
-
-AudioSample buttersworth_filter_right(AudioSample x) {
-	static double x0, x1, x2, y1, y2, y0;
-	x0 = (double)x / 32767.0;
-
-	// We don't use b1 and b2 since b2 = b0 and b1 = 2 * b0
-	y0 = b0 * (x0 + x1 + x1 + x2);
-	y0 -= a1 * y1 + a2 * y2;
-
-	x2 = x1;
-	x1 = x0;
-	y2 = y1;
-	y1 = y0;
-	return (AudioSample)(y0 * 32767.0);
-}
-
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
 	AudioSample *samples = (AudioSample *)buffer;
 	AudioSample left, right;
@@ -280,43 +242,38 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 			continue;
 		}
 
-		for (int k = 0; k < 5; k++) {
-			static double decimation_counter = 0.0;
-			while (decimation_counter < DECIMATION_FACTOR) {
-				tick_apu();
-				decimation_counter++;
-			}
-			decimation_counter -= DECIMATION_FACTOR;
-
-			// Each channel is in the range [0, 15]
-			sample1 = channel_output_pulse(&channel1);
-			sample2 = channel_output_pulse(&channel2);
-			sample3 = channel_output_wave(&channel3);
-			sample4 = channel_output_noise(&channel4);
-
-			// Adjust the samples to be [-15, 15]
-			sample1 = 2 * sample1 - 15;
-			sample2 = 2 * sample2 - 15;
-			sample3 = 2 * sample3 - 15;
-			sample4 = 2 * sample4 - 15;
-
-			left = 0;
-			left += master_controls.channel1_left * sample1;
-			left += master_controls.channel2_left * sample2;
-			left += master_controls.channel3_left * sample3;
-			left += master_controls.channel4_left * sample4;
-			left *= 16 * (master_controls.volume_left + 1);
-
-			right = 0;
-			right += master_controls.channel1_right * sample1;
-			right += master_controls.channel2_right * sample2;
-			right += master_controls.channel3_right * sample3;
-			right += master_controls.channel4_right * sample4;
-			right *= 16 * (master_controls.volume_right + 1);
-
-			left = buttersworth_filter_left(left);
-			right = buttersworth_filter_right(right);
+		static double decimation_counter = 0.0;
+		while (decimation_counter < DECIMATION_FACTOR) {
+			tick_apu();
+			decimation_counter++;
 		}
+		decimation_counter -= DECIMATION_FACTOR;
+
+		// Each channel is in the range [0, 15]
+		sample1 = channel_output_pulse(&channel1);
+		sample2 = channel_output_pulse(&channel2);
+		sample3 = channel_output_wave(&channel3);
+		sample4 = channel_output_noise(&channel4);
+
+		// Adjust the samples to be [-15, 15]
+		sample1 = 2 * sample1 - 15;
+		sample2 = 2 * sample2 - 15;
+		sample3 = 2 * sample3 - 15;
+		sample4 = 2 * sample4 - 15;
+
+		left = 0;
+		left += master_controls.channel1_left * sample1;
+		left += master_controls.channel2_left * sample2;
+		left += master_controls.channel3_left * sample3;
+		left += master_controls.channel4_left * sample4;
+		left *= 16 * (master_controls.volume_left + 1);
+
+		right = 0;
+		right += master_controls.channel1_right * sample1;
+		right += master_controls.channel2_right * sample2;
+		right += master_controls.channel3_right * sample3;
+		right += master_controls.channel4_right * sample4;
+		right *= 16 * (master_controls.volume_right + 1);
 
 		samples[2 * i + 0] = left;
 		samples[2 * i + 1] = right;
