@@ -33,6 +33,7 @@ struct HagemuApp {
 	SDL_Renderer *renderer;
 	SDL_Texture *screen_texture;
 	SDL_AudioStream *audio_stream;
+	SDL_Gamepad *gamepad;
 	SDL_Event event;
 	enum AppState state;
 };
@@ -50,7 +51,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 
 	SDL_SetAppMetadata(WINDOW_TITLE, APP_VERSION, NULL);
 
-	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
 		fprintf(stderr, "Error initializing SDL3: %s\n", SDL_GetError());
 		return false;
 	}
@@ -125,18 +126,6 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 
 void hagemu_handle_keypress(SDL_Scancode scancode, bool is_pressed) {
 	HagemuButton button;
-
-	/* if (IsGamepadAvailable(0)) { */
-	/* 	button_state[HAGEMU_BUTTON_RIGHT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT); */
-	/* 	button_state[HAGEMU_BUTTON_LEFT]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT); */
-	/* 	button_state[HAGEMU_BUTTON_UP]    |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_UP); */
-	/* 	button_state[HAGEMU_BUTTON_DOWN]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN); */
-	/* 	button_state[HAGEMU_BUTTON_A]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT); */
-	/* 	button_state[HAGEMU_BUTTON_B]      |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN); */
-	/* 	button_state[HAGEMU_BUTTON_START]  |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_RIGHT); */
-	/* 	button_state[HAGEMU_BUTTON_SELECT] |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_MIDDLE_LEFT); */
-	/* } */
-
 	switch (scancode) {
 
 	case SDL_SCANCODE_L: button = HAGEMU_BUTTON_A; break;
@@ -160,6 +149,26 @@ void hagemu_handle_keypress(SDL_Scancode scancode, bool is_pressed) {
 	hagemu_set_button(button, is_pressed);
 }
 
+void hagemu_handle_gamepad(SDL_GamepadButton gpad_button, bool is_pressed) {
+	HagemuButton button;
+	switch (gpad_button) {
+
+	case SDL_GAMEPAD_BUTTON_EAST:  button = HAGEMU_BUTTON_A; break;
+	case SDL_GAMEPAD_BUTTON_SOUTH: button = HAGEMU_BUTTON_B; break;
+	case SDL_GAMEPAD_BUTTON_START: button = HAGEMU_BUTTON_START;  break;
+	case SDL_GAMEPAD_BUTTON_BACK:  button = HAGEMU_BUTTON_SELECT; break;
+
+	case SDL_GAMEPAD_BUTTON_DPAD_UP:    button = HAGEMU_BUTTON_UP;    break;
+	case SDL_GAMEPAD_BUTTON_DPAD_LEFT:  button = HAGEMU_BUTTON_LEFT;  break;
+	case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: button = HAGEMU_BUTTON_RIGHT; break;
+	case SDL_GAMEPAD_BUTTON_DPAD_DOWN:  button = HAGEMU_BUTTON_DOWN;  break;
+
+	default: return;
+	}
+
+	hagemu_set_button(button, is_pressed);
+}
+
 void hagemu_handle_events(struct HagemuApp *app) {
 	while (SDL_PollEvent(&app->event)) {
 		switch (app->event.type) {
@@ -172,6 +181,20 @@ void hagemu_handle_events(struct HagemuApp *app) {
 			break;
 		case SDL_EVENT_KEY_UP:
 			hagemu_handle_keypress(app->event.key.scancode, false);
+			break;
+		case SDL_EVENT_GAMEPAD_ADDED:
+			if (app->gamepad) SDL_CloseGamepad(app->gamepad);
+			app->gamepad = SDL_OpenGamepad(app->event.gdevice.which);
+			break;
+		case SDL_EVENT_GAMEPAD_REMOVED:
+			SDL_CloseGamepad(app->gamepad);
+			app->gamepad = NULL;
+			break;
+		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+			hagemu_handle_gamepad(app->event.gbutton.button, true);
+			break;
+		case SDL_EVENT_GAMEPAD_BUTTON_UP:
+			hagemu_handle_gamepad(app->event.gbutton.button, false);
 			break;
 		case SDL_EVENT_DROP_FILE:
 		case SDL_EVENT_DROP_TEXT:
