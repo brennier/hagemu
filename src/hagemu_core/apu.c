@@ -269,15 +269,28 @@ AudioFrame apu_generate_frame() {
 
 AudioFrame lowpass_filter(AudioFrame frame) {
 	static AudioFrame prev_frame;
-	const float alpha = 0.25;
+	const float alpha = 0.20f;
 
 	AudioFrame frame_diff = {
-		.left  = (float)frame.left  - (float)prev_frame.left,
-		.right = (float)frame.right - (float)prev_frame.right,
+		.left  = frame.left  - prev_frame.left,
+		.right = frame.right - prev_frame.right,
 	};
 	prev_frame.left  += alpha * frame_diff.left;
 	prev_frame.right += alpha * frame_diff.right;
 	return prev_frame;
+}
+
+// Emulates the DC Blocking of the gameboy
+AudioFrame highpass_filter(AudioFrame frame) {
+	static AudioFrame prev_input, prev_output;
+	const float R = 0.995f;
+	AudioFrame output_frame = {
+		.left  = frame.left  - prev_input.left  + R * prev_output.left,
+		.right = frame.right - prev_input.right + R * prev_output.right,
+	};
+	prev_input = frame;
+	prev_output = output_frame;
+	return output_frame;
 }
 
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
@@ -292,7 +305,9 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		decimation_counter -= DECIMATION_FACTOR;
 
 		current_frame = apu_generate_frame();
-		frames[i] = lowpass_filter(current_frame);
+		current_frame = highpass_filter(current_frame);
+		current_frame = lowpass_filter(current_frame);
+		frames[i] = current_frame;
 	}
 }
 
