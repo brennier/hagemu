@@ -61,7 +61,7 @@ web:
 
 clean:
 	@echo Cleaning up build files and executables...
-	@rm -rf build web_build ${OUTPUT}
+	@rm -rf build ${OUTPUT}
 
 test: ${OUTPUT}
 	./${OUTPUT} roms/test.gb
