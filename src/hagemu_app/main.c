@@ -196,23 +196,23 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	SDL_SetRenderDrawColor(app.renderer, 138, 189, 76, 255);
-	SDL_RenderClear(app.renderer);
-	SDL_SetRenderDrawColor(app.renderer, 48, 102, 87, 255);
-	text_draw_centered(app.renderer,
-			   "Please drop a .gb file onto this window",
-			   WINDOW_WIDTH / 2,
-			   WINDOW_HEIGHT / 2,
-			   7 * SCALE_FACTOR);
-	text_draw(app.renderer,
-		  "Compilation Date: " __DATE__,
-		  SCALE_FACTOR,
-		  WINDOW_HEIGHT - 5 * SCALE_FACTOR,
-		  4 * SCALE_FACTOR);
-	SDL_RenderPresent(app.renderer);
-
 	while (app.state == HAGEMU_NO_ROM) {
 		hagemu_handle_events(&app);
+
+		SDL_SetRenderDrawColor(app.renderer, 138, 189, 76, 255);
+		SDL_RenderClear(app.renderer);
+		SDL_SetRenderDrawColor(app.renderer, 48, 102, 87, 255);
+		text_draw_centered(app.renderer,
+				   "Please drop a .gb file onto this window",
+				   WINDOW_WIDTH / 2,
+				   WINDOW_HEIGHT / 2,
+				   7 * SCALE_FACTOR);
+		text_draw(app.renderer,
+			  "Compilation Date: " __DATE__,
+			  SCALE_FACTOR,
+			  WINDOW_HEIGHT - 5 * SCALE_FACTOR,
+			  4 * SCALE_FACTOR);
+		SDL_RenderPresent(app.renderer);
 	}
 
 	while (app.state != HAGEMU_QUIT) {
