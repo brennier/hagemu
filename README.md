@@ -1,6 +1,6 @@
 <h1><img align="center" height="75" src="hagemu_logo.png">Hagemu is a GameBoy emulator</h1>
 
-This is an attempt to write a GameBoy emulator in C99. This is a personal project to learn more about computers and emulation. Raylib is used to write the pixels and handle input. Emscripten is used to compile the project into WebAssembly. At the moment, this project is still a work in progress.
+This is an attempt to write a GameBoy emulator in C99. This is a personal project to learn more about computers and emulation. SDL3 is used to draw the pixels and handle input. Emscripten is used to compile the project into WebAssembly. At the moment, this project is still a work in progress.
 
 ## You can run this emulator inside your web browser!
 You can try out this emulator in your web browser at this link: https://uezu.dev/projects/hagemu/
@@ -38,7 +38,7 @@ The following games have been tested:
     - [x] mem_timing_2 test
 - [x] Finish the PPU (Picture Processing Unit)
   - [x] Display tiles from VRAM
-  - [x] Write tiles to window with Raylib
+  - [x] Draw tiles to window
   - [x] Draw the background layer
   - [x] Add window overlay
   - [x] Implement the scroll registers SCX and SCY
@@ -122,8 +122,7 @@ The following games have been tested:
   - [ ] Add a custom boot rom
   - [ ] Use _Static_assert to ensure endianness
   - [ ] Use some profiling tools to find critical code blocks
-  - [ ] Compile program and Raylib using -O3 and -flto and -ffast-math
-  - [ ] Make sure to disable Raylib's rshapes and rmodels modules
+  - [ ] Compile program using -O3 and -flto and -ffast-math
 - [x] Known glitches
   - [x] Pokemon Red corrupted save data
     - Fixed! My SRAM implementation was off-by-one
@@ -159,7 +158,7 @@ The following games have been tested:
   - [ ] Pass cgb-acid2
 - [ ] Future Refactoring Ideas
   - [x] Separate the core from the interface
-  - [ ] Switch from Raylib to SDL3
+  - [x] Switch from Raylib to SDL3
   - [ ] Synchronize the APU along with the CPU and PPU
   - [ ] Separate cart.c and joypad.c from mmu.c
   - [ ] Use CMake instead of make
