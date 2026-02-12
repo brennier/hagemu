@@ -6,6 +6,7 @@
 
 #include "hagemu.h"
 #include "web.h" // Does nothing unless PLATFORM_WEB is defined
+#include "text.h"
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
 #define SCALE_FACTOR 5
@@ -81,7 +82,6 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
-
 	SDL_AudioSpec spec = {
 		.format = SDL_AUDIO_S16,   // 16-bit signed int format
 		.channels = 2,             // Stereo
@@ -95,12 +95,18 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	}
 	SDL_ResumeAudioStreamDevice(app->audio_stream);
 
+	if (!text_init(app->renderer)) {
+		fprintf(stderr, "Error initializing font: %s\n", SDL_GetError());
+		return false;
+	}
+
 	return true;
 }
 
 void hagemu_app_cleanup(struct HagemuApp *app) {
 	printf("Cleaning up!\n");
 
+	text_cleanup();
 	SDL_DestroyAudioStream(app->audio_stream);
 	SDL_DestroyTexture(app->screen_texture);
 	SDL_DestroyRenderer(app->renderer);
@@ -201,30 +207,25 @@ int main(int argc, char *argv[]) {
 	}
 
 	SDL_SetRenderDrawColor(app.renderer, 138, 189, 76, 255);
+	SDL_RenderClear(app.renderer);
+	SDL_SetRenderDrawColor(app.renderer, 48, 102, 87, 255);
+	text_draw(app.renderer, "Please drop a .gb file onto this window", 10, WINDOW_HEIGHT / 2, 40);
+	SDL_RenderPresent(app.renderer);
 
 	while (app.state == HAGEMU_NO_ROM) {
-		/* DrawText("Compilation Date: " __DATE__, */
-		/* 	 SCALE_FACTOR, */
-		/* 	 SCREEN_HEIGHT - 5 * SCALE_FACTOR, */
-		/* 	 4 * SCALE_FACTOR, */
-		/* 	 GREEN3); */
-		/* DrawTextCentered( */
-		/* 	"Please drop a .gb file onto this window", */
-		/* 	SCREEN_WIDTH / 2, */
-		/* 	SCREEN_HEIGHT / 2, */
-		/* 	7 * SCALE_FACTOR, */
-		/* 	GREEN3 */
-		/* 	); */
-		/* DrawFPS(10, 10); */
-
 		hagemu_handle_events(&app);
-
-		bool status = true;
-		status &= SDL_RenderClear(app.renderer);
-		status &= SDL_RenderPresent(app.renderer);
-
-		if (!status)
-			fprintf(stderr, "Error initializing SDL3: %s\n", SDL_GetError());
+		/* DrawText("Compilation Date: " __DATE__, */
+			 /* SCALE_FACTOR, */
+			 /* SCREEN_HEIGHT - 5 * SCALE_FACTOR, */
+			 /* 4 * SCALE_FACTOR, */
+			 /* GREEN3); */
+		/* DrawTextCentered( */
+			/* "Please drop a .gb file onto this window", */
+			/* SCREEN_WIDTH / 2, */
+			/* SCREEN_HEIGHT / 2, */
+			/* 7 * SCALE_FACTOR, */
+			/* GREEN3 */
+			/* ); */
 	}
 
 	while (app.state != HAGEMU_QUIT) {
@@ -237,7 +238,6 @@ int main(int argc, char *argv[]) {
 		status &= SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), 2 * 160);
 		status &= SDL_RenderTexture(app.renderer, app.screen_texture, NULL, NULL);
 		status &= SDL_RenderPresent(app.renderer);
-		/* DrawFPS(10, 10); */
 
 		if (!status)
 			fprintf(stderr, "Error updating the framebuffer: %s\n", SDL_GetError());

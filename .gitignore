@@ -6,4 +6,5 @@
 *.exe
 hagemu
 build/*
+web_build/*
 roms/*
