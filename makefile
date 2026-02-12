@@ -50,12 +50,12 @@ build/text.o: src/hagemu_app/text.c
 	@echo sucessfull!
 
 web:
-	@sh lib/emsdk/emsdk install latest
-	@sh lib/emsdk/emsdk activate latest
+	@sh src/emsdk/emsdk install latest
+	@sh src/emsdk/emsdk activate latest
 	@mkdir -p web_build
 	@cp src/hagemu_core/hagemu_core.h web_build/hagemu.h
-	@cp lib/emsdk/upstream/emscripten/cache/sysroot/include/emscripten.h web_build
-	@source lib/emsdk/emsdk_env.sh && emcc -DPLATFORM_WEB -O3 -flto -lidbfs.js src/hagemu_core/*.c src/hagemu_app/*.c -o web_build/main.html -I web_build -s USE_SDL=3 -s ASYNCIFY
+	@cp src/emsdk/upstream/emscripten/cache/sysroot/include/emscripten.h web_build
+	@source src/emsdk/emsdk_env.sh && emcc -DPLATFORM_WEB -O3 -flto -lidbfs.js src/hagemu_core/*.c src/hagemu_app/*.c -o web_build/main.html -I web_build -s USE_SDL=3 -s ASYNCIFY
 	@rm web_build/main.html
 	@cp src/hagemu_app/index.html web_build/index.html
 	@rm web_build/*.h
