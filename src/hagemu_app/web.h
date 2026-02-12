@@ -2,7 +2,7 @@
 #define WEB_H
 
 // EMSCRIPTEN functions
-#ifdef PLATFORM_WEB
+#ifdef __EMSCRIPTEN__
 
 #include "emscripten.h"
 void EMSCRIPTEN_KEEPALIVE web_sync_filesystem() {
@@ -39,6 +39,6 @@ void web_setup_filesystem() {
 
 #else
 void web_setup_filesystem() {}
-#endif // PLATFORM_WEB
+#endif // __EMSCRIPTEN__
 
-#endif // EMSCRIPTEN_H
+#endif // WEB_H

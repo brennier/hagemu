@@ -9,13 +9,19 @@
 #include "text.h"
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
-#define SCALE_FACTOR 5
+#define SCALE_FACTOR 6
 #define WINDOW_WIDTH 160 * SCALE_FACTOR
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
 #define AUDIO_SAMPLE_RATE 48000
+
+#ifdef __EMSCRIPTEN__
 // 5 video frames worth of audio should be queued at all times
 #define AUDIO_TARGET_FRAMES (5 * (AUDIO_SAMPLE_RATE / 60))
+#else
+// 2 video frames worth of audio should be queued at all times
+#define AUDIO_TARGET_FRAMES (2 * (AUDIO_SAMPLE_RATE / 60))
+#endif
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
@@ -82,7 +88,14 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 						SDL_PIXELFORMAT_RGBA5551,
 						SDL_TEXTUREACCESS_STREAMING,
 						160, 144);
+
+#ifdef __EMSCRIPTEN__
+	// the pixel art scaling mode isn't supported by emscripten yet
 	SDL_SetTextureScaleMode(app->screen_texture, SDL_SCALEMODE_NEAREST);
+#else
+	SDL_SetTextureScaleMode(app->screen_texture, SDL_SCALEMODE_PIXELART);
+#endif
+
 	if (!app->screen_texture) {
 		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
 		return false;
