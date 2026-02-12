@@ -8,6 +8,11 @@
 
 typedef int16_t AudioSample;
 
+typedef struct {
+	AudioSample left;
+	AudioSample right;
+} AudioFrame;
+
 struct Channel {
 	// All channels
 	bool enabled;
@@ -230,18 +235,55 @@ uint8_t channel_output_noise(struct Channel *channel) {
 		return 0;
 }
 
+AudioFrame apu_generate_frame() {
+	AudioFrame frame = { 0 };
+	if (!master_controls.apu_enabled)
+		return frame;
+
+	// Each channel is in the range [0, 15]
+	AudioSample sample1 = channel_output_pulse(&channel1);
+	AudioSample sample2 = channel_output_pulse(&channel2);
+	AudioSample sample3 = channel_output_wave(&channel3);
+	AudioSample sample4 = channel_output_noise(&channel4);
+
+	// Adjust the samples to be [-15, 15]
+	sample1 = 2 * sample1 - 15;
+	sample2 = 2 * sample2 - 15;
+	sample3 = 2 * sample3 - 15;
+	sample4 = 2 * sample4 - 15;
+
+	frame.left += master_controls.channel1_left * sample1;
+	frame.left += master_controls.channel2_left * sample2;
+	frame.left += master_controls.channel3_left * sample3;
+	frame.left += master_controls.channel4_left * sample4;
+	frame.left *= 16 * (master_controls.volume_left + 1);
+
+	frame.right += master_controls.channel1_right * sample1;
+	frame.right += master_controls.channel2_right * sample2;
+	frame.right += master_controls.channel3_right * sample3;
+	frame.right += master_controls.channel4_right * sample4;
+	frame.right *= 16 * (master_controls.volume_right + 1);
+
+	return frame;
+}
+
+AudioFrame lowpass_filter(AudioFrame frame) {
+	static AudioFrame prev_frame;
+	const float alpha = 0.25;
+
+	AudioFrame frame_diff = {
+		.left  = (float)frame.left  - (float)prev_frame.left,
+		.right = (float)frame.right - (float)prev_frame.right,
+	};
+	prev_frame.left  += alpha * frame_diff.left;
+	prev_frame.right += alpha * frame_diff.right;
+	return prev_frame;
+}
+
 void apu_generate_frames(void *buffer, unsigned int frame_count) {
-	AudioSample *samples = (AudioSample *)buffer;
-	AudioSample left, right;
-	AudioSample sample1, sample2, sample3, sample4;
-
+	AudioFrame *frames = (AudioFrame *)buffer;
+	AudioFrame current_frame;
 	for (int i = 0; i < frame_count; i++) {
-		if (!master_controls.apu_enabled) {
-			samples[2 * i + 0] = 0;
-			samples[2 * i + 1] = 0;
-			continue;
-		}
-
 		static double decimation_counter = 0.0;
 		while (decimation_counter < DECIMATION_FACTOR) {
 			tick_apu();
@@ -249,34 +291,8 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		}
 		decimation_counter -= DECIMATION_FACTOR;
 
-		// Each channel is in the range [0, 15]
-		sample1 = channel_output_pulse(&channel1);
-		sample2 = channel_output_pulse(&channel2);
-		sample3 = channel_output_wave(&channel3);
-		sample4 = channel_output_noise(&channel4);
-
-		// Adjust the samples to be [-15, 15]
-		sample1 = 2 * sample1 - 15;
-		sample2 = 2 * sample2 - 15;
-		sample3 = 2 * sample3 - 15;
-		sample4 = 2 * sample4 - 15;
-
-		left = 0;
-		left += master_controls.channel1_left * sample1;
-		left += master_controls.channel2_left * sample2;
-		left += master_controls.channel3_left * sample3;
-		left += master_controls.channel4_left * sample4;
-		left *= 16 * (master_controls.volume_left + 1);
-
-		right = 0;
-		right += master_controls.channel1_right * sample1;
-		right += master_controls.channel2_right * sample2;
-		right += master_controls.channel3_right * sample3;
-		right += master_controls.channel4_right * sample4;
-		right *= 16 * (master_controls.volume_right + 1);
-
-		samples[2 * i + 0] = left;
-		samples[2 * i + 1] = right;
+		current_frame = apu_generate_frame();
+		frames[i] = lowpass_filter(current_frame);
 	}
 }
 
