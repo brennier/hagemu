@@ -3,7 +3,7 @@
 This is an attempt to write a GameBoy emulator in C99. This is a personal project to learn more about computers and emulation. SDL3 is used to draw the pixels and handle input. Emscripten is used to compile the project into WebAssembly. At the moment, this project is still a work in progress.
 
 ## You can run this emulator inside your web browser!
-You can try out this emulator in your web browser at this link: https://uezu.dev/projects/hagemu/
+You can try out this emulator in your web browser at this link: https://hagemu.dev/
 
 Disclaimers:
  - You need to use a keyboard or game controller. There is no key remapping or touch screen support at the moment.
