@@ -13,7 +13,8 @@ void hagemu_reset() {
 }
 
 void hagemu_next_instruction() {
-	cpu_do_next_instruction();
+	int t_cycles = cpu_do_next_instruction();
+	ppu_tick(t_cycles);
 }
 
 void hagemu_load_rom(const char* filepath) {
@@ -22,10 +23,17 @@ void hagemu_load_rom(const char* filepath) {
 }
 
 void hagemu_run_frame() {
-	int current_cycle = 0;
-	while (!ppu_frame_finished(current_cycle)) {
-		current_cycle += cpu_do_next_instruction();
-		ppu_update(current_cycle);
+	int t_cycles = 0;
+
+	// In the case the frame is already ready, do one instruction
+	if (ppu_is_frame_ready()) {
+		t_cycles = cpu_do_next_instruction();
+		ppu_tick(t_cycles);
+	}
+
+	while (!ppu_is_frame_ready()) {
+		t_cycles = cpu_do_next_instruction();
+		ppu_tick(t_cycles);
 	}
 }
 
@@ -45,4 +53,8 @@ void hagemu_audio_callback(void* buffer, unsigned max_samples) {
 
 void hagemu_save_sram_file() {
 	mmu_save_sram_file();
+}
+
+bool hagemu_is_frame_ready() {
+	return ppu_is_frame_ready();
 }

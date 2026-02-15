@@ -26,6 +26,7 @@ void hagemu_run_frame();
 void hagemu_set_button(HagemuButton button, bool is_down);
 void hagemu_audio_callback(void* buffer, unsigned max_samples);
 void hagemu_save_sram_file();
+bool hagemu_is_frame_ready();
 
 // Pixel format is RGBA5551 (i.e. 0bRRRRRGGGGGBBBBBA)
 const uint16_t* hagemu_get_framebuffer();

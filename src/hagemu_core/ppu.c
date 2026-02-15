@@ -31,7 +31,10 @@ uint8_t line_buffer_indices[160];
 uint8_t line_buffer_palettes[160];
 
 int current_line = 0;
+int current_cycle = 0;
+
 int current_window_line = 0;
+bool ppu_frame_ready = false;
 bool window_triggered = false;
 void ppu_draw_scanline();
 void ppu_draw_sprites();
@@ -50,6 +53,10 @@ int ppu_get_current_line() {
 	return current_line;
 }
 
+bool ppu_is_frame_ready() {
+	return ppu_frame_ready;
+}
+
 int ppu_get_lcd_status() {
 	int result = 0;
 	if (PPU_mode != DISABLED)
@@ -58,13 +65,17 @@ int ppu_get_lcd_status() {
 	return result;
 }
 
-void ppu_update(int current_cycle) {
+void ppu_tick(int t_cycles) {
+	ppu_frame_ready = false;
+
+	current_cycle += t_cycles;
+	if (current_cycle > 70224)
+		current_cycle %= 70224;
+
 	int scanline_cycle = current_cycle % 456;
 	enum PPUMode old_mode = PPU_mode;
 
-	if (current_cycle > 70224)
-		return;
-	else if (current_cycle > 65664)
+	if (current_cycle > 65664)
 		PPU_mode = VBLANK;
 	else if (scanline_cycle < 80)
 		PPU_mode = OAM_SCAN;
@@ -96,6 +107,7 @@ void ppu_update(int current_cycle) {
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		break;
 	case VBLANK:
+		ppu_frame_ready = true;
 		current_window_line = 0;
 		window_triggered = false;
 		if (mmu_get_bit(VBLANK_INTERRUPT_SELECT))
@@ -107,10 +119,6 @@ void ppu_update(int current_cycle) {
 		// Do nothing
 		break;
 	}
-}
-
-bool ppu_frame_finished(int current_cycle) {
-	return current_cycle > 70224;
 }
 
 R5G5B5A1 apply_color(unsigned color_index, uint8_t palette_data) {

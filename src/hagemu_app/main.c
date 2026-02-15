@@ -259,7 +259,15 @@ int main(int argc, char *argv[]) {
 	while (app.state != HAGEMU_QUIT) {
 		hagemu_handle_events(&app);
 
-		hagemu_run_frame();
+		// In the case the frame is already ready, do one instruction
+		if (hagemu_is_frame_ready()) {
+			hagemu_next_instruction();
+		}
+
+		while (!hagemu_is_frame_ready()) {
+			hagemu_next_instruction();
+		}
+
 		hagemu_app_push_audio(&app);
 
 		bool status = true;
