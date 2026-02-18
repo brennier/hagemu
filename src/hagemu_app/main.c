@@ -85,7 +85,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	}
 
 	app->screen_texture = SDL_CreateTexture(app->renderer,
-						SDL_PIXELFORMAT_RGBA5551,
+						SDL_PIXELFORMAT_RGBA8888,
 						SDL_TEXTUREACCESS_STREAMING,
 						160, 144);
 
@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
 
 		bool status = true;
 
-		status &= SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), 2 * 160);
+		status &= SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
 		status &= SDL_RenderTexture(app.renderer, app.screen_texture, NULL, NULL);
 		status &= SDL_RenderPresent(app.renderer);
 

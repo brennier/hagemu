@@ -8,24 +8,12 @@
 #define SPRITE_LIMIT 10
 
 // BW color palette from lightest to darkest
-/* const R5G5B5A1 ppu_default_colors[4] = { 0xFFFF, 0xAD6B, 0x5295, 0x0001 }; */
+/* const uint32_t ppu_default_colors[4] = { 0xFFFFFFFF, 0xADADADFF, 0x525252FF, 0x000000FF }; */
 
 // Green color palette from lightest to darkest
-const R5G5B5A1 ppu_default_colors[4] = { 0x8DD3, 0x441B, 0x3315, 0x2251 };
+const uint32_t ppu_default_colors[4] = { 0x8CBD4AFF, 0x42846BFF, 0x316352FF, 0x214A42FF };
 
-// Alternative green color palette from lightest to darkest
-/* const R5G5B5A1 ppu_default_colors[4] = { 0x8E1D, 0x4D15, 0x3393, 0x224F }; */
-
-R5G5B5A1 convert_color(unsigned red, unsigned green, unsigned blue) {
-	R5G5B5A1 color = 0;
-	color |= 1;
-	color |= (blue >> 3) << 1;
-	color |= (green >> 3) << 6;
-	color |= (red >> 3) << 11;
-	return color;
-}
-
-R5G5B5A1 screen_buffer[2][144][160];
+uint32_t screen_buffer[2][144][160];
 bool buffer_index = 0;
 unsigned frames_completed = 0;
 
@@ -122,7 +110,7 @@ void ppu_tick(int t_cycles) {
 	}
 }
 
-R5G5B5A1 apply_color(unsigned color_index, uint8_t palette_data) {
+uint32_t apply_color(unsigned color_index, uint8_t palette_data) {
 	uint8_t default_color_index = (palette_data >> 2 * color_index) & 0x03;
 	return ppu_default_colors[default_color_index];
 }
@@ -315,6 +303,6 @@ void ppu_draw_sprites() {
 	}
 }
 
-const R5G5B5A1* ppu_get_frame() {
-	return (const R5G5B5A1*)screen_buffer[!buffer_index];
+const uint32_t* ppu_get_frame() {
+	return (const uint32_t*)screen_buffer[!buffer_index];
 }

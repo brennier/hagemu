@@ -38,8 +38,8 @@ void hagemu_set_button(HagemuButton button, bool is_down) {
 		mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 }
 
-const uint16_t* hagemu_get_framebuffer() {
-	return (const uint16_t*)ppu_get_frame();
+const uint32_t* hagemu_get_framebuffer() {
+	return ppu_get_frame();
 }
 
 void hagemu_audio_callback(void* buffer, unsigned max_samples) {
