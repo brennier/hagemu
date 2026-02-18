@@ -6,11 +6,9 @@
 #define OUTPUT_SAMPLE_RATE 48000
 #define DECIMATION_FACTOR ((double)AUDIO_SAMPLE_RATE / (double)OUTPUT_SAMPLE_RATE)
 
-typedef int16_t AudioSample;
-
 typedef struct {
-	AudioSample left;
-	AudioSample right;
+	float left;
+	float right;
 } AudioFrame;
 
 struct Channel {
@@ -240,29 +238,31 @@ AudioFrame apu_generate_frame() {
 	if (!master_controls.apu_enabled)
 		return frame;
 
-	// Each channel is in the range [0, 15]
-	AudioSample sample1 = channel_output_pulse(&channel1);
-	AudioSample sample2 = channel_output_pulse(&channel2);
-	AudioSample sample3 = channel_output_wave(&channel3);
-	AudioSample sample4 = channel_output_noise(&channel4);
+	// Each channel outputs an integer in [0, 15]
+	float ch1 = channel_output_pulse(&channel1);
+	float ch2 = channel_output_pulse(&channel2);
+	float ch3 = channel_output_wave(&channel3);
+	float ch4 = channel_output_noise(&channel4);
 
-	// Adjust the samples to be [-15, 15]
-	sample1 = 2 * sample1 - 15;
-	sample2 = 2 * sample2 - 15;
-	sample3 = 2 * sample3 - 15;
-	sample4 = 2 * sample4 - 15;
+	// Normalize each channel to [-1,1]
+	ch1 = (ch1 - 7.5) / 7.5;
+	ch2 = (ch2 - 7.5) / 7.5;
+	ch3 = (ch3 - 7.5) / 7.5;
+	ch4 = (ch4 - 7.5) / 7.5;
 
-	frame.left += master_controls.channel1_left * sample1;
-	frame.left += master_controls.channel2_left * sample2;
-	frame.left += master_controls.channel3_left * sample3;
-	frame.left += master_controls.channel4_left * sample4;
-	frame.left *= 16 * (master_controls.volume_left + 1);
+	frame.left += master_controls.channel1_left * ch1;
+	frame.left += master_controls.channel2_left * ch2;
+	frame.left += master_controls.channel3_left * ch3;
+	frame.left += master_controls.channel4_left * ch4;
+	frame.left /= 4.0;
+	frame.left *= (master_controls.volume_left + 1) / 8.0;
 
-	frame.right += master_controls.channel1_right * sample1;
-	frame.right += master_controls.channel2_right * sample2;
-	frame.right += master_controls.channel3_right * sample3;
-	frame.right += master_controls.channel4_right * sample4;
-	frame.right *= 16 * (master_controls.volume_right + 1);
+	frame.right += master_controls.channel1_right * ch1;
+	frame.right += master_controls.channel2_right * ch2;
+	frame.right += master_controls.channel3_right * ch3;
+	frame.right += master_controls.channel4_right * ch4;
+	frame.right /= 4.0;
+	frame.right *= (master_controls.volume_right + 1) / 8.0;
 
 	return frame;
 }
@@ -293,8 +293,9 @@ AudioFrame highpass_filter(AudioFrame frame) {
 	return output_frame;
 }
 
-void apu_generate_frames(void *buffer, unsigned int frame_count) {
-	AudioFrame *frames = (AudioFrame *)buffer;
+unsigned apu_read_audio(float *output, unsigned frame_count) {
+	AudioFrame *frames = (AudioFrame *)output;
+	unsigned count = 0;
 	AudioFrame current_frame;
 	for (int i = 0; i < frame_count; i++) {
 		static double decimation_counter = 0.0;
@@ -308,7 +309,9 @@ void apu_generate_frames(void *buffer, unsigned int frame_count) {
 		current_frame = highpass_filter(current_frame);
 		current_frame = lowpass_filter(current_frame);
 		frames[i] = current_frame;
+		count += 2;
 	}
+	return count;
 }
 
 // Use bit shifting and bitmasks to get the value of the

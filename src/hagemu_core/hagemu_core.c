@@ -42,8 +42,9 @@ const uint32_t* hagemu_get_framebuffer() {
 	return ppu_get_frame();
 }
 
-void hagemu_audio_callback(void* buffer, unsigned max_samples) {
-	apu_generate_frames(buffer, max_samples);
+unsigned hagemu_read_audio(float *buffer, unsigned max_samples) {
+	unsigned count = apu_read_audio(buffer, max_samples);
+	return count;
 }
 
 void hagemu_save_sram_file() {

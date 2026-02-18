@@ -49,12 +49,12 @@ struct HagemuApp {
 void hagemu_app_push_audio(struct HagemuApp *app)
 {
 	int queued_bytes  = SDL_GetAudioStreamQueued(app->audio_stream);
-	int queued_frames = queued_bytes / 4;
+	int queued_frames = queued_bytes / 8;
 	int frames_needed = AUDIO_TARGET_FRAMES - queued_frames;
-	uint16_t temp_buffer[2 * AUDIO_TARGET_FRAMES];
+	float temp_buffer[2 * AUDIO_TARGET_FRAMES];
 
-	hagemu_audio_callback(temp_buffer, frames_needed);
-	SDL_PutAudioStreamData(app->audio_stream, temp_buffer, 4 * frames_needed);
+	hagemu_read_audio(temp_buffer, frames_needed);
+	SDL_PutAudioStreamData(app->audio_stream, temp_buffer, 8 * frames_needed);
 }
 
 bool hagemu_app_setup(struct HagemuApp *app) {
@@ -102,7 +102,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	}
 
 	SDL_AudioSpec spec = {
-		.format = SDL_AUDIO_S16,   // 16-bit signed int format
+		.format = SDL_AUDIO_F32,   // 16-bit signed int format
 		.channels = 2,             // Stereo
 		.freq = AUDIO_SAMPLE_RATE, // 48000 Hz
 	};

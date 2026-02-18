@@ -17,11 +17,11 @@ void hagemu_load_rom(const char* path);
 void hagemu_save_sram_file();
 
 // Consumes buffered audio, returns number of samples actually written
-void hagemu_audio_callback(void* buffer, unsigned max_samples);
+unsigned hagemu_read_audio(float *output, unsigned max_samples);
 
 // Video functions
 unsigned hagemu_get_frame_count();
-const uint32_t* hagemu_get_framebuffer(); // Pixel format is RGBA5551
+const uint32_t* hagemu_get_framebuffer(); // Pixel format is RGBA8888
 
 // Joystick controls
 // This is in the order that the buttons are defined in the hardware
