@@ -25,7 +25,9 @@ R5G5B5A1 convert_color(unsigned red, unsigned green, unsigned blue) {
 	return color;
 }
 
-R5G5B5A1 screen_buffer[144][160];
+R5G5B5A1 screen_buffer[2][144][160];
+bool buffer_index = 0;
+unsigned frames_completed = 0;
 
 uint8_t line_buffer_indices[160];
 uint8_t line_buffer_palettes[160];
@@ -34,7 +36,6 @@ int current_line = 0;
 int current_cycle = 0;
 
 int current_window_line = 0;
-bool ppu_frame_ready = false;
 bool window_triggered = false;
 void ppu_draw_scanline();
 void ppu_draw_sprites();
@@ -53,8 +54,8 @@ int ppu_get_current_line() {
 	return current_line;
 }
 
-bool ppu_is_frame_ready() {
-	return ppu_frame_ready;
+unsigned ppu_get_frame_count() {
+	return frames_completed;
 }
 
 int ppu_get_lcd_status() {
@@ -66,8 +67,6 @@ int ppu_get_lcd_status() {
 }
 
 void ppu_tick(int t_cycles) {
-	ppu_frame_ready = false;
-
 	current_cycle += t_cycles;
 	if (current_cycle > 70224)
 		current_cycle %= 70224;
@@ -107,7 +106,9 @@ void ppu_tick(int t_cycles) {
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		break;
 	case VBLANK:
-		ppu_frame_ready = true;
+		// Swap buffers once VBLANK starts
+		buffer_index = !buffer_index;
+		frames_completed++;
 		current_window_line = 0;
 		window_triggered = false;
 		if (mmu_get_bit(VBLANK_INTERRUPT_SELECT))
@@ -147,7 +148,7 @@ void ppu_draw_scanline() {
 		ppu_draw_sprites();
 
 	for (int i = 0; i < 160; i++)
-		screen_buffer[current_line][i] = apply_color(line_buffer_indices[i], line_buffer_palettes[i]);
+		screen_buffer[buffer_index][current_line][i] = apply_color(line_buffer_indices[i], line_buffer_palettes[i]);
 }
 
 uint8_t get_tile_index(uint16_t map_area_start, unsigned row, unsigned col) {
@@ -315,5 +316,5 @@ void ppu_draw_sprites() {
 }
 
 const R5G5B5A1* ppu_get_frame() {
-	return (const R5G5B5A1*)screen_buffer;
+	return (const R5G5B5A1*)screen_buffer[!buffer_index];
 }

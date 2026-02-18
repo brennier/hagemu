@@ -256,17 +256,15 @@ int main(int argc, char *argv[]) {
 		SDL_RenderPresent(app.renderer);
 	}
 
+	unsigned current_frame = 0;
+
 	while (app.state != HAGEMU_QUIT) {
 		hagemu_handle_events(&app);
 
-		// In the case the frame is already ready, do one instruction
-		if (hagemu_is_frame_ready()) {
+		while (hagemu_get_frame_count() == current_frame) {
 			hagemu_next_instruction();
 		}
-
-		while (!hagemu_is_frame_ready()) {
-			hagemu_next_instruction();
-		}
+		current_frame = hagemu_get_frame_count();
 
 		hagemu_app_push_audio(&app);
 

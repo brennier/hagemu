@@ -11,6 +11,6 @@ void ppu_tick(int t_cycles);
 const R5G5B5A1* ppu_get_frame();
 int ppu_get_current_line();
 int ppu_get_lcd_status();
-bool ppu_is_frame_ready();
+unsigned ppu_get_frame_count();
 
 #endif

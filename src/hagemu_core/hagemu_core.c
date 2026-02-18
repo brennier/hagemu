@@ -23,15 +23,10 @@ void hagemu_load_rom(const char* filepath) {
 }
 
 void hagemu_run_frame() {
+	unsigned current_frame = ppu_get_frame_count();
 	int t_cycles = 0;
 
-	// In the case the frame is already ready, do one instruction
-	if (ppu_is_frame_ready()) {
-		t_cycles = cpu_do_next_instruction();
-		ppu_tick(t_cycles);
-	}
-
-	while (!ppu_is_frame_ready()) {
+	while (ppu_get_frame_count() == current_frame) {
 		t_cycles = cpu_do_next_instruction();
 		ppu_tick(t_cycles);
 	}
@@ -55,6 +50,6 @@ void hagemu_save_sram_file() {
 	mmu_save_sram_file();
 }
 
-bool hagemu_is_frame_ready() {
-	return ppu_is_frame_ready();
+unsigned hagemu_get_frame_count() {
+	return ppu_get_frame_count();
 }
