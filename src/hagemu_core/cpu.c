@@ -455,8 +455,10 @@ static inline void op_daa() {
 static inline void op_nop() {
 }
 
-static inline void op_load16(uint16_t *destination, uint16_t value) {
-	*destination = value;
+static inline void op_load16i(uint8_t *upper, uint8_t *lower) {
+	uint16_t value = fetch_immediate16();
+	*upper = (value >> 8);
+	*lower = value & 0xFF;
 }
 
 static inline void op_load8(uint8_t *destination, uint8_t value) {
@@ -592,7 +594,7 @@ static inline void op_halt() {
 
 static inline void op_load_sp_hl() {
 	increment_clock(1);
-	op_load16(&cpu.reg.sp, cpu.wreg.hl);
+	cpu.reg.sp = cpu.wreg.hl;
 }
 
 static inline void op_jp_hl() {
@@ -692,14 +694,14 @@ static void process_opcode(uint8_t opcode_byte) {
 	switch (opcode_byte) {
 
 	case 0x00: op_nop();                                        break;
-	case 0x01: op_load16(&cpu.wreg.bc, fetch_immediate16());    break;
+	case 0x01: op_load16i(&cpu.reg.b, &cpu.reg.c);              break;
 	case 0x02: op_store(cpu.wreg.bc, cpu.reg.a);                break;
 	case 0x03: op_inc16(&cpu.wreg.bc);                          break;
 	case 0x04: op_inc(&cpu.reg.b);                              break;
 	case 0x05: op_dec(&cpu.reg.b);                              break;
 	case 0x06: op_load8(&cpu.reg.b, fetch_immediate8());        break;
 	case 0x07: op_rlca();                                       break;
-	case 0x08: op_store16(fetch_immediate16(), cpu.reg.sp);    break;
+	case 0x08: op_store16(fetch_immediate16(), cpu.reg.sp);     break;
 	case 0x09: op_add16(&cpu.wreg.hl, cpu.wreg.bc);             break;
 	case 0x0A: op_load8(&cpu.reg.a, fetch_byte(cpu.wreg.bc));   break;
 	case 0x0B: op_dec16(&cpu.wreg.bc);                          break;
@@ -709,7 +711,7 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x0F: op_rrca();                                       break;
 
 	case 0x10: op_stop();                                       break;
-	case 0x11: op_load16(&cpu.wreg.de, fetch_immediate16());    break;
+	case 0x11: op_load16i(&cpu.reg.d, &cpu.reg.e);              break;
 	case 0x12: op_store(cpu.wreg.de, cpu.reg.a);                break;
 	case 0x13: op_inc16(&cpu.wreg.de);                          break;
 	case 0x14: op_inc(&cpu.reg.d);                              break;
@@ -726,7 +728,7 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x1F: op_rra();                                        break;
 
 	case 0x20: op_jr(!cpu.flag.zero);                           break;
-	case 0x21: op_load16(&cpu.wreg.hl, fetch_immediate16());    break;
+	case 0x21: op_load16i(&cpu.reg.h, &cpu.reg.l);              break;
 	case 0x22: op_store(cpu.wreg.hl++, cpu.reg.a);              break;
 	case 0x23: op_inc16(&cpu.wreg.hl);                          break;
 	case 0x24: op_inc(&cpu.reg.h);                              break;
@@ -743,7 +745,7 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x2F: op_cpl();                                        break;
 
 	case 0x30: op_jr(!cpu.flag.carry);                          break;
-	case 0x31: op_load16(&cpu.reg.sp, fetch_immediate16());     break;
+	case 0x31: cpu.reg.sp = fetch_immediate16();                break;
 	case 0x32: op_store(cpu.wreg.hl--, cpu.reg.a);              break;
 	case 0x33: op_inc16(&cpu.reg.sp);                           break;
 	case 0x34: op_inc_addr(cpu.wreg.hl);                        break;
