@@ -11,11 +11,12 @@ union HagemuCPU {
 	// Regular 8-bit registers
 	struct {
 		uint8_t f, a, c, b, e, d, l, h;
+		uint16_t sp, pc;
 	} reg;
 
 	// Wide 16-bit registers
 	struct {
-		uint16_t af, bc, de, hl, sp, pc;
+		uint16_t af, bc, de, hl;
 	} wreg;
 
 	struct {
@@ -58,8 +59,8 @@ void cpu_reset() {
 	cpu.reg.e = 0xD8;
 	cpu.reg.h = 0x01;
 	cpu.reg.l = 0x4D;
-	cpu.wreg.sp = 0xFFFE;
-	cpu.wreg.pc = 0x0100;
+	cpu.reg.sp = 0xFFFE;
+	cpu.reg.pc = 0x0100;
 
 	// Various flags
 	cpu.flags.master_interrupt = false;
@@ -71,8 +72,8 @@ void cpu_reset() {
 void cpu_print_state() {
 	update_f_register();
 	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
-		cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l, cpu.wreg.sp,
-		cpu.wreg.pc, mmu_read(cpu.wreg.pc), mmu_read(cpu.wreg.pc+1), mmu_read(cpu.wreg.pc+2), mmu_read(cpu.wreg.pc+3));
+		cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l, cpu.reg.sp,
+		cpu.reg.pc, mmu_read(cpu.reg.pc), mmu_read(cpu.reg.pc+1), mmu_read(cpu.reg.pc+2), mmu_read(cpu.reg.pc+3));
 }
 
 static void increment_clock_once() {
@@ -128,7 +129,7 @@ static inline void write_byte(uint16_t address, uint8_t value) {
 }
 
 static inline uint8_t fetch_immediate8() {
-	return fetch_byte(cpu.wreg.pc++);
+	return fetch_byte(cpu.reg.pc++);
 }
 
 static inline uint16_t fetch_immediate16() {
@@ -138,8 +139,8 @@ static inline uint16_t fetch_immediate16() {
 }
 
 static inline uint16_t pop_stack() {
-	uint8_t lower = fetch_byte(cpu.wreg.sp++);
-	uint8_t upper = fetch_byte(cpu.wreg.sp++);
+	uint8_t lower = fetch_byte(cpu.reg.sp++);
+	uint8_t upper = fetch_byte(cpu.reg.sp++);
 	return (upper << 8) | lower;
 }
 
@@ -147,10 +148,10 @@ static inline void push_stack(uint16_t reg16) {
 	increment_clock(1); // internal increment (reason unknown)
 	uint8_t lower = (reg16 & 0x00FF);
 	uint8_t upper = (reg16 & 0xFF00) >> 8;
-	cpu.wreg.sp--;
-	write_byte(cpu.wreg.sp, upper);
-	cpu.wreg.sp--;
-	write_byte(cpu.wreg.sp, lower);
+	cpu.reg.sp--;
+	write_byte(cpu.reg.sp, upper);
+	cpu.reg.sp--;
+	write_byte(cpu.reg.sp, lower);
 }
 
 static void handle_interrupts() {
@@ -160,22 +161,22 @@ static void handle_interrupts() {
 
 	increment_clock(2);
 	cpu.flags.master_interrupt = false;
-	push_stack(cpu.wreg.pc);
+	push_stack(cpu.reg.pc);
 
 	if (interrupts & 0x01) {
-		cpu.wreg.pc = 0x0040;
+		cpu.reg.pc = 0x0040;
 		mmu_clear_bit(VBLANK_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x02) {
-		cpu.wreg.pc = 0x0048;
+		cpu.reg.pc = 0x0048;
 		mmu_clear_bit(LCD_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x04) {
-		cpu.wreg.pc = 0x0050;
+		cpu.reg.pc = 0x0050;
 		mmu_clear_bit(TIMER_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x08) {
-		cpu.wreg.pc = 0x0058;
+		cpu.reg.pc = 0x0058;
 		mmu_clear_bit(SERIAL_INTERRUPT_FLAG_BIT);
 	} else if (interrupts & 0x10) {
-		cpu.wreg.pc = 0x0060;
+		cpu.reg.pc = 0x0060;
 		mmu_clear_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 	}
 	increment_clock(1);
@@ -346,13 +347,13 @@ static inline void op_dec(uint8_t *location) {
 static inline void op_jump(bool condition) {
 	uint16_t address = fetch_immediate16();
 	if (condition) {
-		cpu.wreg.pc = address;
+		cpu.reg.pc = address;
 		increment_clock(1);
 	}
 }
 
 static inline void op_ret() {
-	cpu.wreg.pc = pop_stack();
+	cpu.reg.pc = pop_stack();
 	increment_clock(1);
 }
 
@@ -369,14 +370,14 @@ static inline void op_reti() {
 }
 
 static inline void op_rst(uint16_t address) {
-	push_stack(cpu.wreg.pc);
-	cpu.wreg.pc = address;
+	push_stack(cpu.reg.pc);
+	cpu.reg.pc = address;
 }
 
 static inline void op_jr(bool condition) {
 	int8_t relative_address = (int8_t)fetch_immediate8();
 	if (condition) {
-		cpu.wreg.pc += relative_address;
+		cpu.reg.pc += relative_address;
 		increment_clock(1);
 	}
 }
@@ -425,8 +426,8 @@ static inline void op_add16(uint16_t *destination, uint16_t value) {
 static inline void op_call(bool condition) {
 	uint16_t address = fetch_immediate16();
 	if (condition) {
-		push_stack(cpu.wreg.pc);
-		cpu.wreg.pc = address;
+		push_stack(cpu.reg.pc);
+		cpu.reg.pc = address;
 	}
 }
 
@@ -543,19 +544,19 @@ static inline void op_pop(uint16_t *destination) {
 }
 
 static inline void op_add_sp_offset(uint8_t value) {
-	uint16_t result      = cpu.wreg.sp + (int8_t)value;
-	cpu.flags.carry      = ((cpu.wreg.sp & 0x00FF) + value) & 0x0100;
-	cpu.flags.half_carry = (cpu.wreg.sp ^ value ^ result) & 0x10;
+	uint16_t result      = cpu.reg.sp + (int8_t)value;
+	cpu.flags.carry      = ((cpu.reg.sp & 0x00FF) + value) & 0x0100;
+	cpu.flags.half_carry = (cpu.reg.sp ^ value ^ result) & 0x10;
 	cpu.flags.subtract   = false;
 	cpu.flags.zero       = false;
-	cpu.wreg.sp          = result;
+	cpu.reg.sp          = result;
 	increment_clock(2);
 }
 
 static inline void op_load_hl_sp_offset(uint8_t value) {
-	uint16_t result      = cpu.wreg.sp + (int8_t)value;
-	cpu.flags.carry      = ((cpu.wreg.sp & 0x00FF) + value) & 0x0100;
-	cpu.flags.half_carry = (cpu.wreg.sp ^ value ^ result) & 0x10;
+	uint16_t result      = cpu.reg.sp + (int8_t)value;
+	cpu.flags.carry      = ((cpu.reg.sp & 0x00FF) + value) & 0x0100;
+	cpu.flags.half_carry = (cpu.reg.sp ^ value ^ result) & 0x10;
 	cpu.flags.subtract   = false;
 	cpu.flags.zero       = false;
 	cpu.wreg.hl          = result;
@@ -577,11 +578,11 @@ static inline void op_halt() {
 
 static inline void op_load_sp_hl() {
 	increment_clock(1);
-	op_load16(&cpu.wreg.sp, cpu.wreg.hl);
+	op_load16(&cpu.reg.sp, cpu.wreg.hl);
 }
 
 static inline void op_jp_hl() {
-	cpu.wreg.pc = cpu.wreg.hl;
+	cpu.reg.pc = cpu.wreg.hl;
 }
 
 static inline void op_load_high(uint8_t *destination, uint8_t address_offset) {
@@ -684,7 +685,7 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x05: op_dec(&cpu.reg.b);                              break;
 	case 0x06: op_load8(&cpu.reg.b, fetch_immediate8());        break;
 	case 0x07: op_rlca();                                       break;
-	case 0x08: op_store16(fetch_immediate16(), cpu.wreg.sp);    break;
+	case 0x08: op_store16(fetch_immediate16(), cpu.reg.sp);    break;
 	case 0x09: op_add16(&cpu.wreg.hl, cpu.wreg.bc);             break;
 	case 0x0A: op_load8(&cpu.reg.a, fetch_byte(cpu.wreg.bc));   break;
 	case 0x0B: op_dec16(&cpu.wreg.bc);                          break;
@@ -728,17 +729,17 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0x2F: op_cpl();                                        break;
 
 	case 0x30: op_jr(!cpu.flags.carry);                         break;
-	case 0x31: op_load16(&cpu.wreg.sp, fetch_immediate16());    break;
+	case 0x31: op_load16(&cpu.reg.sp, fetch_immediate16());    break;
 	case 0x32: op_store(cpu.wreg.hl--, cpu.reg.a);              break;
-	case 0x33: op_inc16(&cpu.wreg.sp);                          break;
+	case 0x33: op_inc16(&cpu.reg.sp);                          break;
 	case 0x34: op_inc_addr(cpu.wreg.hl);                        break;
 	case 0x35: op_dec_addr(cpu.wreg.hl);                        break;
 	case 0x36: op_store(cpu.wreg.hl, fetch_immediate8());       break;
 	case 0x37: op_scf();                                        break;
 	case 0x38: op_jr(cpu.flags.carry);                          break;
-	case 0x39: op_add16(&cpu.wreg.hl, cpu.wreg.sp);             break;
+	case 0x39: op_add16(&cpu.wreg.hl, cpu.reg.sp);             break;
 	case 0x3A: op_load8(&cpu.reg.a, fetch_byte(cpu.wreg.hl--)); break;
-	case 0x3B: op_dec16(&cpu.wreg.sp);                          break;
+	case 0x3B: op_dec16(&cpu.reg.sp);                          break;
 	case 0x3C: op_inc(&cpu.reg.a);                              break;
 	case 0x3D: op_dec(&cpu.reg.a);                              break;
 	case 0x3E: op_load8(&cpu.reg.a, fetch_immediate8());        break;
