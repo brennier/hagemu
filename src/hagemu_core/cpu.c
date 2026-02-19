@@ -5,18 +5,17 @@
 #include "mmu.h"
 #include "clock.h"
 
-// When using cpu.reg.f or cpu.wreg.af,
-// make sure to call update_f_register() and/or update_f_flags()
 union HagemuCPU {
 	// Regular 8-bit registers
 	struct {
-		uint8_t f, a, c, b, e, d, l, h;
+		// Use cpu_get_f and cpu_set_f for the f register
+		uint8_t _, a, c, b, e, d, l, h;
 		uint16_t sp, pc;
 	} reg;
 
 	// Wide 16-bit registers
 	struct {
-		uint16_t af, bc, de, hl;
+		uint16_t _, bc, de, hl;
 	} wreg;
 
 	struct {
@@ -34,25 +33,26 @@ union HagemuCPU {
 	} flags;
 } cpu = { 0 };
 
-static inline void update_f_register() {
-	cpu.reg.f = 0;
-	cpu.reg.f |= cpu.flags.carry << 4;
-	cpu.reg.f |= cpu.flags.half_carry << 5;
-	cpu.reg.f |= cpu.flags.subtract << 6;
-	cpu.reg.f |= cpu.flags.zero << 7;
+static inline uint8_t cpu_get_f() {
+	uint8_t result = 0;
+	result |= cpu.flags.carry << 4;
+	result |= cpu.flags.half_carry << 5;
+	result |= cpu.flags.subtract << 6;
+	result |= cpu.flags.zero << 7;
+	return result;
 }
 
-static inline void update_f_flags() {
-	cpu.flags.carry      = cpu.reg.f & (0x01 << 4);
-	cpu.flags.half_carry = cpu.reg.f & (0x01 << 5);
-	cpu.flags.subtract   = cpu.reg.f & (0x01 << 6);
-	cpu.flags.zero       = cpu.reg.f & (0x01 << 7);
+static inline void cpu_set_f(uint8_t f_value) {
+	cpu.flags.carry      = f_value & (0x01 << 4);
+	cpu.flags.half_carry = f_value & (0x01 << 5);
+	cpu.flags.subtract   = f_value & (0x01 << 6);
+	cpu.flags.zero       = f_value & (0x01 << 7);
 }
 
 void cpu_reset() {
 	// Inital state of registers
 	cpu.reg.a = 0x01;
-	cpu.reg.f = 0xB0;
+	cpu_set_f(0xB0);
 	cpu.reg.b = 0x00;
 	cpu.reg.c = 0x13;
 	cpu.reg.d = 0x00;
@@ -66,13 +66,12 @@ void cpu_reset() {
 	cpu.flags.master_interrupt = false;
 	cpu.flags.master_interrupt_pending = false;
 	cpu.flags.is_halted = false;
-	update_f_flags();
 }
 
 void cpu_print_state() {
-	update_f_register();
+	uint8_t f = cpu_get_f();
 	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
-		cpu.reg.a, cpu.reg.f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l, cpu.reg.sp,
+		cpu.reg.a, f, cpu.reg.b, cpu.reg.c, cpu.reg.d, cpu.reg.e, cpu.reg.h, cpu.reg.l, cpu.reg.sp,
 		cpu.reg.pc, mmu_read(cpu.reg.pc), mmu_read(cpu.reg.pc+1), mmu_read(cpu.reg.pc+2), mmu_read(cpu.reg.pc+3));
 }
 
@@ -115,6 +114,10 @@ static void increment_clock_once() {
 static inline void increment_clock(int m_cycles) {
 	for (int i = 0; i < m_cycles; i++)
 		increment_clock_once();
+}
+
+static inline uint16_t make_word(uint8_t upper, uint8_t lower) {
+	return (upper << 8) | lower;
 }
 
 static inline uint8_t fetch_byte(uint16_t address) {
@@ -543,6 +546,17 @@ static inline void op_pop(uint16_t *destination) {
 	*destination = pop_stack();
 }
 
+static inline void op_pop_af() {
+	uint16_t reg_af = pop_stack();
+	cpu.reg.a = (reg_af >> 8);
+	cpu_set_f(reg_af & 0xFF);
+}
+
+static inline void op_push_af() {
+	uint16_t reg_af = make_word(cpu.reg.a, cpu_get_f());
+	push_stack(reg_af);
+}
+
 static inline void op_add_sp_offset(uint8_t value) {
 	uint16_t result      = cpu.reg.sp + (int8_t)value;
 	cpu.flags.carry      = ((cpu.reg.sp & 0x00FF) + value) & 0x0100;
@@ -933,11 +947,11 @@ static void process_opcode(uint8_t opcode_byte) {
 	case 0xEF: op_rst(0x28);                                    break;
 
 	case 0xF0: op_load_high(&cpu.reg.a, fetch_immediate8());    break;
-	case 0xF1: op_pop(&cpu.wreg.af); update_f_flags();          break;
+	case 0xF1: op_pop_af();                                     break;
 	case 0xF2: op_load_high(&cpu.reg.a, cpu.reg.c);             break;
 	case 0xF3: op_di();                                         break;
 	case 0xF4: error_no_opcode(opcode_byte);                    break;
-	case 0xF5: update_f_register(); op_push(cpu.wreg.af);       break;
+	case 0xF5: op_push_af();                                    break;
 	case 0xF6: op_or(fetch_immediate8());                       break;
 	case 0xF7: op_rst(0x30);                                    break;
 	case 0xF8: op_load_hl_sp_offset(fetch_immediate8());        break;
