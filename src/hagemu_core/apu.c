@@ -294,7 +294,6 @@ AudioFrame highpass_filter(AudioFrame frame) {
 }
 
 unsigned apu_read_audio(float *output, unsigned frame_count) {
-	AudioFrame *frames = (AudioFrame *)output;
 	unsigned count = 0;
 	AudioFrame current_frame;
 	for (int i = 0; i < frame_count; i++) {
@@ -308,7 +307,8 @@ unsigned apu_read_audio(float *output, unsigned frame_count) {
 		current_frame = apu_generate_frame();
 		current_frame = highpass_filter(current_frame);
 		current_frame = lowpass_filter(current_frame);
-		frames[i] = current_frame;
+		output[2*i]   = current_frame.left;
+		output[2*i+1] = current_frame.right;
 		count += 2;
 	}
 	return count;
