@@ -5,11 +5,58 @@
 #define AUDIO_SAMPLE_RATE (2 * 1024 * 1024)
 #define OUTPUT_SAMPLE_RATE 48000
 #define DECIMATION_FACTOR ((double)AUDIO_SAMPLE_RATE / (double)OUTPUT_SAMPLE_RATE)
+#define AUDIO_QUEUE_FRAME_SIZE 2048
+
+double decimation_counter = 0.0;
 
 typedef struct {
 	float left;
 	float right;
 } AudioFrame;
+
+struct AudioQueue {
+	AudioFrame frames[AUDIO_QUEUE_FRAME_SIZE];
+	unsigned start;
+	unsigned end;
+	unsigned size;
+	unsigned capacity;
+} audio_fifo = {
+	.capacity = AUDIO_QUEUE_FRAME_SIZE,
+};
+
+typedef struct AudioQueue AudioQueue;
+
+AudioFrame apu_generate_frame();
+AudioFrame highpass_filter(AudioFrame frame);
+AudioFrame lowpass_filter(AudioFrame frame);
+
+unsigned queue_size(AudioQueue *queue) {
+	return queue->size;
+}
+
+void queue_push(AudioQueue *queue, AudioFrame frame) {
+	if (queue->size == queue->capacity) {
+		printf("Audio Frame was dropped because the queue was full.\n");
+		return;
+	}
+	queue->frames[queue->end] = frame;
+	queue->size++;
+	queue->end++;
+	queue->end %= queue->capacity;
+}
+
+AudioFrame queue_pop(AudioQueue *queue) {
+	if (queue->size == 0) {
+		printf("Audio Queue was popped, but returned an empty frame");
+		return (AudioFrame){ 0 };
+	}
+	AudioFrame frame = queue->frames[queue->start];
+	queue->frames[queue->end] = frame;
+	queue->size--;
+	queue->start++;
+	queue->start %= queue->capacity;
+	return frame;
+}
 
 struct Channel {
 	// All channels
@@ -179,6 +226,17 @@ void tick_apu() {
 			break;
 		}
 	}
+
+	// Maybe produce an audio sample
+	if (decimation_counter < DECIMATION_FACTOR) {
+		decimation_counter++;
+	} else {
+		decimation_counter -= DECIMATION_FACTOR;
+		AudioFrame current_frame = apu_generate_frame();
+		current_frame = highpass_filter(current_frame);
+		current_frame = lowpass_filter(current_frame);
+	        queue_push(&audio_fifo, current_frame);
+	}
 }
 
 struct {
@@ -296,21 +354,17 @@ AudioFrame highpass_filter(AudioFrame frame) {
 unsigned apu_read_audio(float *output, unsigned frame_count) {
 	unsigned count = 0;
 	AudioFrame current_frame;
-	for (int i = 0; i < frame_count; i++) {
-		static double decimation_counter = 0.0;
-		while (decimation_counter < DECIMATION_FACTOR) {
-			tick_apu();
-			decimation_counter++;
-		}
-		decimation_counter -= DECIMATION_FACTOR;
+	while (queue_size(&audio_fifo) < frame_count) {
+		tick_apu();
+	}
 
-		current_frame = apu_generate_frame();
-		current_frame = highpass_filter(current_frame);
-		current_frame = lowpass_filter(current_frame);
-		output[2*i]   = current_frame.left;
+	for (int i = 0; i < frame_count; i++) {
+		current_frame = queue_pop(&audio_fifo);
+		output[2*i] = current_frame.left;
 		output[2*i+1] = current_frame.right;
 		count += 2;
 	}
+
 	return count;
 }
 
