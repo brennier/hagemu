@@ -206,17 +206,19 @@ void hagemu_handle_events(struct HagemuApp *app) {
 	}
 }
 
-float calculate_rate_adjust(SDL_AudioStream *stream) {
+float smooth_error = 0.0;
+float calculate_rate_adjust(SDL_AudioStream *stream, unsigned input_count) {
 	int queued_bytes = SDL_GetAudioStreamAvailable(stream);
 	int queued_frames = queued_bytes / (2 * sizeof(float));
-	int error = queued_frames - AUDIO_TARGET_FRAMES;
+	queued_frames += input_count;
+	float error = (queued_frames - AUDIO_TARGET_FRAMES) / (float)AUDIO_TARGET_FRAMES;
+	smooth_error = smooth_error * 0.98f + error * 0.02f;
 
-	float error_ratio = (float)error / AUDIO_TARGET_FRAMES;
-	float gain = 0.03f;
-	float correction = error_ratio * gain;
-	if (correction < -0.002f) correction = -0.002f;
-	if (correction >  0.002f) correction =  0.002f;
-	float rate_adjust = 0.995 + correction;
+	float gain = 0.04f;
+	float correction = smooth_error * gain;
+	/* if (correction < -0.005f) correction = -0.005f; */
+	/* if (correction >  0.005f) correction =  0.005f; */
+	float rate_adjust = 0.9925 + correction;
 	return rate_adjust;
 }
 
@@ -257,10 +259,10 @@ void main_loop(void* arg) {
 
 	float audio_buffer[2 * AUDIO_TARGET_FRAMES];
 	float resampled_audio_buffer[2 * AUDIO_TARGET_FRAMES];
-	float rate_adjust = calculate_rate_adjust(app->audio_stream);
-
 	int input_count = hagemu_audio_read(audio_buffer, hagemu_audio_available());
+	float rate_adjust = calculate_rate_adjust(app->audio_stream, input_count);
 	int output_count = resample_audio(audio_buffer, input_count, resampled_audio_buffer, rate_adjust);
+
 
 	SDL_PutAudioStreamData(app->audio_stream, resampled_audio_buffer, 8 * output_count);
 
@@ -269,19 +271,13 @@ void main_loop(void* arg) {
 	SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
 	SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
 
-	char buffer[100];
-	static int count;
-	count++;
-	if (count % 10 == 0) {
-		snprintf(buffer, sizeof(buffer), "Output: %d", queued_frames);
-		count = 0;
-	}
-
-	text_draw(app->renderer,
-		  buffer,
-		  SCALE_FACTOR,
-		  WINDOW_HEIGHT - 5 * SCALE_FACTOR,
-		  4 * SCALE_FACTOR);
+	/* char buffer[100]; */
+	/* snprintf(buffer, sizeof(buffer), "Smooth Error: %f", smooth_error); */
+	/* text_draw(app->renderer, */
+	/* 	  buffer, */
+	/* 	  SCALE_FACTOR, */
+	/* 	  WINDOW_HEIGHT - 5 * SCALE_FACTOR, */
+	/* 	  4 * SCALE_FACTOR); */
 
 	SDL_RenderPresent(app->renderer);
 }
