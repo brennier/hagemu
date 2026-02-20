@@ -14,13 +14,7 @@
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
 #define AUDIO_SAMPLE_RATE 48000
-
-#ifdef __EMSCRIPTEN__
 #define AUDIO_TARGET_FRAMES (3 * (AUDIO_SAMPLE_RATE / 60))
-#else
-// Around 2 video frames worth of audio should be queued at all times
-#define AUDIO_TARGET_FRAMES (3 * (AUDIO_SAMPLE_RATE / 60))
-#endif
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76, 255 }
