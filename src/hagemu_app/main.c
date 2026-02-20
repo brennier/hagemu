@@ -37,7 +37,6 @@ struct HagemuApp {
 	SDL_Gamepad *gamepad;
 	SDL_Event event;
 	enum AppState state;
-	float audio_buffer[2 * AUDIO_TARGET_FRAMES];
 };
 
 bool hagemu_app_setup(struct HagemuApp *app) {
@@ -207,17 +206,83 @@ void hagemu_handle_events(struct HagemuApp *app) {
 	}
 }
 
+float calculate_rate_adjust(SDL_AudioStream *stream) {
+	int queued_bytes = SDL_GetAudioStreamAvailable(stream);
+	int queued_frames = queued_bytes / (2 * sizeof(float));
+	int error = queued_frames - AUDIO_TARGET_FRAMES;
+
+	float error_ratio = (float)error / AUDIO_TARGET_FRAMES;
+	float gain = 0.03f;
+	float correction = error_ratio * gain;
+	if (correction < -0.002f) correction = -0.002f;
+	if (correction >  0.002f) correction =  0.002f;
+	float rate_adjust = 0.995 + correction;
+	return rate_adjust;
+}
+
+int resample_audio(float *in, int in_count, float *out, float rate_adjust) {
+	static float phase;
+	int out_frames = 0;
+
+	while (out_frames < 2 * AUDIO_TARGET_FRAMES &&
+	       phase + 1.0f < in_count) {
+		int i0 = (int)phase;
+		int i1 = i0 + 1;
+
+		float interp = phase - i0;
+
+		// left channel
+		out[out_frames * 2] =
+			in[i0 * 2] * (1.0f - interp) +
+			in[i1 * 2] * interp;
+
+		//right channel
+		out[out_frames * 2 + 1] =
+			in[i0 * 2 + 1] * (1.0f - interp) +
+			in[i1 * 2 + 1] * interp;
+
+		phase += rate_adjust;
+		out_frames++;
+	}
+
+	phase -= (int)phase;
+	return out_frames;
+}
+
 void main_loop(void* arg) {
 	struct HagemuApp *app = (struct HagemuApp *)arg;
 	hagemu_handle_events(app);
 
 	hagemu_run_frame();
 
-	int frame_count = hagemu_audio_read(app->audio_buffer, hagemu_audio_available());
-	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, 8 * frame_count);
+	float audio_buffer[2 * AUDIO_TARGET_FRAMES];
+	float resampled_audio_buffer[2 * AUDIO_TARGET_FRAMES];
+	float rate_adjust = calculate_rate_adjust(app->audio_stream);
+
+	int input_count = hagemu_audio_read(audio_buffer, hagemu_audio_available());
+	int output_count = resample_audio(audio_buffer, input_count, resampled_audio_buffer, rate_adjust);
+
+	SDL_PutAudioStreamData(app->audio_stream, resampled_audio_buffer, 8 * output_count);
+
+	int queued_frames = SDL_GetAudioStreamAvailable(app->audio_stream) / (2 * sizeof(float));
 
 	SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
 	SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
+
+	char buffer[100];
+	static int count;
+	count++;
+	if (count % 10 == 0) {
+		snprintf(buffer, sizeof(buffer), "Output: %d", queued_frames);
+		count = 0;
+	}
+
+	text_draw(app->renderer,
+		  buffer,
+		  SCALE_FACTOR,
+		  WINDOW_HEIGHT - 5 * SCALE_FACTOR,
+		  4 * SCALE_FACTOR);
+
 	SDL_RenderPresent(app->renderer);
 }
 
