@@ -88,13 +88,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 						SDL_PIXELFORMAT_RGBA8888,
 						SDL_TEXTUREACCESS_STREAMING,
 						160, 144);
-
-#ifdef __EMSCRIPTEN__
-	// the pixel art scaling mode isn't supported by emscripten yet
 	SDL_SetTextureScaleMode(app->screen_texture, SDL_SCALEMODE_NEAREST);
-#else
-	SDL_SetTextureScaleMode(app->screen_texture, SDL_SCALEMODE_PIXELART);
-#endif
 
 	if (!app->screen_texture) {
 		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
