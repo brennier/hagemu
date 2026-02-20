@@ -62,6 +62,20 @@ AudioFrame queue_pop(AudioQueue *queue) {
 	return frame;
 }
 
+void queue_drain(AudioQueue *queue, float* output, unsigned count) {
+	unsigned bytes_per_frame = 2 * sizeof(float);
+	if (queue->start + count > queue->capacity) {
+		unsigned until_end = queue->capacity - queue->start;
+		memcpy(output, queue->frames + queue->start, until_end * bytes_per_frame);
+		memcpy(output + 2 * until_end, queue->frames, (count - until_end) * bytes_per_frame);
+	} else {
+		memcpy(output, queue->frames + queue->start, count * bytes_per_frame);
+	}
+	queue->size -= count;
+	queue->start += count;
+	queue->start %= queue->capacity;
+}
+
 struct Channel {
 	// All channels
 	bool enabled;
@@ -364,19 +378,11 @@ AudioFrame highpass_filter(AudioFrame frame) {
 	return output_frame;
 }
 
-unsigned apu_read_audio(float *output, unsigned frame_count) {
-	unsigned count = 0;
-	AudioFrame current_frame;
-	for (int i = 0; i < frame_count; i++) {
-		if (queue_size(&audio_fifo) == 0)
-			break;
-		current_frame = queue_pop(&audio_fifo);
-		output[2*i] = current_frame.left;
-		output[2*i+1] = current_frame.right;
-		count++;
-	}
-
-	return count;
+unsigned apu_read_audio(float *output, unsigned max_frames) {
+	if (max_frames > apu_audio_available())
+		max_frames = apu_audio_available();
+	queue_drain(&audio_fifo, output, max_frames);
+	return max_frames;
 }
 
 // Use bit shifting and bitmasks to get the value of the
