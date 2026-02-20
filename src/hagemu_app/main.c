@@ -16,10 +16,9 @@
 #define AUDIO_SAMPLE_RATE 48000
 
 #ifdef __EMSCRIPTEN__
-// 5 video frames worth of audio should be queued at all times
-#define AUDIO_TARGET_FRAMES (5 * (AUDIO_SAMPLE_RATE / 60))
+#define AUDIO_TARGET_FRAMES (3 * (AUDIO_SAMPLE_RATE / 60))
 #else
-// 2 video frames worth of audio should be queued at all times
+// Around 2 video frames worth of audio should be queued at all times
 #define AUDIO_TARGET_FRAMES (2 * (AUDIO_SAMPLE_RATE / 60))
 #endif
 
@@ -46,17 +45,6 @@ struct HagemuApp {
 	enum AppState state;
 };
 
-void hagemu_app_push_audio(struct HagemuApp *app)
-{
-	int queued_bytes  = SDL_GetAudioStreamQueued(app->audio_stream);
-	int queued_frames = queued_bytes / 8;
-	int frames_needed = AUDIO_TARGET_FRAMES - queued_frames;
-	float temp_buffer[2 * AUDIO_TARGET_FRAMES];
-
-	hagemu_audio_read(temp_buffer, frames_needed);
-	SDL_PutAudioStreamData(app->audio_stream, temp_buffer, 8 * frames_needed);
-}
-
 bool hagemu_app_setup(struct HagemuApp *app) {
 	app->state = HAGEMU_NO_ROM;
 
@@ -79,10 +67,10 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
-	if (!SDL_SetRenderVSync(app->renderer, 1)) {
-		fprintf(stderr, "Error failed to set vsync: %s\n", SDL_GetError());
-		return false;
-	}
+	/* if (!SDL_SetRenderVSync(app->renderer, 1)) { */
+	/* 	fprintf(stderr, "Error failed to set vsync: %s\n", SDL_GetError()); */
+	/* 	return false; */
+	/* } */
 
 	app->screen_texture = SDL_CreateTexture(app->renderer,
 						SDL_PIXELFORMAT_RGBA8888,
@@ -256,26 +244,35 @@ int main(int argc, char *argv[]) {
 		SDL_RenderPresent(app.renderer);
 	}
 
-	unsigned current_frame = 0;
+	float temp_audio_buffer[2 * AUDIO_TARGET_FRAMES];
+	unsigned current_video_frame = 0;
 
 	while (app.state != HAGEMU_QUIT) {
 		hagemu_handle_events(&app);
 
-		while (hagemu_get_frame_count() == current_frame) {
-			hagemu_next_instruction();
-		}
-		current_frame = hagemu_get_frame_count();
+		int queued_bytes  = SDL_GetAudioStreamQueued(app.audio_stream);
+		int queued_frames = queued_bytes / 8;
+		int frames_needed = AUDIO_TARGET_FRAMES - queued_frames;
 
-		hagemu_app_push_audio(&app);
+		while (hagemu_audio_available() < frames_needed)
+			hagemu_next_instruction();
+
+		int frames_got = hagemu_audio_read(temp_audio_buffer, frames_needed);
+		SDL_PutAudioStreamData(app.audio_stream, temp_audio_buffer, 8 * frames_got);
 
 		bool status = true;
 
-		status &= SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
-		status &= SDL_RenderTexture(app.renderer, app.screen_texture, NULL, NULL);
+		if (hagemu_get_frame_count() != current_video_frame) {
+			status &= SDL_UpdateTexture(app.screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
+			current_video_frame = hagemu_get_frame_count();
+			status &= SDL_RenderTexture(app.renderer, app.screen_texture, NULL, NULL);
+		}
 		status &= SDL_RenderPresent(app.renderer);
 
 		if (!status)
 			fprintf(stderr, "Error updating the framebuffer: %s\n", SDL_GetError());
+
+		SDL_Delay(10);
 	}
 
 	hagemu_app_cleanup(&app);

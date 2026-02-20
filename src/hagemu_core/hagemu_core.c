@@ -15,6 +15,7 @@ void hagemu_reset() {
 void hagemu_next_instruction() {
 	int t_cycles = cpu_do_next_instruction();
 	ppu_tick(t_cycles);
+	apu_tick(t_cycles);
 }
 
 void hagemu_load_rom(const char* filepath) {
@@ -29,6 +30,7 @@ void hagemu_run_frame() {
 	while (ppu_get_frame_count() == current_frame) {
 		t_cycles = cpu_do_next_instruction();
 		ppu_tick(t_cycles);
+		apu_tick(t_cycles);
 	}
 }
 

@@ -5,7 +5,7 @@
 #define APU_TICK_RATE (4 * 1024 * 1024)
 #define TARGET_SAMPLE_RATE 48000
 #define DECIMATION_FACTOR ((double)APU_TICK_RATE / (double)TARGET_SAMPLE_RATE)
-#define AUDIO_QUEUE_FRAME_SIZE 2048
+#define AUDIO_QUEUE_FRAME_SIZE 4096
 
 double decimation_counter = 0.0;
 
@@ -188,7 +188,7 @@ void tick_noise_channel(struct Channel *channel) {
 	}
 }
 
-void apu_tick() {
+void apu_tick_once() {
 	static unsigned apu_ticks;
 	static unsigned apu_clock_step;
 	apu_ticks++;
@@ -245,6 +245,11 @@ void apu_tick() {
 		current_frame = lowpass_filter(current_frame);
 	        queue_push(&audio_fifo, current_frame);
 	}
+}
+
+void apu_tick(unsigned t_cycles) {
+	for (int i = 0; i < t_cycles; i++)
+		apu_tick_once();
 }
 
 struct {
@@ -362,10 +367,6 @@ AudioFrame highpass_filter(AudioFrame frame) {
 unsigned apu_read_audio(float *output, unsigned frame_count) {
 	unsigned count = 0;
 	AudioFrame current_frame;
-	while (queue_size(&audio_fifo) < frame_count) {
-		apu_tick();
-	}
-
 	for (int i = 0; i < frame_count; i++) {
 		if (queue_size(&audio_fifo) == 0)
 			break;
