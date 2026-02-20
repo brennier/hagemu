@@ -34,6 +34,10 @@ unsigned queue_size(AudioQueue *queue) {
 	return queue->size;
 }
 
+unsigned apu_audio_available() {
+	return queue_size(&audio_fifo);
+}
+
 void queue_push(AudioQueue *queue, AudioFrame frame) {
 	if (queue->size == queue->capacity) {
 		printf("Audio Frame was dropped because the queue was full.\n");
@@ -184,7 +188,7 @@ void tick_noise_channel(struct Channel *channel) {
 	}
 }
 
-void tick_apu() {
+void apu_tick() {
 	static unsigned apu_ticks;
 	static unsigned apu_clock_step;
 
@@ -355,14 +359,16 @@ unsigned apu_read_audio(float *output, unsigned frame_count) {
 	unsigned count = 0;
 	AudioFrame current_frame;
 	while (queue_size(&audio_fifo) < frame_count) {
-		tick_apu();
+		apu_tick();
 	}
 
 	for (int i = 0; i < frame_count; i++) {
+		if (queue_size(&audio_fifo) == 0)
+			break;
 		current_frame = queue_pop(&audio_fifo);
 		output[2*i] = current_frame.left;
 		output[2*i+1] = current_frame.right;
-		count += 2;
+		count++;
 	}
 
 	return count;
