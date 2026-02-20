@@ -44,12 +44,10 @@ struct HagemuApp {
 	SDL_Event event;
 	enum AppState state;
 	float audio_buffer[2 * AUDIO_TARGET_FRAMES];
-	unsigned video_frame_counter;
 };
 
 bool hagemu_app_setup(struct HagemuApp *app) {
 	app->state = HAGEMU_NO_ROM;
-	app->video_frame_counter = 0;
 
 	SDL_SetAppMetadata(WINDOW_TITLE, APP_VERSION, NULL);
 
@@ -219,27 +217,14 @@ void main_loop(void* arg) {
 	struct HagemuApp *app = (struct HagemuApp *)arg;
 	hagemu_handle_events(app);
 
-	int queued_bytes  = SDL_GetAudioStreamQueued(app->audio_stream);
-	int queued_frames = queued_bytes / 8;
-	int frames_needed = AUDIO_TARGET_FRAMES - queued_frames;
+	hagemu_run_frame();
 
-	while (hagemu_audio_available() < frames_needed)
-		hagemu_next_instruction();
+	int frame_count = hagemu_audio_read(app->audio_buffer, hagemu_audio_available());
+	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, 8 * frame_count);
 
-	int frames_got = hagemu_audio_read(app->audio_buffer, frames_needed);
-	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, 8 * frames_got);
-
-	bool status = true;
-
-	if (hagemu_get_frame_count() != app->video_frame_counter) {
-		status &= SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
-		app->video_frame_counter = hagemu_get_frame_count();
-	}
-	status &= SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
-	status &= SDL_RenderPresent(app->renderer);
-
-	if (!status)
-		fprintf(stderr, "Error updating the framebuffer: %s\n", SDL_GetError());
+	SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
+	SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
+	SDL_RenderPresent(app->renderer);
 }
 
 int main(int argc, char *argv[]) {
