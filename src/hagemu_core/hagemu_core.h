@@ -16,8 +16,11 @@ void hagemu_run_frame();
 void hagemu_load_rom(const char* path);
 void hagemu_save_sram_file();
 
-// Consumes buffered audio, returns number of samples actually written
-unsigned hagemu_read_audio(float *output, unsigned max_samples);
+// Consumes buffered audio, returns number of frames actually written
+unsigned hagemu_audio_read(float *output, unsigned max_frames);
+
+// Returns the number of audio frames currently available for reading
+unsigned hagemu_audio_available();
 
 // Video functions
 unsigned hagemu_get_frame_count();

@@ -53,7 +53,7 @@ void hagemu_app_push_audio(struct HagemuApp *app)
 	int frames_needed = AUDIO_TARGET_FRAMES - queued_frames;
 	float temp_buffer[2 * AUDIO_TARGET_FRAMES];
 
-	hagemu_read_audio(temp_buffer, frames_needed);
+	hagemu_audio_read(temp_buffer, frames_needed);
 	SDL_PutAudioStreamData(app->audio_stream, temp_buffer, 8 * frames_needed);
 }
 
