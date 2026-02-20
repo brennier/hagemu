@@ -255,8 +255,8 @@ void apu_tick_once() {
 	} else {
 		decimation_counter -= DECIMATION_FACTOR;
 		AudioFrame current_frame = apu_generate_frame();
-		current_frame = highpass_filter(current_frame);
 		current_frame = lowpass_filter(current_frame);
+		current_frame = highpass_filter(current_frame);
 	        queue_push(&audio_fifo, current_frame);
 	}
 }
