@@ -215,7 +215,8 @@ void hagemu_handle_events(struct HagemuApp *app) {
 	}
 }
 
-void main_loop(struct HagemuApp *app) {
+void main_loop(void* arg) {
+	struct HagemuApp *app = (struct HagemuApp *)arg;
 	hagemu_handle_events(app);
 
 	int queued_bytes  = SDL_GetAudioStreamQueued(app->audio_stream);
@@ -273,10 +274,13 @@ int main(int argc, char *argv[]) {
 		SDL_RenderPresent(app.renderer);
 	}
 
-
+#ifdef __EMSCRIPTEN__
+	emscripten_set_main_loop_arg(main_loop, &app, 0, true);
+#else
 	while (app.state != HAGEMU_QUIT) {
 		main_loop(&app);
 	}
+#endif
 
 	hagemu_app_cleanup(&app);
 	return EXIT_SUCCESS;
