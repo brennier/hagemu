@@ -2,9 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 
-#define AUDIO_SAMPLE_RATE (2 * 1024 * 1024)
-#define OUTPUT_SAMPLE_RATE 48000
-#define DECIMATION_FACTOR ((double)AUDIO_SAMPLE_RATE / (double)OUTPUT_SAMPLE_RATE)
+#define APU_TICK_RATE (4 * 1024 * 1024)
+#define TARGET_SAMPLE_RATE 48000
+#define DECIMATION_FACTOR ((double)APU_TICK_RATE / (double)TARGET_SAMPLE_RATE)
 #define AUDIO_QUEUE_FRAME_SIZE 2048
 
 double decimation_counter = 0.0;
@@ -191,14 +191,18 @@ void tick_noise_channel(struct Channel *channel) {
 void apu_tick() {
 	static unsigned apu_ticks;
 	static unsigned apu_clock_step;
-
-	tick_pulse_channel(&channel1);
-	tick_pulse_channel(&channel2);
-	tick_wave_channel(&channel3);
-	tick_noise_channel(&channel4);
-
 	apu_ticks++;
-	if (apu_ticks > AUDIO_SAMPLE_RATE / 512) {
+
+	// The channels only tick at 2Mhz
+	if (apu_ticks % 2) {
+		tick_pulse_channel(&channel1);
+		tick_pulse_channel(&channel2);
+		tick_wave_channel(&channel3);
+		tick_noise_channel(&channel4);
+	}
+
+	// The frame frequencer ticks at 4096 Hz
+	if (apu_ticks > APU_TICK_RATE / 1024) {
 		apu_ticks = 0;
 		apu_clock_step++;
 		apu_clock_step %= 8;
