@@ -159,6 +159,9 @@ The following games have been tested:
 - [ ] Future Refactoring Ideas
   - [x] Separate the core from the interface
   - [x] Switch from Raylib to SDL3
+  - [x] Change audio from uint16_t to float
+  - [x] Change video from RGBA5551 to RGBA8888
+  - [x] Double buffer the video output
   - [ ] Synchronize the APU along with the CPU and PPU
   - [ ] Separate cart.c and joypad.c from mmu.c
   - [ ] Use CMake instead of make
