@@ -12,10 +12,11 @@ void hagemu_reset() {
 	cpu_reset();
 }
 
-void hagemu_next_instruction() {
+unsigned hagemu_next_instruction() {
 	int t_cycles = cpu_do_next_instruction();
 	ppu_tick(t_cycles);
 	apu_tick(t_cycles);
+	return t_cycles;
 }
 
 void hagemu_load_rom(const char* filepath) {

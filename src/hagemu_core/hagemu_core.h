@@ -9,7 +9,7 @@ void hagemu_start();
 void hagemu_reset();
 
 // Running the core
-void hagemu_next_instruction();
+unsigned hagemu_next_instruction();
 void hagemu_run_frame();
 
 // Loading and saving files
