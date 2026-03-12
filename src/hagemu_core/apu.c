@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define APU_TICK_RATE (4 * 1024 * 1024)
+#define APU_TICK_RATE (1 << 22)
 #define AUDIO_QUEUE_FRAME_SIZE 4096
 #define INITIAL_TARGET_SAMPLE_RATE 48000
 
@@ -256,9 +256,8 @@ void apu_tick_once() {
 	}
 
 	// Maybe produce an audio sample
-	if (decimation_counter < DECIMATION_FACTOR) {
-		decimation_counter++;
-	} else {
+	decimation_counter++;
+	if (decimation_counter >= DECIMATION_FACTOR) {
 		decimation_counter -= DECIMATION_FACTOR;
 		AudioFrame current_frame = apu_generate_frame();
 		current_frame = lowpass_filter(current_frame);
