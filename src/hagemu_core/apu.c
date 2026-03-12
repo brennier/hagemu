@@ -3,10 +3,11 @@
 #include <stdio.h>
 
 #define APU_TICK_RATE (4 * 1024 * 1024)
-#define TARGET_SAMPLE_RATE 48000
-#define DECIMATION_FACTOR ((double)APU_TICK_RATE / (double)TARGET_SAMPLE_RATE)
 #define AUDIO_QUEUE_FRAME_SIZE 4096
+#define INITIAL_TARGET_SAMPLE_RATE 48000
 
+int TARGET_SAMPLE_RATE = INITIAL_TARGET_SAMPLE_RATE;
+double DECIMATION_FACTOR = ((double)APU_TICK_RATE / (double)INITIAL_TARGET_SAMPLE_RATE);
 double decimation_counter = 0.0;
 
 typedef struct {
@@ -29,6 +30,11 @@ typedef struct AudioQueue AudioQueue;
 AudioFrame apu_generate_frame();
 AudioFrame highpass_filter(AudioFrame frame);
 AudioFrame lowpass_filter(AudioFrame frame);
+
+void apu_set_audio_sample_rate(unsigned new_sample_rate) {
+	TARGET_SAMPLE_RATE = new_sample_rate;
+	DECIMATION_FACTOR = ((double)APU_TICK_RATE / new_sample_rate);
+}
 
 unsigned queue_size(AudioQueue *queue) {
 	return queue->size;

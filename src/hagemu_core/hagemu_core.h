@@ -22,6 +22,9 @@ unsigned hagemu_audio_read(float *output, unsigned max_frames);
 // Returns the number of audio frames currently available for reading
 unsigned hagemu_audio_available();
 
+// Change the audio sample rate (default is 48000Hz)
+void hagemu_set_audio_sample_rate(unsigned new_sample_rate);
+
 // Video functions
 unsigned hagemu_get_frame_count();
 const uint32_t* hagemu_get_framebuffer(); // Pixel format is RGBA8888

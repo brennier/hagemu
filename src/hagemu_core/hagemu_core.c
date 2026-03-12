@@ -61,3 +61,7 @@ void hagemu_save_sram_file() {
 unsigned hagemu_get_frame_count() {
 	return ppu_get_frame_count();
 }
+
+void hagemu_set_audio_sample_rate(unsigned new_sample_rate) {
+	apu_set_audio_sample_rate(new_sample_rate);
+}
