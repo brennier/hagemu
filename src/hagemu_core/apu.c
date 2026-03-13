@@ -33,7 +33,7 @@ AudioFrame lowpass_filter(AudioFrame frame);
 
 void apu_set_audio_sample_rate(unsigned new_sample_rate) {
 	TARGET_SAMPLE_RATE = new_sample_rate;
-	DECIMATION_FACTOR = ((double)APU_TICK_RATE / new_sample_rate);
+	DECIMATION_FACTOR = ((double)APU_TICK_RATE / (double)new_sample_rate);
 }
 
 unsigned queue_size(AudioQueue *queue) {
@@ -255,12 +255,13 @@ void apu_tick_once() {
 		}
 	}
 
-	// Maybe produce an audio sample
 	decimation_counter++;
+	AudioFrame current_frame = apu_generate_frame();
+	current_frame = lowpass_filter(current_frame);
+
+	// Maybe produce an audio sample
 	if (decimation_counter >= DECIMATION_FACTOR) {
 		decimation_counter -= DECIMATION_FACTOR;
-		AudioFrame current_frame = apu_generate_frame();
-		current_frame = lowpass_filter(current_frame);
 		current_frame = highpass_filter(current_frame);
 	        queue_push(&audio_fifo, current_frame);
 	}
@@ -359,7 +360,7 @@ AudioFrame apu_generate_frame() {
 
 AudioFrame lowpass_filter(AudioFrame frame) {
 	static AudioFrame prev_frame;
-	const float alpha = 0.20f;
+	const float alpha = 0.010f;
 
 	AudioFrame frame_diff = {
 		.left  = frame.left  - prev_frame.left,
@@ -373,7 +374,7 @@ AudioFrame lowpass_filter(AudioFrame frame) {
 // Emulates the DC Blocking of the gameboy
 AudioFrame highpass_filter(AudioFrame frame) {
 	static AudioFrame prev_input, prev_output;
-	const float R = 0.995f;
+	const float R = 0.998f;
 	AudioFrame output_frame = {
 		.left  = frame.left  - prev_input.left  + R * prev_output.left,
 		.right = frame.right - prev_input.right + R * prev_output.right,
