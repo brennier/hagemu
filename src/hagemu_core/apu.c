@@ -69,7 +69,7 @@ AudioFrame queue_pop(AudioQueue *queue) {
 }
 
 void queue_drain(AudioQueue *queue, float* output, unsigned count) {
-	unsigned bytes_per_frame = 2 * sizeof(float);
+	unsigned bytes_per_frame = sizeof(AudioFrame);
 	if (queue->start + count > queue->capacity) {
 		unsigned until_end = queue->capacity - queue->start;
 		memcpy(output, queue->frames + queue->start, until_end * bytes_per_frame);
@@ -255,15 +255,36 @@ void apu_tick_once() {
 		}
 	}
 
-	decimation_counter++;
 	AudioFrame current_frame = apu_generate_frame();
-	current_frame = lowpass_filter(current_frame);
+	static double accumulate_left = 0;
+	static double accumulate_right = 0;
+	double remaining = 1.0;
 
-	// Maybe produce an audio sample
-	if (decimation_counter >= DECIMATION_FACTOR) {
-		decimation_counter -= DECIMATION_FACTOR;
-		current_frame = highpass_filter(current_frame);
-	        queue_push(&audio_fifo, current_frame);
+	while (remaining > 0) {
+		double space = DECIMATION_FACTOR - decimation_counter;
+		double step = remaining < space ? remaining : space;
+
+		accumulate_left  += current_frame.left  * step;
+		accumulate_right += current_frame.right * step;
+
+		decimation_counter += step;
+		remaining -= step;
+
+		if (decimation_counter >= DECIMATION_FACTOR) {
+			AudioFrame output;
+			output.left = accumulate_left / DECIMATION_FACTOR;
+			output.right = accumulate_right / DECIMATION_FACTOR;
+			output = lowpass_filter(output);
+			output = highpass_filter(output);
+			if (output.left < -1.0) output.left = -1.0;
+			if (output.left > 1.0) output.left = 1.0;
+			if (output.right < -1.0) output.right = -1.0;
+			if (output.right > 1.0) output.right = 1.0;
+			queue_push(&audio_fifo, output);
+			accumulate_left  = 0;
+			accumulate_right = 0;
+			decimation_counter -= DECIMATION_FACTOR;
+		}
 	}
 }
 
@@ -360,14 +381,10 @@ AudioFrame apu_generate_frame() {
 
 AudioFrame lowpass_filter(AudioFrame frame) {
 	static AudioFrame prev_frame;
-	const float alpha = 0.010f;
+	const float alpha = 0.40f;
 
-	AudioFrame frame_diff = {
-		.left  = frame.left  - prev_frame.left,
-		.right = frame.right - prev_frame.right,
-	};
-	prev_frame.left  += alpha * frame_diff.left;
-	prev_frame.right += alpha * frame_diff.right;
+	prev_frame.left  += alpha * (frame.left  - prev_frame.left);
+	prev_frame.right += alpha * (frame.right - prev_frame.right);
 	return prev_frame;
 }
 
