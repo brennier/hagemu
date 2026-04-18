@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-extern bool mmu_joypad_inputs[8];
-
 enum special_address {
 	CARTRIDGE_TYPE = 0x0147,
 	CARTRIDGE_SIZE = 0x0148,
@@ -81,14 +79,14 @@ enum special_bit {
 
 	TIMER_CONTROL_ENABLE_BIT = 0xFF072,
 
-	BG_ENABLE         = 0xFF400,
-	OBJECTS_ENABLE    = 0xFF401,
-	OBJECTS_SIZE      = 0xFF402,
-	BG_TILE_MAP_AREA  = 0xFF403,
-	BG_TILE_DATA_AREA = 0xFF404,
-	WINDOW_ENABLE     = 0xFF405,
+	BG_ENABLE            = 0xFF400,
+	OBJECTS_ENABLE       = 0xFF401,
+	OBJECTS_SIZE         = 0xFF402,
+	BG_TILE_MAP_AREA     = 0xFF403,
+	BG_TILE_DATA_AREA    = 0xFF404,
+	WINDOW_ENABLE        = 0xFF405,
 	WINDOW_TILE_MAP_AREA = 0xFF406,
-	PPU_ENABLED       = 0xFF407,
+	PPU_ENABLED          = 0xFF407,
 
 	JOYPAD_BUTTON0        = 0xFF000,
 	JOYPAD_BUTTON1        = 0xFF001,

@@ -12,7 +12,7 @@ else
 	OUTPUT = hagemu
 endif
 
-${OUTPUT}: build/libhagemu.a build/hagemu.h build/main.o build/text.o
+${OUTPUT}: build/libhagemu.a build/hagemu.h build/core_types.h build/main.o build/text.o
 	@printf %s "Linking together the final executable..."
 	@${CC} $^ -o $@ -L build ${LFLAGS} >/dev/null
 	@echo sucessful!
@@ -26,6 +26,12 @@ build/libhagemu.a: ${OBJECTS}
 	@echo sucessful!
 
 build/hagemu.h: src/hagemu_core/hagemu_core.h
+	@mkdir -p build
+	@printf %s "Copying $(notdir $@) into build folder..."
+	@cp $^ $@
+	@echo sucessfull!
+
+build/core_types.h: src/hagemu_core/core_types.h
 	@mkdir -p build
 	@printf %s "Copying $(notdir $@) into build folder..."
 	@cp $^ $@

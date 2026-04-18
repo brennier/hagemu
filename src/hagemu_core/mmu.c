@@ -7,42 +7,23 @@
 #include "clock.h"
 #include "ppu.h"
 #include "apu.h"
+#include "joypad.h"
 
 #define MAX_SRAM_SIZE 0x8000
 #define GB_MEMORY_SIZE 0x10000
 
-uint8_t *rom_memory = NULL;
-// A maximum of 32kb of RAM
-long cartridge_ram_size = 0;
-uint8_t cartridge_ram[MAX_SRAM_SIZE];
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[GB_MEMORY_SIZE] = { 0 };
+
+uint8_t *rom_memory = NULL;
+long cartridge_ram_size = 0; // A maximum of 32kb of RAM
+uint8_t cartridge_ram[MAX_SRAM_SIZE];
 
 char *rom_file_name = NULL;
 char *sram_file_name = NULL;
 bool ram_enabled = false;
-bool mmu_joypad_inputs[8];
 int rom_bank_index = 1;
 int ram_bank_index = 0;
-
-uint8_t get_joypad_input() {
-	uint8_t joypad_byte = gb_memory[JOYPAD_INPUT];
-	joypad_byte |= 0x0F;
-
-	if (mmu_get_bit(JOYPAD_SELECT_DPAD) == 0) {
-		for (int i = 0; i < 4; i++)
-			if (mmu_joypad_inputs[i])
-				joypad_byte &= ~(0x01 << i);
-	}
-
-	if (mmu_get_bit(JOYPAD_SELECT_BUTTONS) == 0) {
-		for (int i = 4; i < 8; i++)
-			if (mmu_joypad_inputs[i])
-				joypad_byte &= ~(0x01 << (i - 4));
-	}
-
-	return joypad_byte;
-}
 
 uint8_t mmu_read(uint16_t address) {
 	// Handle special cases first
@@ -53,8 +34,7 @@ uint8_t mmu_read(uint16_t address) {
 		return ((clock_get() & 0xFF00) >> 8);
 
 	case JOYPAD_INPUT:
-		// bits 6 and 7 should always be one
-		return get_joypad_input() | 0xC0;
+		return joypad_get_byte();
 
 	case LCD_Y_COORDINATE:
 		// get the current line from the PPU
@@ -137,6 +117,10 @@ void mmu_write(uint16_t address, uint8_t value) {
 		clock_reset();
 		return;
 
+	case JOYPAD_INPUT:
+		joypad_set_byte(value);
+		break;
+
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits
 		break;
@@ -182,7 +166,8 @@ void mmu_write(uint16_t address, uint8_t value) {
 		if (value > 7)
 			fprintf(stderr, "RTC not implemented\n");
 		else if (value <= 3 && value >= 0)
-			fprintf(stderr, "Switching to RAM bank %d\n", value);
+			/* fprintf(stderr, "Switching to RAM bank %d\n", value); */
+			;
 		else
 			fprintf(stderr, "Invalid ram bank number %d. Ignoring...\n", value);
 		ram_bank_index = value;

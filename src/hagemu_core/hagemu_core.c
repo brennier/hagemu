@@ -4,6 +4,7 @@
 #include "mmu.h"
 #include "apu.h"
 #include "ppu.h"
+#include "joypad.h"
 
 struct HagemuGB {
 	struct HagemuCPU *cpu;
@@ -49,9 +50,7 @@ void hagemu_run_frame(struct HagemuGB *gb) {
 }
 
 void hagemu_set_button(HagemuButton button, bool is_down) {
-	mmu_joypad_inputs[button] = is_down;
-	if (is_down)
-		mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
+	joypad_set_button(button, is_down);
 }
 
 const uint32_t* hagemu_get_framebuffer() {
