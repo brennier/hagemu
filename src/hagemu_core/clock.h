@@ -4,10 +4,10 @@
 #include <stdbool.h>
 
 uint16_t clock_get();
-void clock_reset();
-void clock_stop();
+void clock_increment();
 void clock_start();
-void clock_update(int t_cycles);
+void clock_stop();
+void clock_reset();
 bool clock_is_running();
 
 #endif
