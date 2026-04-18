@@ -4,16 +4,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct HagemuGB;
+
 // setup and reset
-void hagemu_start();
-void hagemu_reset();
+struct HagemuGB *hagemu_create();
+void hagemu_reset(struct HagemuGB *gb);
+void hagemu_destory(struct HagemuGB* gb);
 
 // Running the core
-unsigned hagemu_next_instruction();
-void hagemu_run_frame();
+unsigned hagemu_next_instruction(struct HagemuGB *gb);
+void hagemu_run_frame(struct HagemuGB *gb);
 
 // Loading and saving files
-void hagemu_load_rom(const char* path);
+void hagemu_load_rom(struct HagemuGB *gb, const char* path);
 void hagemu_save_sram_file();
 
 // Consumes buffered audio, returns number of frames actually written

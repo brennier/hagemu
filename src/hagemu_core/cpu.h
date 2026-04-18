@@ -1,8 +1,12 @@
 #ifndef CPU_H
 #define CPU_H
 
-void cpu_reset();
-int cpu_do_next_instruction();
-void cpu_print_state();
+struct HagemuCPU;
+
+struct HagemuCPU *cpu_create();
+void cpu_destory(struct HagemuCPU *cpu);
+void cpu_reset(struct HagemuCPU *cpu);
+int cpu_do_next_instruction(struct HagemuCPU *cpu);
+void cpu_print_state(struct HagemuCPU *cpu);
 
 #endif

@@ -31,6 +31,7 @@ enum AppState {
 };
 
 struct HagemuApp {
+	struct HagemuGB *gb;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	SDL_Texture *screen_texture;
@@ -45,6 +46,7 @@ struct HagemuApp {
 };
 
 bool hagemu_app_setup(struct HagemuApp *app) {
+	app->gb = hagemu_create();
 	app->state = HAGEMU_NO_ROM;
 	app->old_time = 0;
 	app->cycle_accumulator = 0;
@@ -121,6 +123,7 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 	SDL_DestroyTexture(app->screen_texture);
 	SDL_DestroyRenderer(app->renderer);
 	SDL_DestroyWindow(app->window);
+	hagemu_destory(app->gb);
 	SDL_Quit();
 
 	hagemu_save_sram_file();
@@ -128,7 +131,7 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	printf("Loading the rom path '%s'\n", filename);
-	hagemu_load_rom(filename);
+	hagemu_load_rom(app->gb, filename);
 	SDL_ClearAudioStream(app->audio_stream);
 	app->state = HAGEMU_GAME_RUNNING;
 	return true;
@@ -254,7 +257,7 @@ void main_loop(void* arg) {
 	unsigned frame_count = hagemu_get_frame_count();
 	/* printf("Cycles: %f\n", dt); */
 	while (app->cycle_accumulator > 0) {
-		app->cycle_accumulator -= hagemu_next_instruction();
+		app->cycle_accumulator -= hagemu_next_instruction(app->gb);
 	}
 
 	if (frame_count != hagemu_get_frame_count()) {

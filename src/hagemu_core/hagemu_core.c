@@ -1,35 +1,48 @@
+#include <stdlib.h>
 #include "hagemu_core.h"
 #include "cpu.h"
 #include "mmu.h"
 #include "apu.h"
 #include "ppu.h"
 
-void hagemu_start() {
-	cpu_reset();
+struct HagemuGB {
+	struct HagemuCPU *cpu;
+};
+
+struct HagemuGB* hagemu_create() {
+	struct HagemuGB *gb = malloc(sizeof(struct HagemuGB));
+	gb->cpu = cpu_create();
+	cpu_reset(gb->cpu);
+	return gb;
 }
 
-void hagemu_reset() {
-	cpu_reset();
+void hagemu_reset(struct HagemuGB* gb) {
+	cpu_reset(gb->cpu);
 }
 
-unsigned hagemu_next_instruction() {
-	int t_cycles = cpu_do_next_instruction();
+void hagemu_destory(struct HagemuGB* gb) {
+	cpu_destory(gb->cpu);
+	gb->cpu = NULL;
+}
+
+unsigned hagemu_next_instruction(struct HagemuGB* gb) {
+	int t_cycles = cpu_do_next_instruction(gb->cpu);
 	ppu_tick(t_cycles);
 	apu_tick(t_cycles);
 	return t_cycles;
 }
 
-void hagemu_load_rom(const char* filepath) {
+void hagemu_load_rom(struct HagemuGB *gb, const char* filepath) {
 	mmu_load_rom(filepath);
-	hagemu_reset();
+	hagemu_reset(gb);
 }
 
-void hagemu_run_frame() {
+void hagemu_run_frame(struct HagemuGB *gb) {
 	unsigned current_frame = ppu_get_frame_count();
 	int t_cycles = 0;
 
 	while (ppu_get_frame_count() == current_frame) {
-		t_cycles = cpu_do_next_instruction();
+		t_cycles = cpu_do_next_instruction(gb->cpu);
 		ppu_tick(t_cycles);
 		apu_tick(t_cycles);
 	}
