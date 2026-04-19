@@ -1,7 +1,6 @@
 #ifndef HAGEMU_CORE_TYPES_H
 #define HAGEMU_CORE_TYPES_H
 
-// This is in the order that the buttons are defined in the hardware
 typedef enum HagemuButton {
 	HAGEMU_BUTTON_RIGHT,
 	HAGEMU_BUTTON_LEFT,

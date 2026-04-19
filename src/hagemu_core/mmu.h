@@ -2,6 +2,7 @@
 #define MMU_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 enum special_address {
 	CARTRIDGE_TYPE = 0x0147,
@@ -102,8 +103,10 @@ enum special_bit {
 	LYC_INTERRUPT_SELECT = 0xFF416,
 };
 
-void mmu_load_rom(const char* rom_name);
-void mmu_save_sram_file();
+void mmu_load_rom(const char *rom_name);
+void mmu_set_sram(const uint8_t *data, size_t size);
+bool mmu_sram_available();
+const uint8_t *mmu_get_sram(size_t *out_size);
 
 uint8_t mmu_read(uint16_t address);
 void mmu_write(uint16_t address, uint8_t value);

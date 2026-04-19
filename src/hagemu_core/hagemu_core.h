@@ -4,6 +4,7 @@
 #include "core_types.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 struct HagemuGB;
 
@@ -18,7 +19,9 @@ void hagemu_run_frame(struct HagemuGB *gb);
 
 // Loading and saving files
 void hagemu_load_rom(struct HagemuGB *gb, const char* path);
-void hagemu_save_sram_file();
+bool hagemu_sram_available();
+void hagemu_set_sram(const uint8_t *data, size_t size);
+const uint8_t *hagemu_get_sram(size_t *out_size);
 
 // Consumes buffered audio, returns number of frames actually written
 unsigned hagemu_audio_read(float *output, unsigned max_frames);

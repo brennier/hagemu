@@ -53,7 +53,7 @@ void hagemu_set_button(HagemuButton button, bool is_down) {
 	joypad_set_button(button, is_down);
 }
 
-const uint32_t* hagemu_get_framebuffer() {
+const uint32_t *hagemu_get_framebuffer() {
 	return ppu_get_frame();
 }
 
@@ -66,8 +66,16 @@ unsigned hagemu_audio_available() {
 	return apu_audio_available();
 }
 
-void hagemu_save_sram_file() {
-	mmu_save_sram_file();
+void hagemu_set_sram(const uint8_t *data, size_t size) {
+	mmu_set_sram(data, size);
+}
+
+bool hagemu_sram_available() {
+	return mmu_sram_available();
+}
+
+const uint8_t *hagemu_get_sram(size_t *out_size) {
+	return mmu_get_sram(out_size);
 }
 
 unsigned hagemu_get_frame_count() {

@@ -8,6 +8,7 @@
 #include "ppu.h"
 #include "apu.h"
 #include "joypad.h"
+#include "cart.h"
 
 #define MAX_SRAM_SIZE 0x8000
 #define GB_MEMORY_SIZE 0x10000
@@ -20,7 +21,6 @@ long cartridge_ram_size = 0; // A maximum of 32kb of RAM
 uint8_t cartridge_ram[MAX_SRAM_SIZE];
 
 char *rom_file_name = NULL;
-char *sram_file_name = NULL;
 bool ram_enabled = false;
 int rom_bank_index = 1;
 int ram_bank_index = 0;
@@ -282,98 +282,23 @@ const int ram_size_table[] = {
 	[0x05] = 64 * 1024,
 };
 
-#ifdef PLATFORM_WEB
-char* get_sram_name(const char* rom_name) {
-	// Returns the string "/savedata/[basename].sav" where [basename] is the basename part of rom_name.
-	// It is up to the caller to free the memory for the string.
-	const char* basename_begin = strrchr(rom_name, '/');
-	if (basename_begin == NULL)
-		basename_begin = rom_name;
-	else
-		basename_begin++;
+bool mmu_sram_available() {
+	return cartridge_ram && cartridge_ram_size;
+}
 
-	char* basename_end = strrchr(rom_name, '.');
-	size_t basename_length;
-	if (basename_end != NULL)
-		basename_length = basename_end - basename_begin;
-	else
-		basename_length = strlen(basename_begin);
+void mmu_set_sram(const uint8_t *data, size_t size) {
+	memset(cartridge_ram, 0, MAX_SRAM_SIZE);
+	memcpy(cartridge_ram, data, size);
+}
 
-	// Allocate memory for the full sram_path (remember to add 1 for '\0')
-	char* sram_name = malloc(strlen("/savedata/") + basename_length + strlen(".sav") + 1);
-	if (sram_name == NULL) {
-		printf("Warning: Failed to allocate memory for the save data file name.\n");
+const uint8_t *mmu_get_sram(size_t *out_size) {
+	if (cartridge_ram_size == 0) {
+		printf("This game doesn't support saving so there is no save file\n");
 		return NULL;
 	}
 
-	strcpy(sram_name, "/savedata/");
-	strncat(sram_name, basename_begin, basename_length);
-	sram_name[strlen("/savedata/") + basename_length] = '\0'; // Manually null-terminate result
-	strcat(sram_name, ".sav");
-
-	return sram_name;
-}
-#else
-char* get_sram_name(const char* rom_name) {
-	char* sram_name = malloc(strlen(rom_name) + 1);
-	if (sram_name == NULL) {
-		printf("Warning: Failed to allocate memory for the save data file name.\n");
-		return NULL;
-	}
-	strcpy(sram_name, rom_name);
-
-	// Remove the extension if present
-	char* last_dot = strrchr(sram_name, '.');
-	if (last_dot != NULL)
-		*last_dot = '\0';
-
-	// Adjust the allocated size of sram_name to fit the ".sav" and the final NULL
-	sram_name = realloc(sram_name, strlen(sram_name) + strlen(".sav") + 1);
-	if (sram_name == NULL) {
-		printf("Warning: Failed to allocate memory for the save data file name.\n");
-		return NULL;
-	}
-
-	strcat(sram_name, ".sav");
-	return sram_name;
-}
-#endif
-
-void mmu_load_sram_file() {
-	long sram_size = cartridge_ram_size;
-	FILE *save_file = fopen(sram_file_name, "rb");
-	if (save_file == NULL) {
-		printf("Warning: Failed to find the save file '%s'. Using a new save...\n", sram_file_name);
-		return;
-	}
-
-	long bytes_read = fread(cartridge_ram, 1, sram_size, save_file);
-	if (bytes_read != sram_size)
-		printf("Error: Save file was expected to be %ld bytes, but was actually %ld bytes.\n", sram_size, bytes_read);
-	else
-		printf("The save file '%s' was sucessfully found and loaded (%ld bytes)\n", sram_file_name, sram_size);
-	fclose(save_file);
-}
-
-void mmu_save_sram_file() {
-	if (!sram_file_name) {
-		printf("This game doesn't support saving so no save file was created\n");
-		return;
-	}
-
-	long sram_size = cartridge_ram_size;
-	FILE *save_file = fopen(sram_file_name, "wb");
-	if (save_file == NULL) {
-		printf("Error: Failed to open the file '%s' to write the save data :(\n", sram_file_name);
-		return;
-	}
-
-	long bytes_written = fwrite(cartridge_ram, 1, sram_size, save_file);
-	if (bytes_written != sram_size)
-		printf("Error: Tried to write %ld bytes to '%s', but actually only wrote %ld bytes.\n", sram_size, sram_file_name, bytes_written);
-	else
-		printf("Save data was sucessfully written to '%s' (%ld bytes)\n", sram_file_name, sram_size);
-	fclose(save_file);
+	*out_size = cartridge_ram_size;
+	return cartridge_ram;
 }
 
 void mmu_load_rom(const char* rom_name) {
@@ -381,11 +306,6 @@ void mmu_load_rom(const char* rom_name) {
 		printf("Freeing previously read rom...\n");
 		free(rom_memory);
 		rom_memory = NULL;
-	}
-
-	if (sram_file_name != NULL) {
-		free(sram_file_name);
-		sram_file_name = NULL;
 	}
 
 	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
@@ -462,8 +382,6 @@ void mmu_load_rom(const char* rom_name) {
 
 	case 0x03: case 0x09: case 0x10: case 0x0D: case 0x13: case 0x1B: case 0x1E: case 0x22: case 0xFF:
 		printf("This rom supports loading and saving. Checking for a save file...\n");
-		sram_file_name = get_sram_name(rom_name);
-		mmu_load_sram_file();
 		break;
 	}
 }
