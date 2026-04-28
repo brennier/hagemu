@@ -66,10 +66,11 @@ web:
 	@sh src/emsdk/emsdk activate latest
 	@mkdir -p web_build
 	@cp src/hagemu_core/hagemu_core.h web_build/hagemu.h
+	@cp src/hagemu_core/core_types.h web_build/core_types.h
 	@cp src/emsdk/upstream/emscripten/cache/sysroot/include/emscripten.h web_build
 	@source src/emsdk/emsdk_env.sh && emcc -O3 -flto -lidbfs.js src/hagemu_core/*.c src/hagemu_app/*.c -o web_build/hagemu.js -I web_build -s USE_SDL=3 -s ASYNCIFY
 	@rm web_build/*.h
-	@cd web_build && python -m http.server 8000
+	@cd web_build && python -m http.server 8005
 
 clean:
 	@echo Cleaning up build files and executables...

@@ -5,9 +5,9 @@
 #include <SDL3/SDL.h>
 
 #include "hagemu.h"
-#include "web.h" // Does nothing unless PLATFORM_WEB is defined
 #include "text.h"
 #include "file.h"
+#include "web.h" // Does nothing unless PLATFORM_WEB is defined
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
 #define SCALE_FACTOR 6
