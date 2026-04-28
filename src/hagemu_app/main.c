@@ -139,10 +139,18 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 }
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
-	printf("Loading the rom path '%s'\n", filename);
+	printf("Loading the rom file '%s'\n", filename);
+	size_t rom_size;
+	uint8_t *rom_data = hagemu_file_load(filename, &rom_size);
+	if (!rom_data) {
+		fprintf(stderr, "[ERROR] Unable to load the file '%s'\n", filename);
+		return false;
+	}
+	hagemu_set_rom(app->gb, rom_data, rom_size);
+	free(rom_data);
+
 	app->rom_filename = malloc(strlen(filename) + 1);
 	strcpy(app->rom_filename, filename);
-	hagemu_load_rom(app->gb, filename);
 	SDL_ClearAudioStream(app->audio_stream);
 	app->state = HAGEMU_GAME_RUNNING;
 
@@ -154,9 +162,9 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	bool sram_file_exists = SDL_GetPathInfo(sram_file_name, NULL);
 	if (sram_file_exists) {
 		printf("Loading SRAM data from '%s'\n", sram_file_name);
-		size_t size;
-		uint8_t *sram_data = hagemu_file_load(sram_file_name, &size);
-		hagemu_set_sram(sram_data, size);
+		size_t sram_size;
+		uint8_t *sram_data = hagemu_file_load(sram_file_name, &sram_size);
+		hagemu_set_sram(sram_data, sram_size);
 		free(sram_data);
 	} else {
 		printf("Unable to locate an SRAM file '%s'.\n", sram_file_name);

@@ -33,8 +33,8 @@ unsigned hagemu_next_instruction(struct HagemuGB* gb) {
 	return t_cycles;
 }
 
-void hagemu_load_rom(struct HagemuGB *gb, const char* filepath) {
-	mmu_load_rom(filepath);
+void hagemu_set_rom(struct HagemuGB *gb, const uint8_t *data, size_t size) {
+	mmu_set_rom(data, size);
 	hagemu_reset(gb);
 }
 

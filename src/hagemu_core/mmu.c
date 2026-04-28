@@ -20,7 +20,6 @@ uint8_t *rom_memory = NULL;
 long cartridge_ram_size = 0; // A maximum of 32kb of RAM
 uint8_t cartridge_ram[MAX_SRAM_SIZE];
 
-char *rom_file_name = NULL;
 bool ram_enabled = false;
 int rom_bank_index = 1;
 int ram_bank_index = 0;
@@ -175,7 +174,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	// Setting RTC register
 	case 0x6000: case 0x7000:
-		fprintf(stderr, "The value %d was written to the RTC Data Latch area at %04X\n", value, address);
+		// fprintf(stderr, "The value %d was written to the RTC Data Latch area at %04X\n", value, address);
 		return;
 
 	// Video Ram (8 KiB)
@@ -283,11 +282,11 @@ const int ram_size_table[] = {
 };
 
 bool mmu_sram_available() {
-	return cartridge_ram && cartridge_ram_size;
+	return cartridge_ram_size;
 }
 
 void mmu_set_sram(const uint8_t *data, size_t size) {
-	memset(cartridge_ram, 0, MAX_SRAM_SIZE);
+	memset(cartridge_ram, 0xFF, MAX_SRAM_SIZE);
 	memcpy(cartridge_ram, data, size);
 }
 
@@ -301,36 +300,19 @@ const uint8_t *mmu_get_sram(size_t *out_size) {
 	return cartridge_ram;
 }
 
-void mmu_load_rom(const char* rom_name) {
+void mmu_set_rom(const uint8_t *data, size_t size) {
 	if (rom_memory != NULL) {
 		printf("Freeing previously read rom...\n");
 		free(rom_memory);
 		rom_memory = NULL;
 	}
 
-	FILE *rom_file = fopen(rom_name, "rb"); // binary read mode
-	if (rom_file == NULL) {
-		fprintf(stderr, "Error: Failed to find the rom file `%s'\n", rom_name);
+	rom_memory = malloc(size);
+	if (!rom_memory) {
+		fprintf(stderr, "Error: Failed to copy the rom data\n");
 		exit(EXIT_FAILURE);
 	}
-
-	fseek(rom_file, 0L, SEEK_END);
-	long rom_size = ftell(rom_file);
-	printf("Allocating %ld bytes for the rom...\n", rom_size);
-
-	rom_memory = malloc(rom_size);
-	if (rom_memory == NULL) {
-		fprintf(stderr, "Error: Couldn't allocate the space for the rom\n");
-		exit(EXIT_FAILURE);
-	}
-
-	rewind(rom_file);
-	long bytes_read = fread(rom_memory, 1, rom_size, rom_file);
-	if (bytes_read != rom_size) {
-		fprintf(stderr, "Error: Rom was expected to be %ld bytes, but was actually %ld bytes\n", rom_size, bytes_read);
-		exit(EXIT_FAILURE);
-	}
-	fclose(rom_file);
+	memcpy(rom_memory, data, size);
 
 	char game_title[17] = { 0 };
 	for (int i = 0; i < 16; i++)
@@ -350,9 +332,9 @@ void mmu_load_rom(const char* rom_name) {
 		break;
 
 	case 0x01: case 0x02: case 0x03: case 0x04: // MBC1
-		if (rom_size > 512 * 1024)
+		if (size > 512 * 1024)
 			printf("WARNING: Cartridges of this size using the MBC1 have limited support.\n");
-		else if (rom_size > 1024 * 1024)
+		else if (size > 1024 * 1024)
 			printf("WARNING: Cartridges of this size using the MBC1 may crash.\n");
 		break;
 
