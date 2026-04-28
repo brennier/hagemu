@@ -7,6 +7,7 @@
 #include "hagemu.h"
 #include "web.h" // Does nothing unless PLATFORM_WEB is defined
 #include "text.h"
+#include "file.h"
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
 #define SCALE_FACTOR 6
@@ -116,90 +117,16 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	return true;
 }
 
-bool hagemu_app_save_sram(char *filename) {
-	size_t sram_size;
-	const uint8_t *sram = hagemu_get_sram(&sram_size);
-
-	FILE *file = fopen(filename, "wb");
-	if (file == NULL) {
-		printf("Error: Failed to open the file '%s' to write the save data :(\n", filename);
-		return false;
-	}
-
-	size_t bytes_written = fwrite(sram, 1, sram_size, file);
-
-	if (bytes_written != sram_size) {
-		printf("Error: Tried to write %ld bytes to '%s', but actually only wrote %ld bytes.\n", sram_size, filename, bytes_written);
-		return false;
-	}
-
-	printf("Save data was sucessfully written to '%s' (%ld bytes)\n", filename, sram_size);
-	fclose(file);
-	return true;
-}
-
-#ifdef PLATFORM_WEB
-char *hget_sram_name(const char* rom_name) {
-	// Returns the string "/savedata/[basename].sav" where [basename] is the basename part of rom_name.
-	// It is up to the caller to free the memory for the string.
-	const char* basename_begin = strrchr(rom_name, '/');
-	if (basename_begin == NULL)
-		basename_begin = rom_name;
-	else
-		basename_begin++;
-
-	char* basename_end = strrchr(rom_name, '.');
-	size_t basename_length;
-	if (basename_end != NULL)
-		basename_length = basename_end - basename_begin;
-	else
-		basename_length = strlen(basename_begin);
-
-	// Allocate memory for the full sram_path (remember to add 1 for '\0')
-	char* sram_name = malloc(strlen("/savedata/") + basename_length + strlen(".sav") + 1);
-	if (sram_name == NULL) {
-		printf("Warning: Failed to allocate memory for the save data file name.\n");
-		return NULL;
-	}
-
-	strcpy(sram_name, "/savedata/");
-	strncat(sram_name, basename_begin, basename_length);
-	sram_name[strlen("/savedata/") + basename_length] = '\0'; // Manually null-terminate result
-	strcat(sram_name, ".sav");
-
-	return sram_name;
-}
-#else
-char *hget_sram_name(const char* rom_name) {
-	char* sram_name = malloc(strlen(rom_name) + 1);
-	if (sram_name == NULL) {
-		printf("Warning: Failed to allocate memory for the save data file name.\n");
-		return NULL;
-	}
-	strcpy(sram_name, rom_name);
-
-	// Remove the extension if present
-	char* last_dot = strrchr(sram_name, '.');
-	if (last_dot != NULL)
-		*last_dot = '\0';
-
-	// Adjust the allocated size of sram_name to fit the ".sav" and the final NULL
-	sram_name = realloc(sram_name, strlen(sram_name) + strlen(".sav") + 1);
-	if (sram_name == NULL) {
-		printf("Warning: Failed to allocate memory for the save data file name.\n");
-		return NULL;
-	}
-
-	strcat(sram_name, ".sav");
-	return sram_name;
-}
-#endif
-
 void hagemu_app_cleanup(struct HagemuApp *app) {
 	printf("Cleaning up!\n");
 
-	if (hagemu_sram_available())
-		hagemu_app_save_sram(hget_sram_name(app->rom_filename));
+	if (hagemu_sram_available()) {
+		size_t sram_size;
+		const uint8_t *sram = hagemu_get_sram(&sram_size);
+		char *sram_name = hagemu_file_sram_name(app->rom_filename);
+		hagemu_file_save(sram_name, sram, sram_size);
+		free(sram_name);
+	}
 
 	text_cleanup();
 	free(app->rom_filename);
@@ -210,68 +137,6 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 	hagemu_destory(app->gb);
 	SDL_Quit();
 }
-
-uint8_t *hagemu_app_load_file(const char *filename, size_t *out_size) {
-	FILE *file = fopen(filename, "rb");
-	if (!file) {
-		printf("Warning: Failed to open the file '%s'.\n", filename);
-		return NULL;
-	}
-
-	// Seek to end to determine file size
-	if (fseek(file, 0, SEEK_END) != 0) {
-		fclose(file);
-		return NULL;
-	}
-
-	long size = ftell(file);
-	if (size < 0) {
-		fclose(file);
-		return NULL;
-	}
-
-	// Go back to beginning
-	if (fseek(file, 0, SEEK_SET) != 0) {
-		fclose(file);
-		return NULL;
-	}
-
-	// Prevent overflow when converting to size_t
-	if ((unsigned long)size > SIZE_MAX - 1) {
-		fclose(file);
-		return NULL;
-	}
-
-	size_t usize = (size_t)size;
-
-	// Allocate (+1 for optional null terminator)
-	unsigned char *buffer = malloc(usize);
-	if (!buffer) {
-		fclose(file);
-		return NULL;
-	}
-
-	size_t read = fread(buffer, 1, usize, file);
-	if (read != usize) {
-		free(buffer);
-		fclose(file);
-		return NULL;
-	}
-
-	fclose(file);
-
-	if (out_size) *out_size = usize;
-
-	return buffer;
-}
-
-/* 	long bytes_read = fread(cartridge_ram, 1, sram_size, save_file); */
-/* 	if (bytes_read != sram_size) */
-/* 		printf("Error: Save file was expected to be %ld bytes, but was actually %ld bytes.\n", sram_size, bytes_read); */
-/* 	else */
-/* 		printf("The save file '%s' was sucessfully found and loaded (%ld bytes)\n", sram_file_name, sram_size); */
-/* 	fclose(save_file); */
-/* } */
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	printf("Loading the rom path '%s'\n", filename);
@@ -285,12 +150,12 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 		return true;
 
 	// Load the SRAM
-	size_t size;
-	char *sram_file_name = hget_sram_name(app->rom_filename);
+	char *sram_file_name = hagemu_file_sram_name(app->rom_filename);
 	bool sram_file_exists = SDL_GetPathInfo(sram_file_name, NULL);
 	if (sram_file_exists) {
 		printf("Loading SRAM data from '%s'\n", sram_file_name);
-		uint8_t *sram_data = hagemu_app_load_file(sram_file_name, &size);
+		size_t size;
+		uint8_t *sram_data = hagemu_file_load(sram_file_name, &size);
 		hagemu_set_sram(sram_data, size);
 		free(sram_data);
 	} else {
