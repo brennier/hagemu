@@ -3,11 +3,28 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define CART_TYPE_LOCATION 0x0147
-#define CART_SIZE_LOCATION 0x0148
-#define RAM_SIZE_LOCATION  0x0149
+#define GAME_TITLE_LOCATION 0x0134
+#define CART_TYPE_LOCATION  0x0147
+#define CART_SIZE_LOCATION  0x0148
+#define RAM_SIZE_LOCATION   0x0149
+
+enum MBCType {
+	NO_MBC, MBC1, MBC2, MBC3, MBC4,
+	MBC5, MBC6, MBC7, MMM01, TAMA5,
+	HUC1, HUC3, POCKET_CAMERA
+};
+
+struct HagemuCartInfo {
+	enum MBCType type;
+	bool has_ram;
+	bool has_battery;
+	bool has_timer;
+	bool has_rumble;
+};
 
 struct HagemuCart {
+	struct HagemuCartInfo info;
+	char     title[17];
 	uint8_t *rom;
 	uint8_t *ram;
 	size_t   rom_size;
@@ -19,45 +36,58 @@ struct HagemuCart {
 
 struct HagemuCart cart = { .rom_index = 1 };
 
-const char* cartridge_type_description[] = {
-	[0x00] = "ROM ONLY",
-	[0x01] = "MBC1",
-	[0x02] = "MBC1+RAM",
-	[0x03] = "MBC1+RAM+BATTERY",
-	[0x05] = "MBC2",
-	[0x06] = "MBC2+BATTERY",
-	[0x08] = "ROM+RAM",
-	[0x09] = "ROM+RAM+BATTERY",
-	[0x0B] = "MMM01",
-	[0x0C] = "MMM01+RAM",
-	[0x0D] = "MMM01+RAM+BATTERY",
-	[0x0F] = "MBC3+TIMER+BATTERY",
-	[0x10] = "MBC3+TIMER+RAM+BATTERY",
-	[0x11] = "MBC3",
-	[0x12] = "MBC3+RAM",
-	[0x13] = "MBC3+RAM+BATTERY",
-	[0x19] = "MBC5",
-	[0x1A] = "MBC5+RAM",
-	[0x1B] = "MBC5+RAM+BATTERY",
-	[0x1C] = "MBC5+RUMBLE",
-	[0x1D] = "MBC5+RUMBLE+RAM",
-	[0x1E] = "MBC5+RUMBLE+RAM+BATTERY",
-	[0x20] = "MBC6",
-	[0x22] = "MBC7+SENSOR+RUMBLE+RAM+BATTERY",
-	[0xFC] = "POCKET CAMERA",
-	[0xFD] = "BANDAI TAMA5",
-	[0xFE] = "HuC3",
-	[0xFF] = "HuC1+RAM+BATTERY",
+const struct HagemuCartInfo cart_info_table[] = {
+	[0x00] = { .type = NO_MBC, },
+	[0x01] = { .type = MBC1, },
+	[0x02] = { .type = MBC1, .has_ram = true, },
+	[0x03] = { .type = MBC1, .has_ram = true, .has_battery = true, },
+	[0x05] = { .type = MBC2, },
+	[0x06] = { .type = MBC2, .has_battery = true, },
+	[0x08] = { .type = NO_MBC, .has_ram = true, },
+	[0x09] = { .type = NO_MBC, .has_ram = true, .has_battery = true, },
+	[0x0B] = { .type = MMM01, },
+	[0x0C] = { .type = MMM01, .has_ram = true, },
+	[0x0D] = { .type = MMM01, .has_ram = true, .has_battery = true, },
+	[0x0F] = { .type = MBC3, .has_timer = true, .has_battery = true, },
+	[0x10] = { .type = MBC3, .has_timer = true, .has_ram = true, .has_battery = true, },
+	[0x11] = { .type = MBC3, },
+	[0x12] = { .type = MBC3, .has_ram = true, },
+	[0x13] = { .type = MBC3, .has_ram = true, .has_battery = true, },
+	[0x19] = { .type = MBC5, },
+	[0x1A] = { .type = MBC5, .has_ram = true, },
+	[0x1B] = { .type = MBC5, .has_ram = true, .has_battery = true, },
+	[0x1C] = { .type = MBC5, .has_rumble = true, },
+	[0x1D] = { .type = MBC5, .has_rumble = true, .has_ram = true, },
+	[0x1E] = { .type = MBC5, .has_rumble = true, .has_ram = true, .has_battery = true, },
+	[0x20] = { .type = MBC6, },
+	[0x22] = { .type = MBC7, .has_rumble = true, .has_ram = true, .has_battery = true, },
+
+	// No support at the moment for these less common MBCs
+/* 	[0xFC] = "POCKET CAMERA", */
+/* 	[0xFD] = "BANDAI TAMA5", */
+/* 	[0xFE] = "HuC3", */
+/* 	[0xFF] = "HuC1+RAM+BATTERY", */
 };
 
-const int ram_size_table[] = {
-	[0x00] = 0,
-	[0x01] = 0,
-	[0x02] = 8 * 1024,
-	[0x03] = 32 * 1024,
-	[0x04] = 128 * 1024,
-	[0x05] = 64 * 1024,
+const size_t ram_size_table[] = {
+	[0] = 0,
+	[1] = 0,
+	[2] =   8 * 1024,
+	[3] =  32 * 1024,
+	[4] = 128 * 1024,
+	[5] =  64 * 1024,
 };
+
+void cart_set_info(struct HagemuCart *cart) {
+	uint8_t mbc_info_byte = cart->rom[CART_TYPE_LOCATION];
+	uint8_t rom_size_byte = cart->rom[CART_SIZE_LOCATION];
+	uint8_t ram_size_byte = cart->rom[RAM_SIZE_LOCATION];
+
+	memcpy(cart->title, &cart->rom[GAME_TITLE_LOCATION], 16);
+	cart->rom_size = 32 * (1 << rom_size_byte) * 1024;
+	cart->ram_size = ram_size_table[ram_size_byte];
+	cart->info     = cart_info_table[mbc_info_byte];
+}
 
 bool cart_sram_available() {
 	return cart.ram;
@@ -66,6 +96,9 @@ bool cart_sram_available() {
 void cart_set_sram(const uint8_t *data, size_t size) {
 	if (!cart.rom) {
 		printf("Error: Unable to load SRAM data before loading a rom file\n");
+		return;
+	} else if (!cart.info.has_ram || !cart.info.has_battery) {
+		printf("Failed to load SRAM data. This cartridge doesn't support battery-backed RAM.\n");
 		return;
 	} else if (size != cart.ram_size) {
 		printf("Failed to copy SRAM data. Expected %zu bytes, but data was %zu bytes\n", cart.ram_size, size);
@@ -86,10 +119,20 @@ const uint8_t *cart_get_sram(size_t *out_size) {
 }
 
 void cart_set_rom(const uint8_t *data, size_t size) {
+	cart.rom_index = 1;
+	cart.ram_index = 0;
+	cart.ram_enabled = false;
+
 	if (cart.rom != NULL) {
 		printf("Freeing previously read rom\n");
 		free(cart.rom);
 		cart.rom = NULL;
+	}
+
+	if (cart.ram != NULL) {
+		printf("Freeing previous SRAM data\n");
+		free(cart.ram);
+		cart.ram = NULL;
 	}
 
 	printf("Allocating space and copying the rom data\n");
@@ -100,20 +143,18 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 	}
 	memcpy(cart.rom, data, size);
 
-	char game_title[17] = { 0 };
-	for (int i = 0; i < 16; i++)
-		game_title[i] = cart.rom[0x0134 + i];
-	printf("Rom Title is %s\n", game_title);
-	printf("Cartridge type is %s\n", cartridge_type_description[cart.rom[CART_TYPE_LOCATION]]);
-	printf("ROM size is %d KiB\n", 32 * (1 << cart.rom[CART_SIZE_LOCATION]));
-	cart.ram_size = ram_size_table[cart.rom[RAM_SIZE_LOCATION]];
-	printf("RAM size is %ld KiB\n", cart.ram_size / 1024);
+	cart_set_info(&cart);
+	printf("Rom Title is %s\n", cart.title);
+	printf("Cartridge type is MBC%d\n", cart.info.type);
+	printf("ROM size is %zu KiB\n",  cart.rom_size / 1024);
+	printf("RAM size is %zu KiB\n", cart.ram_size / 1024);
 
-	// Reset the cartridge ram
-	if (cart.ram != NULL) {
-		printf("Freeing previous SRAM data\n");
-		free(cart.ram);
-		cart.ram = NULL;
+	if (size != cart.rom_size)
+		printf("WARNING: Cartridge file is %zu bytes, but expected %zu bytes\n", size, cart.rom_size);
+
+	if (!cart.info.has_ram || cart.ram_size == 0) {
+		printf("Cartridge contains no SRAM\n");
+		return;
 	}
 
 	cart.ram = malloc(cart.ram_size);
@@ -122,47 +163,6 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 		exit(EXIT_FAILURE);
 	}
 	memset(cart.ram, 0xFF, cart.ram_size);
-
-	switch (cart.rom[CART_TYPE_LOCATION]) {
-
-	case 0x00: case 0x08: case 0x09: // No MBC
-		break;
-
-	case 0x01: case 0x02: case 0x03: case 0x04: // MBC1
-		if (size > 512 * 1024)
-			printf("WARNING: Cartridges of this size using the MBC1 have limited support.\n");
-		else if (size > 1024 * 1024)
-			printf("WARNING: Cartridges of this size using the MBC1 may crash.\n");
-		break;
-
-	case 0x05: case 0x06: // MBC2
-		printf("WARNING: Cartridge type MBC2 is not supported yet.\n");
-		break;
-
-	case 0x0B: case 0x0C: case 0x0D: // MMM01
-		printf("WARNING: Cartridge type MMM01 is not supported yet.\n");
-		break;
-
-	case 0x0F: case 0x10: case 0x11: case 0x12: case 0x13: // MBC3
-		printf("WARNING: The real time clock feature is not supported yet.\n");
-		break;
-
-	case 0x19: case 0x1A: case 0x1B: case 0x1C: case 0x1D: case 0x1E: // MBC3
-		printf("WARNING: Cartridge type MBC5 is not supported yet.\n");
-		break;
-
-	case 0x20: case 0x22: case 0xFC: case 0xFD: case 0xFE: case 0xFF: // Other controllers
-		printf("WARNING: This cartridge type is not supported yet.\n");
-		break;
-
-	}
-
-	switch (cart.rom[CART_TYPE_LOCATION]) {
-
-	case 0x03: case 0x09: case 0x10: case 0x0D: case 0x13: case 0x1B: case 0x1E: case 0x22: case 0xFF:
-		printf("This rom supports loading and saving. Checking for an SRAM file.\n");
-		break;
-	}
 }
 
 uint8_t cart_rom_read(uint16_t address) {
@@ -192,43 +192,46 @@ void cart_ram_write(uint16_t address, uint8_t value) {
 	cart.ram[0x2000 * cart.ram_index + address] = value;
 }
 
-void cart_rom_write(uint16_t address, uint8_t value) {
+void cart_sram_reset() {
+	if (cart.ram)
+		memset(cart.ram, 0xFF, cart.ram_size);
+}
+
+void cart_rom_write_mbc1(uint16_t address, uint8_t value) {
 	switch (address & 0xF000) {
-		// Disable/Enable cartridge RAM
+
+	// Disable/Enable SRAM
 	case 0x0000: case 0x1000:
-		if ((value & 0xF) == 0xA) {
-			cart.ram_enabled = true;
-			//fprintf(stderr, "Enabled ram with value %d at address %04X\n", value, address);
-		} else {
-			cart.ram_enabled = false;
-			//fprintf(stderr, "Disabled ram with value %d at address %04X\n", value, address);
-		}
+		cart.ram_enabled = ((value & 0x0F) == 0xA);
 		return;
 
 	// Switch ROM bank
 	case 0x2000: case 0x3000:
-		value &= 0x7F;
-		if (value == 0)
+		cart.rom_index = value & 0x7F;
+		if (cart.rom_index == 0)
 			cart.rom_index = 1;
-		else
-			cart.rom_index = value;
 		return;
 
-	// Switch RAM bank or select RTC
+	// Switch RAM bank
 	case 0x4000: case 0x5000:
-		if (value > 7)
-			fprintf(stderr, "RTC not implemented\n");
-		else if (value <= 3 && value >= 0)
-			/* fprintf(stderr, "Switching to RAM bank %d\n", value); */
-			;
-		else
-			fprintf(stderr, "Invalid ram bank number %d. Ignoring.\n", value);
-		cart.ram_index = value;
+		if (value * 0x2000 < cart.ram_size)
+			cart.ram_index = value;
 		return;
 
-	// Setting RTC register
+	// Select Banking Mode
 	case 0x6000: case 0x7000:
-		// fprintf(stderr, "The value %d was written to the RTC Data Latch area at %04X\n", value, address);
+		fprintf(stderr, "Banking mode select is not implemented yet.\n");
 		return;
+	}
+}
+
+void cart_rom_write(uint16_t address, uint8_t value) {
+	switch (cart.info.type) {
+
+	case NO_MBC: break;
+	case MBC1: cart_rom_write_mbc1(address, value); break;
+	default:
+		printf("This ROM type isn't supported yet. Aborting.\n");
+		exit(EXIT_FAILURE);
 	}
 }
