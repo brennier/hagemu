@@ -55,7 +55,6 @@ The following games have been tested:
   - [x] Setup sound and add an audio callback function
   - [x] Synchronize the length, sweep, and envelope timers
   - [x] Downsample from 2MHz to 48kHz
-  - [x] Implement a IIR butterworth low pass filter to cut down on audio aliasing
   - [x] Synchronize the sample rates of the individual sound channels
   - [x] Finish Master controls
     - [x] Turn APU on/off
@@ -102,11 +101,11 @@ The following games have been tested:
   - [x] Rewrite the f register as separate bools
   - [x] Fix glitch where a sprite partially clips if it's on the left or top border
   - [x] Fix bug where window X Position is less than 7
+  - [x] Fill the sound buffer directly instead of using a callback
+  - [x] Use float instead of int16_t for audio bit depth
+  - [x] Use RGBA8888 instead of RGBA5551 for pixel format
   - [ ] Make the color palette settable instead of internal to the ppu
-  - [ ] Fill the sound buffer directly instead of using a callback
   - [ ] Make the audio registers readable
-  - [ ] Maybe use float instead of int16_t for audio bit depth
-  - [ ] Maybe use RGBA8888 instead of RGBA5551 pixel format
   - [ ] Mute a sound channel if its frequency is above 20kHz
   - [ ] Add support for the VIN sound channel
   - [ ] Rewrite PPU to be more modular
@@ -120,7 +119,6 @@ The following games have been tested:
   - [ ] Run the Mooneye Test Suite
   - [ ] Make a cool logo
   - [ ] Add a custom boot rom
-  - [ ] Use _Static_assert to ensure endianness
   - [ ] Use some profiling tools to find critical code blocks
   - [ ] Compile program using -O3 and -flto and -ffast-math
 - [x] Known glitches
@@ -162,14 +160,17 @@ The following games have been tested:
   - [x] Change audio from uint16_t to float
   - [x] Change video from RGBA5551 to RGBA8888
   - [x] Double buffer the video output
-  - [ ] Synchronize the APU along with the CPU and PPU
-  - [ ] Separate cart.c and joypad.c from mmu.c
+  - [x] Synchronize the APU along with the CPU and PPU
+  - [x] Separate cart.c and joypad.c from mmu.c
+  - [x] Remove the union type punning of the CPU registers
+  - [x] Add dynamic audio resampling
+  - [x] Using box averaging to downsample the audio
+  - [x] Add a high-pass filter and a low-pass filter to the APU
   - [ ] Use CMake instead of make
   - [ ] Organize all state into a gameboy struct
   - [ ] Support save/load states
   - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
   - [ ] Rewrite the PPU using a pixel pusher renderer
-  - [ ] Remove the union type punning of the CPU registers
 </details>
 
 <details>
