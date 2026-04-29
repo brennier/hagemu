@@ -10,15 +10,14 @@
 #include "joypad.h"
 #include "cart.h"
 
-#define MAX_SRAM_SIZE 0x8000
 #define GB_MEMORY_SIZE 0x10000
 
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[GB_MEMORY_SIZE] = { 0 };
 
 uint8_t *rom_memory = NULL;
-long cartridge_ram_size = 0; // A maximum of 32kb of RAM
-uint8_t cartridge_ram[MAX_SRAM_SIZE];
+uint8_t *cartridge_ram = NULL;
+size_t cartridge_ram_size = 0; // A maximum of 32kb of RAM
 
 bool ram_enabled = false;
 int rom_bank_index = 1;
@@ -134,7 +133,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 		return;
 
 	case LCD_Y_COORDINATE:
-		printf("Illegal write to LCD Y Coordinate. Ignoring...\n");
+		printf("Illegal write to LCD Y Coordinate. Ignoring.\n");
 		return;
 	}
 
@@ -168,7 +167,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 			/* fprintf(stderr, "Switching to RAM bank %d\n", value); */
 			;
 		else
-			fprintf(stderr, "Invalid ram bank number %d. Ignoring...\n", value);
+			fprintf(stderr, "Invalid ram bank number %d. Ignoring.\n", value);
 		ram_bank_index = value;
 		return;
 
@@ -282,34 +281,42 @@ const int ram_size_table[] = {
 };
 
 bool mmu_sram_available() {
-	return cartridge_ram_size;
+	return cartridge_ram;
 }
 
 void mmu_set_sram(const uint8_t *data, size_t size) {
-	memset(cartridge_ram, 0xFF, MAX_SRAM_SIZE);
+	if (!rom_memory) {
+		printf("Error: Unable to load SRAM data before loading a rom file\n");
+		return;
+	} else if (size != cartridge_ram_size) {
+		printf("Failed to copy SRAM data. Expected %zu bytes, but data was %zu bytes\n", cartridge_ram_size, size);
+		return;
+	}
+	printf("Copying SRAM data to emulator core\n");
 	memcpy(cartridge_ram, data, size);
 }
 
 const uint8_t *mmu_get_sram(size_t *out_size) {
-	if (cartridge_ram_size == 0) {
-		printf("This game doesn't support saving so there is no save file\n");
+	if (!cartridge_ram) {
+		printf("This game has no sram for saving\n");
+		*out_size = 0;
 		return NULL;
 	}
-
 	*out_size = cartridge_ram_size;
 	return cartridge_ram;
 }
 
 void mmu_set_rom(const uint8_t *data, size_t size) {
 	if (rom_memory != NULL) {
-		printf("Freeing previously read rom...\n");
+		printf("Freeing previously read rom\n");
 		free(rom_memory);
 		rom_memory = NULL;
 	}
 
+	printf("Allocating space and copying the rom data\n");
 	rom_memory = malloc(size);
 	if (!rom_memory) {
-		fprintf(stderr, "Error: Failed to copy the rom data\n");
+		fprintf(stderr, "Error: Failed to allocated the rom data\n");
 		exit(EXIT_FAILURE);
 	}
 	memcpy(rom_memory, data, size);
@@ -324,7 +331,18 @@ void mmu_set_rom(const uint8_t *data, size_t size) {
 	printf("RAM size is %ld KiB\n", cartridge_ram_size / 1024);
 
 	// Reset the cartridge ram
-	memset(cartridge_ram, 0xFF, MAX_SRAM_SIZE);
+	if (cartridge_ram != NULL) {
+		printf("Freeing previous SRAM data\n");
+		free(cartridge_ram);
+		cartridge_ram = NULL;
+	}
+
+	cartridge_ram = malloc(cartridge_ram_size);
+	if (!cartridge_ram) {
+		fprintf(stderr, "Error: Failed to allocate the SRAM data\n");
+		exit(EXIT_FAILURE);
+	}
+	memset(cartridge_ram, 0xFF, cartridge_ram_size);
 
 	switch (rom_memory[CARTRIDGE_TYPE]) {
 
@@ -363,7 +381,7 @@ void mmu_set_rom(const uint8_t *data, size_t size) {
 	switch (rom_memory[CARTRIDGE_TYPE]) {
 
 	case 0x03: case 0x09: case 0x10: case 0x0D: case 0x13: case 0x1B: case 0x1E: case 0x22: case 0xFF:
-		printf("This rom supports loading and saving. Checking for a save file...\n");
+		printf("This rom supports loading and saving. Checking for an SRAM file.\n");
 		break;
 	}
 }
