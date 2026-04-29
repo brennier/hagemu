@@ -1,10 +1,10 @@
 #include <stdlib.h>
 #include "hagemu_core.h"
 #include "cpu.h"
-#include "mmu.h"
 #include "apu.h"
 #include "ppu.h"
 #include "joypad.h"
+#include "cart.h"
 
 struct HagemuGB {
 	struct HagemuCPU *cpu;
@@ -34,7 +34,7 @@ unsigned hagemu_next_instruction(struct HagemuGB* gb) {
 }
 
 void hagemu_set_rom(struct HagemuGB *gb, const uint8_t *data, size_t size) {
-	mmu_set_rom(data, size);
+	cart_set_rom(data, size);
 	hagemu_reset(gb);
 }
 
@@ -67,15 +67,15 @@ unsigned hagemu_audio_available() {
 }
 
 void hagemu_set_sram(const uint8_t *data, size_t size) {
-	mmu_set_sram(data, size);
+	cart_set_sram(data, size);
 }
 
 bool hagemu_sram_available() {
-	return mmu_sram_available();
+	return cart_sram_available();
 }
 
 const uint8_t *hagemu_get_sram(size_t *out_size) {
-	return mmu_get_sram(out_size);
+	return cart_get_sram(out_size);
 }
 
 unsigned hagemu_get_frame_count() {

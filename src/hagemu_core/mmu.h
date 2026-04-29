@@ -5,9 +5,6 @@
 #include <stddef.h>
 
 enum special_address {
-	CARTRIDGE_TYPE = 0x0147,
-	CARTRIDGE_SIZE = 0x0148,
-	RAM_SIZE      = 0x0149,
 	JOYPAD_INPUT = 0xFF00,
 	SERIAL_DATA = 0xFF01,
 	SERIAL_CONTROL = 0xFF02,
