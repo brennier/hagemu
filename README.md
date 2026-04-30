@@ -86,11 +86,16 @@ The following games have been tested:
     - [x] Reset trigger
     - [x] Length timer
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
-  - [ ] Separate MBC code into its own file
-  - [x] MCB1 (Basic support)
-  - [ ] MCB1 (Full support)
-  - [x] MCB3 (except for Real Time Clock)
   - [x] Basic support for saving and loading .sav files
+  - [x] Separate MBC code into its own file
+  - [x] MCB1 (Full support, tested with Mooneye's MBC1 test roms)
+  - [ ] MCB1M
+  - [ ] MCB2
+  - [ ] MCB3
+  - [ ] MCB5
+  - [ ] MCB6
+  - [ ] MCB7
+  - [ ] Other, less popular MCBs
   - [ ] Real Time Clock support
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library

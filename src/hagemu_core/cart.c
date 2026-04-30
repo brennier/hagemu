@@ -2,37 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "mbc1.h"
 
 #define GAME_TITLE_LOCATION 0x0134
 #define CART_TYPE_LOCATION  0x0147
 #define CART_SIZE_LOCATION  0x0148
 #define RAM_SIZE_LOCATION   0x0149
-
-enum MBCType {
-	NO_MBC, MBC1, MBC2, MBC3, MBC4,
-	MBC5, MBC6, MBC7, MMM01, TAMA5,
-	HUC1, HUC3, POCKET_CAMERA
-};
-
-struct HagemuCartInfo {
-	enum MBCType type;
-	bool has_ram;
-	bool has_battery;
-	bool has_timer;
-	bool has_rumble;
-};
-
-struct HagemuCart {
-	struct HagemuCartInfo info;
-	char     title[17];
-	uint8_t *rom;
-	uint8_t *ram;
-	size_t   rom_size;
-	size_t   ram_size;
-	uint8_t  rom_index;
-	uint8_t  ram_index;
-	bool     ram_enabled;
-};
 
 struct HagemuCart cart = { .rom_index = 1 };
 
@@ -70,8 +45,8 @@ const struct HagemuCartInfo cart_info_table[] = {
 };
 
 const size_t ram_size_table[] = {
-	[0] = 0,
-	[1] = 0,
+	[0] =   0,
+	[1] =   0,
 	[2] =   8 * 1024,
 	[3] =  32 * 1024,
 	[4] = 128 * 1024,
@@ -165,71 +140,49 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 	memset(cart.ram, 0xFF, cart.ram_size);
 }
 
-uint8_t cart_rom_read(uint16_t address) {
-	if (address < 0x4000)
-		return cart.rom[address];
-	else if (address < 0x8000)
-		return cart.rom[0x4000 * cart.rom_index + (address - 0x4000)];
-
-	printf("ERROR: Out of bounds read from the cartridge\n");
-	exit(EXIT_FAILURE);
-}
-
-uint8_t cart_ram_read(uint16_t address) {
-	if (!cart.ram_enabled) {
-		fprintf(stderr, "Attempt to read RAM address %04X, but it was disabled\n", address);
-		return 0xFF;
-	}
-
-	return cart.ram[0x2000 * cart.ram_index + address];
-}
-
-void cart_ram_write(uint16_t address, uint8_t value) {
-	if (!cart.ram_enabled) {
-		fprintf(stderr, "Attempt to write value %d to RAM address %04X, but it was disabled\n", value, address);
-	}
-
-	cart.ram[0x2000 * cart.ram_index + address] = value;
-}
-
 void cart_sram_reset() {
-	if (cart.ram)
-		memset(cart.ram, 0xFF, cart.ram_size);
-}
-
-void cart_rom_write_mbc1(uint16_t address, uint8_t value) {
-	switch (address & 0xF000) {
-
-	// Disable/Enable SRAM
-	case 0x0000: case 0x1000:
-		cart.ram_enabled = ((value & 0x0F) == 0xA);
-		return;
-
-	// Switch ROM bank
-	case 0x2000: case 0x3000:
-		cart.rom_index = value & 0x7F;
-		if (cart.rom_index == 0)
-			cart.rom_index = 1;
-		return;
-
-	// Switch RAM bank
-	case 0x4000: case 0x5000:
-		if (value * 0x2000 < cart.ram_size)
-			cart.ram_index = value;
-		return;
-
-	// Select Banking Mode
-	case 0x6000: case 0x7000:
-		fprintf(stderr, "Banking mode select is not implemented yet.\n");
-		return;
-	}
+	if (!cart.ram) return;
+	memset(cart.ram, 0xFF, cart.ram_size);
 }
 
 void cart_rom_write(uint16_t address, uint8_t value) {
 	switch (cart.info.type) {
 
 	case NO_MBC: break;
-	case MBC1: cart_rom_write_mbc1(address, value); break;
+	case MBC1:   cart_rom_write_mbc1(&cart, address, value); break;
+	default:
+		printf("This ROM type isn't supported yet. Aborting.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+uint8_t cart_rom_read(uint16_t address) {
+	switch (cart.info.type) {
+
+	case NO_MBC: return cart.rom[address]; break;
+	case MBC1:   return cart_rom_read_mbc1(&cart, address); break;
+	default:
+		printf("This ROM type isn't supported yet. Aborting.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void cart_ram_write(uint16_t address, uint8_t value) {
+	switch (cart.info.type) {
+
+	case NO_MBC: cart.ram[address] = value; break;
+	case MBC1:   cart_ram_write_mbc1(&cart, address, value); break;
+	default:
+		printf("This ROM type isn't supported yet. Aborting.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+uint8_t cart_ram_read(uint16_t address) {
+	switch (cart.info.type) {
+
+	case NO_MBC: return cart.ram[address]; break;
+	case MBC1:   return cart_ram_read_mbc1(&cart, address); break;
 	default:
 		printf("This ROM type isn't supported yet. Aborting.\n");
 		exit(EXIT_FAILURE);
