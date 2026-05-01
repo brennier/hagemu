@@ -261,7 +261,7 @@ void cpu_print_state(struct HagemuCPU *cpu) {
 	uint8_t l = get_reg8(cpu, REG_L);
 	uint16_t sp = get_reg16(cpu, REG_SP);
 	uint16_t pc = get_reg16(cpu, REG_PC);
-	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
+	fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
 	       a, f, b, c, d, e, h, l, sp, pc, mmu_read(pc), mmu_read(pc+1), mmu_read(pc+2), mmu_read(pc+3));
 }
 
@@ -649,7 +649,8 @@ static inline void op_reti(struct HagemuCPU *cpu) {
 	cpu->flag_master_interrupt = true;
 }
 
-static inline void op_add_sp_offset(struct HagemuCPU *cpu, enum Reg8 value) {
+static inline void op_add_sp_offset(struct HagemuCPU *cpu, enum Reg8 offset) {
+	uint8_t value     = get_reg8(cpu, offset);
 	uint16_t result   = cpu->sp + (int8_t)value;
 	cpu->f_carry      = ((cpu->sp & 0x00FF) + value) & 0x0100;
 	cpu->f_half_carry = (cpu->sp ^ value ^ result) & 0x10;
