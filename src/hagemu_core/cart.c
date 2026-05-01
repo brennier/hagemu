@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "mbc1.h"
+#include "mbc3.h"
+#include "mbc5.h"
 
 #define GAME_TITLE_LOCATION 0x0134
 #define CART_TYPE_LOCATION  0x0147
@@ -150,8 +152,10 @@ void cart_rom_write(uint16_t address, uint8_t value) {
 
 	case NO_MBC: break;
 	case MBC1:   cart_rom_write_mbc1(&cart, address, value); break;
+	case MBC3:   cart_rom_write_mbc3(&cart, address, value); break;
+	case MBC5:   cart_rom_write_mbc5(&cart, address, value); break;
 	default:
-		printf("This ROM type isn't supported yet. Aborting.\n");
+		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart.info.type);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -161,8 +165,10 @@ uint8_t cart_rom_read(uint16_t address) {
 
 	case NO_MBC: return cart.rom[address]; break;
 	case MBC1:   return cart_rom_read_mbc1(&cart, address); break;
+	case MBC3:   return cart_rom_read_mbc3(&cart, address); break;
+	case MBC5:   return cart_rom_read_mbc5(&cart, address); break;
 	default:
-		printf("This ROM type isn't supported yet. Aborting.\n");
+		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart.info.type);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -172,8 +178,10 @@ void cart_ram_write(uint16_t address, uint8_t value) {
 
 	case NO_MBC: cart.ram[address] = value; break;
 	case MBC1:   cart_ram_write_mbc1(&cart, address, value); break;
+	case MBC3:   cart_ram_write_mbc3(&cart, address, value); break;
+	case MBC5:   cart_ram_write_mbc5(&cart, address, value); break;
 	default:
-		printf("This ROM type isn't supported yet. Aborting.\n");
+		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart.info.type);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -183,8 +191,10 @@ uint8_t cart_ram_read(uint16_t address) {
 
 	case NO_MBC: return cart.ram[address]; break;
 	case MBC1:   return cart_ram_read_mbc1(&cart, address); break;
+	case MBC3:   return cart_ram_read_mbc3(&cart, address); break;
+	case MBC5:   return cart_ram_read_mbc5(&cart, address); break;
 	default:
-		printf("This ROM type isn't supported yet. Aborting.\n");
+		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart.info.type);
 		exit(EXIT_FAILURE);
 	}
 }

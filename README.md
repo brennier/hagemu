@@ -92,7 +92,8 @@ The following games have been tested:
   - [ ] MCB1M
   - [ ] MCB2
   - [ ] MCB3
-  - [ ] MCB5
+  - [x] MCB5 (without rumble) (tested with Mooneye's MBC5 test roms)
+  - [ ] MCB5 (with rumble)
   - [ ] MCB6
   - [ ] MCB7
   - [ ] Other, less popular MCBs

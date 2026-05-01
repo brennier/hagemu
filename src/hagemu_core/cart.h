@@ -26,10 +26,11 @@ struct HagemuCart {
 	uint8_t *ram;
 	size_t   rom_size;
 	size_t   ram_size;
-	uint8_t  rom_index;
-	uint8_t  ram_index;
+	uint16_t rom_index;
+	uint16_t ram_index;
 	bool     ram_enabled;
 	bool     mbc_banking_mode;
+	bool     rtc_latched;
 };
 
 void cart_set_rom(const uint8_t *data, size_t size);
