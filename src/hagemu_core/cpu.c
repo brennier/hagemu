@@ -1,3 +1,4 @@
+#include "cpu.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,10 +23,9 @@ struct HagemuCPU {
 	bool flag_is_halted;
 };
 
-struct HagemuCPU cpu = { 0 };
-
 struct HagemuCPU *cpu_create() {
 	struct HagemuCPU *cpu = malloc(sizeof(struct HagemuCPU));
+	cpu_reset(cpu);
 	return cpu;
 }
 
