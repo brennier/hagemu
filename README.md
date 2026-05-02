@@ -111,6 +111,7 @@ The following games have been tested:
   - [x] Use float instead of int16_t for audio bit depth
   - [x] Use RGBA8888 instead of RGBA5551 for pixel format
   - [x] Add support for disabling the PPU
+  - [x] Block VRAM and OAM while they're being accessed by the ppu
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
   - [ ] Mute a sound channel if its frequency is above 20kHz
@@ -127,7 +128,7 @@ The following games have been tested:
   - [ ] Add a custom boot rom
   - [ ] Use some profiling tools to find critical code blocks
   - [ ] Compile program using -O3 and -flto and -ffast-math
-- [x] Glitches that too more than 1 day to fix
+- [x] Glitches that took more than 1 day to fix
   - [x] Pokemon Red corrupted save data
     - Fixed! My SRAM implementation was off-by-one
   - [x] Pokemon Aka character constantly moves up

@@ -58,7 +58,7 @@ uint8_t mmu_read(uint16_t address) {
 
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
-		return gb_memory[address];
+		return ppu_vram_read(address - 0x8000);
 
 	// External switchable RAM from cartridge (8 KiB)
 	case 0xA000: case 0xB000:
@@ -74,8 +74,8 @@ uint8_t mmu_read(uint16_t address) {
 			return gb_memory[address - 0x2000];
 		// Object Attribute Memory
 		else if (address < 0xFEA0)
-			return gb_memory[address];
-		// Unusable memory
+			return ppu_oam_read(address - 0xFE00);
+		// Unusable forbidden memory
 		else if (address < 0xFEFF)
 			return 0xFF;
 		// IO registers
@@ -127,7 +127,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 			exit(EXIT_FAILURE);
 		}
 		for (int i = 0; i < 0xA0; i++)
-			gb_memory[0xFE00 + i] = gb_memory[(value << 8) + i];
+			ppu_oam_write(i, gb_memory[(value << 8) + i]);
 		return;
 	}
 
@@ -141,7 +141,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
-		gb_memory[address] = value;
+		ppu_vram_write(address - 0x8000, value);
 		return;
 
 	// Cartridge RAM (8 KiB slot)
@@ -160,7 +160,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 			gb_memory[address - 0x2000] = value;
 		// Object Attribute Memory
 		else if (address < 0xFEA0)
-			gb_memory[address] = value;
+			ppu_oam_write(address - 0xFE00, value);
 		// Unusable forbidden memory
 		else if (address < 0xFEFF)
 			return;
