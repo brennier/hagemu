@@ -17,6 +17,11 @@
 uint8_t gb_memory[GB_MEMORY_SIZE] = { 0 };
 
 uint8_t mmu_read(uint16_t address) {
+	// Block if DMA is active and not accessing HRAM
+	if (dma_is_active() && address < 0xFF80) {
+		return 0xFF;
+	}
+
 	// Handle special cases first
 	switch (address) {
 
@@ -95,6 +100,11 @@ uint8_t mmu_read(uint16_t address) {
 }
 
 void mmu_write(uint16_t address, uint8_t value) {
+	// Block if DMA is active and not accessing HRAM
+	if (dma_is_active() && address < 0xFF80) {
+		return;
+	}
+
 	// Handle special cases first
 	switch (address) {
 
@@ -175,6 +185,12 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
 	exit(EXIT_FAILURE);
+}
+
+// mmu_read blocks when the DMA is active
+// This function is for the DMA to read directly from memory
+uint8_t mmu_read_nonblocking(uint16_t address) {
+	return gb_memory[address];
 }
 
 void mmu_set_bit(enum special_bit bit) {

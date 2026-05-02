@@ -27,7 +27,7 @@ void dma_tick_once() {
     dma.cycle++;
 
     if (dma.cycle % 4 == 0) {
-	    uint8_t data = mmu_read(dma.source + dma.index);
+	    uint8_t data = mmu_read_nonblocking(dma.source + dma.index);
 	    ppu_oam_write(dma.index, data);
 	    dma.index++;
 	    if (dma.index == 160)
