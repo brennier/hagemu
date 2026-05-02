@@ -1,14 +1,15 @@
+#include "mmu.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "mmu.h"
 #include "clock.h"
 #include "ppu.h"
 #include "apu.h"
 #include "joypad.h"
 #include "cart.h"
+#include "dma.h"
 
 #define GB_MEMORY_SIZE 0x10000
 
@@ -103,7 +104,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	case JOYPAD_INPUT:
 		joypad_set_byte(value);
-		break;
+		return;
 
 	case LCD_Y_COORDINATE:
 		printf("Illegal write to LCD Y Coordinate. Ignoring.\n");
@@ -119,15 +120,11 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits
-		break;
+		gb_memory[address] = value;
+		return;
 
 	case DMA_START:
-		if (value > 0xDF) {
-			fprintf(stderr, "Illegal DMA Request!");
-			exit(EXIT_FAILURE);
-		}
-		for (int i = 0; i < 0xA0; i++)
-			ppu_oam_write(i, gb_memory[(value << 8) + i]);
+		dma_start(value);
 		return;
 	}
 

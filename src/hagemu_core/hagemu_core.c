@@ -5,6 +5,7 @@
 #include "ppu.h"
 #include "joypad.h"
 #include "cart.h"
+#include "dma.h"
 
 struct HagemuGB {
 	struct HagemuCPU *cpu;
@@ -30,6 +31,7 @@ unsigned hagemu_next_instruction(struct HagemuGB* gb) {
 	int t_cycles = cpu_do_next_instruction(gb->cpu);
 	ppu_tick(t_cycles);
 	apu_tick(t_cycles);
+	dma_tick(t_cycles);
 	return t_cycles;
 }
 
@@ -46,6 +48,7 @@ void hagemu_run_frame(struct HagemuGB *gb) {
 		t_cycles = cpu_do_next_instruction(gb->cpu);
 		ppu_tick(t_cycles);
 		apu_tick(t_cycles);
+		dma_tick(t_cycles);
 	}
 }
 

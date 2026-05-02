@@ -112,13 +112,13 @@ The following games have been tested:
   - [x] Use RGBA8888 instead of RGBA5551 for pixel format
   - [x] Add support for disabling the PPU
   - [x] Block VRAM and OAM while they're being accessed by the ppu
+  - [x] Emulate the timing of the DMA
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
   - [ ] Mute a sound channel if its frequency is above 20kHz
   - [ ] Add support for the VIN sound channel
   - [ ] Rewrite PPU to be more modular
   - [ ] Add option to blend frames
-  - [ ] Emulate the timing of the DMA
   - [ ] Implement the STOP instruction
   - [ ] Test the HALT instruction
   - [ ] Add support for the serial data port
