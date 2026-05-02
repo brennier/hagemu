@@ -31,8 +31,10 @@ uint8_t mmu_read(uint16_t address) {
 		return ppu_get_current_line();
 
 	case LCD_STATUS:
-		// bits 0-2 are from the PPU, bit 7 is always 1
-		return (gb_memory[LCD_STATUS] & ~0x07) | ppu_get_lcd_status() | 0x80;
+		return ppu_get_lcd_status();
+
+	case LCD_CONTROL:
+		return ppu_get_lcd_control();
 
 	case SERIAL_CONTROL:
 		// bits 1 through 6 should always be 1
@@ -103,6 +105,18 @@ void mmu_write(uint16_t address, uint8_t value) {
 		joypad_set_byte(value);
 		break;
 
+	case LCD_Y_COORDINATE:
+		printf("Illegal write to LCD Y Coordinate. Ignoring.\n");
+		return;
+
+	case LCD_STATUS:
+		ppu_set_lcd_status(value);
+		return;
+
+	case LCD_CONTROL:
+		ppu_set_lcd_control(value);
+		return;
+
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits
 		break;
@@ -114,10 +128,6 @@ void mmu_write(uint16_t address, uint8_t value) {
 		}
 		for (int i = 0; i < 0xA0; i++)
 			gb_memory[0xFE00 + i] = gb_memory[(value << 8) + i];
-		return;
-
-	case LCD_Y_COORDINATE:
-		printf("Illegal write to LCD Y Coordinate. Ignoring.\n");
 		return;
 	}
 

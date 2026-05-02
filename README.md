@@ -110,6 +110,7 @@ The following games have been tested:
   - [x] Fill the sound buffer directly instead of using a callback
   - [x] Use float instead of int16_t for audio bit depth
   - [x] Use RGBA8888 instead of RGBA5551 for pixel format
+  - [x] Add support for disabling the PPU
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
   - [ ] Mute a sound channel if its frequency is above 20kHz
@@ -117,7 +118,6 @@ The following games have been tested:
   - [ ] Rewrite PPU to be more modular
   - [ ] Add option to blend frames
   - [ ] Emulate the timing of the DMA
-  - [ ] Add support for disabling the PPU
   - [ ] Implement the STOP instruction
   - [ ] Test the HALT instruction
   - [ ] Add support for the serial data port
@@ -127,11 +127,13 @@ The following games have been tested:
   - [ ] Add a custom boot rom
   - [ ] Use some profiling tools to find critical code blocks
   - [ ] Compile program using -O3 and -flto and -ffast-math
-- [x] Known glitches
+- [x] Glitches that too more than 1 day to fix
   - [x] Pokemon Red corrupted save data
     - Fixed! My SRAM implementation was off-by-one
   - [x] Pokemon Aka character constantly moves up
     - Fixed! The upper two bits of joypad register should always be 1
+  - [x] Pokemon Gold crashes during screen transitions
+    - Fixed! If the PPU is set to disabled, reset the current line/dot and don't tick the PPU
 - [ ] WebAssembly version
   - [x] Get the WebAssembly version working
   - [x] Add a simple front-end UI

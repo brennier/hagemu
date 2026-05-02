@@ -46,23 +46,106 @@ unsigned ppu_get_frame_count() {
 	return frames_completed;
 }
 
-int ppu_get_lcd_status() {
-	int result = 0;
+bool BG_ENABLE            = false; // bit 0
+bool OBJECTS_ENABLE       = false; // bit 1
+bool OBJECTS_SIZE         = false; // bit 2,
+bool BG_TILE_MAP_AREA     = false; // bit 3,
+bool BG_TILE_DATA_AREA    = false; // bit 4,
+bool WINDOW_ENABLE        = false; // bit 5,
+bool WINDOW_TILE_MAP_AREA = false; // bit 6,
+bool PPU_ENABLED          = true; // bit 7,
+
+void ppu_set_lcd_control(uint8_t value) {
+	bool old_ppu_state   = PPU_ENABLED;
+
+	BG_ENABLE            = value & (1u << 0);
+	OBJECTS_ENABLE       = value & (1u << 1);
+	OBJECTS_SIZE         = value & (1u << 2);
+	BG_TILE_MAP_AREA     = value & (1u << 3);
+	BG_TILE_DATA_AREA    = value & (1u << 4);
+	WINDOW_ENABLE        = value & (1u << 5);
+	WINDOW_TILE_MAP_AREA = value & (1u << 6);
+	PPU_ENABLED          = value & (1u << 7);
+
+	if (old_ppu_state == PPU_ENABLED)
+		return;
+
+	// PPU was enabled
+	if (PPU_ENABLED) {
+		current_line  = 0;
+		current_cycle = 0;
+	} else {
+		current_line  = 0;
+		current_cycle = 0;
+	}
+}
+
+uint8_t ppu_get_lcd_control() {
+	uint8_t value = 0;
+	value |= (BG_ENABLE            << 0);
+	value |= (OBJECTS_ENABLE       << 1);
+	value |= (OBJECTS_SIZE         << 2);
+	value |= (BG_TILE_MAP_AREA     << 3);
+	value |= (BG_TILE_DATA_AREA    << 4);
+	value |= (WINDOW_ENABLE        << 5);
+	value |= (WINDOW_TILE_MAP_AREA << 6);
+	value |= (PPU_ENABLED          << 7);
+	return value;
+}
+
+bool interrupt_select_hblank   = 0;
+bool interrupt_select_vblank   = 0;
+bool interrupt_select_oam_scan = 0;
+bool interrupt_select_LYC      = 0;
+
+void ppu_set_lcd_status(uint8_t value) {
+	// bits 0, 1, and 7 are read-only and thus ignored
+	interrupt_select_hblank   = value & (1u << 3);
+	interrupt_select_vblank   = value & (1u << 4);
+	interrupt_select_oam_scan = value & (1u << 5);
+	interrupt_select_LYC      = value & (1u << 6);
+}
+
+uint8_t ppu_get_lcd_status() {
+	uint8_t result = 0;
+	// bits 0 and 1 are the PPU mode
 	if (PPU_mode != DISABLED)
-		result |= PPU_mode;
-	result |= (current_line == mmu_read(LY_COMPARE)) << 2;
+		result |= PPU_mode << 0;
+	bool bit2 = (current_line == mmu_read(LY_COMPARE));
+	bool bit3 = interrupt_select_hblank;
+	bool bit4 = interrupt_select_vblank;
+	bool bit5 = interrupt_select_oam_scan;
+	bool bit6 = interrupt_select_LYC;
+	bool bit7 = 1;
+	result |= bit2 << 2;
+	result |= bit3 << 3;
+	result |= bit4 << 4;
+	result |= bit5 << 5;
+	result |= bit6 << 6;
+	result |= bit7 << 7;
 	return result;
 }
 
-void ppu_tick(int t_cycles) {
-	current_cycle += t_cycles;
-	if (current_cycle > 70224)
-		current_cycle %= 70224;
+void ppu_tick_once() {
+	if (!PPU_ENABLED)
+		return;
+	current_cycle++;
 
+	if (current_cycle == 70224)
+		current_cycle = 0;
+
+	int scanline_line  = current_cycle / 456;
 	int scanline_cycle = current_cycle % 456;
+
+	if (current_line != scanline_line) {
+		current_line = scanline_line;
+		if (interrupt_select_LYC && current_line == mmu_read(LY_COMPARE))
+			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
+	}
+
 	enum PPUMode old_mode = PPU_mode;
 
-	if (current_cycle > 65664)
+	if (current_line >= 144)
 		PPU_mode = VBLANK;
 	else if (scanline_cycle < 80)
 		PPU_mode = OAM_SCAN;
@@ -71,26 +154,20 @@ void ppu_tick(int t_cycles) {
 	else
 		PPU_mode = HBLANK;
 
-	if (current_line != current_cycle / 456) {
-		current_line = current_cycle / 456;
-		if (current_line == mmu_read(LY_COMPARE) && mmu_get_bit(LYC_INTERRUPT_SELECT))
-			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
-	}
-
 	if (PPU_mode == old_mode)
 		return;
 
 	switch (PPU_mode) {
 
 	case OAM_SCAN:
-		if (mmu_get_bit(OAM_SCAN_INTERRUPT_SELECT))
+		if (interrupt_select_oam_scan)
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		break;
 	case PIXEL_DRAW:
 		break;
 	case HBLANK:
 		ppu_draw_scanline();
-		if (mmu_get_bit(HBLANK_INTERRUPT_SELECT))
+		if (interrupt_select_hblank)
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		break;
 	case VBLANK:
@@ -99,7 +176,7 @@ void ppu_tick(int t_cycles) {
 		frames_completed++;
 		current_window_line = 0;
 		window_triggered = false;
-		if (mmu_get_bit(VBLANK_INTERRUPT_SELECT))
+		if (interrupt_select_vblank)
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 		mmu_set_bit(VBLANK_INTERRUPT_FLAG_BIT);
 		break;
@@ -108,6 +185,11 @@ void ppu_tick(int t_cycles) {
 		// Do nothing
 		break;
 	}
+}
+
+void ppu_tick(int t_cycles) {
+	for (int i = 0; i < t_cycles; i++)
+		ppu_tick_once();
 }
 
 uint32_t apply_color(unsigned color_index, uint8_t palette_data) {
@@ -125,14 +207,14 @@ void ppu_draw_scanline() {
 	if (mmu_read(WIN_SCROLL_Y) == current_line)
 		window_triggered = true;
 
-	if (mmu_get_bit(BG_ENABLE)) {
+	if (BG_ENABLE) {
 		ppu_draw_background();
 
-		if (window_triggered && mmu_get_bit(WINDOW_ENABLE))
+		if (window_triggered && WINDOW_ENABLE)
 			ppu_draw_window();
 	}
 
-	if (mmu_get_bit(OBJECTS_ENABLE))
+	if (OBJECTS_ENABLE)
 		ppu_draw_sprites();
 
 	for (int i = 0; i < 160; i++)
@@ -169,8 +251,8 @@ uint8_t get_color_from_map(uint16_t map_area_start, uint16_t data_block_1_start,
 }
 
 void ppu_draw_background() {
-	uint16_t tile_map_start = mmu_get_bit(BG_TILE_MAP_AREA)  ? 0x9C00 : 0x9800;
-	uint16_t data_block_1_start = mmu_get_bit(BG_TILE_DATA_AREA) ? 0x8000 : 0x9000;
+	uint16_t tile_map_start = BG_TILE_MAP_AREA ? 0x9C00 : 0x9800;
+	uint16_t data_block_1_start = BG_TILE_DATA_AREA ? 0x8000 : 0x9000;
 	uint8_t bg_row = (current_line + mmu_read(BG_SCROLL_Y)) % 256;
 
 	for (int i = 0; i < 160; i++) {
@@ -181,8 +263,8 @@ void ppu_draw_background() {
 }
 
 void ppu_draw_window() {
-	uint16_t tile_map_start = mmu_get_bit(WINDOW_TILE_MAP_AREA) ? 0x9C00 : 0x9800;
-	uint16_t data_block_1_start = mmu_get_bit(BG_TILE_DATA_AREA) ? 0x8000 : 0x9000;
+	uint16_t tile_map_start = WINDOW_TILE_MAP_AREA ? 0x9C00 : 0x9800;
+	uint16_t data_block_1_start = BG_TILE_DATA_AREA ? 0x8000 : 0x9000;
 	uint8_t window_row = current_window_line;
 	int window_col_start = mmu_read(WIN_SCROLL_X) - 7;
 
@@ -201,7 +283,7 @@ void ppu_draw_window() {
 unsigned ppu_get_sprites(uint16_t *sprite_addresses, unsigned max_sprite_count) {
 	uint16_t oam_start = 0xFE00;
 	uint16_t oam_end   = 0xFE9F;
-	bool use_tall_sprites = mmu_get_bit(OBJECTS_SIZE);
+	bool use_tall_sprites = OBJECTS_SIZE;
 
 	int sprite_count = 0;
 	for (int sprite_start = oam_start; sprite_start < oam_end; sprite_start += 4) {
@@ -263,7 +345,7 @@ void ppu_draw_sprites() {
 		bool palette_select = (attributes >> 4) & 0x01;
 		int sprite_row = current_line - y_position;
 
-		bool use_tall_sprites = mmu_get_bit(OBJECTS_SIZE);
+		bool use_tall_sprites = OBJECTS_SIZE;
 		if (y_flip && use_tall_sprites)
 			sprite_row = 15 - sprite_row;
 		else if (y_flip)
