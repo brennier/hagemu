@@ -1,11 +1,24 @@
 #include "mbc3.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #define RAM_BANK_SIZE 0x2000
 #define ROM_BANK_SIZE 0x4000
 
+uint8_t rtc_regs[5] = {
+    0x00, // seconds
+    0x00, // minutes
+    0x00, // hours
+    0x00, // day low
+    0x40  // day high: HALT bit set
+};
+
+uint8_t latched_regs[5] = { 0 };
+bool latch_prev = false;
+
 void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t value) {
+	/* printf("[INFO] Writing %02X to ROM at address %04X\n", value, address); */
 	switch (address & 0xF000) {
 
 	// Disable/Enable SRAM
@@ -16,61 +29,86 @@ void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 	// Switch ROM bank
 	case 0x2000: case 0x3000:
 		cart->rom_index = value & 0x7F;
+		uint16_t bank_count = (cart->rom_size / ROM_BANK_SIZE);
+		cart->rom_index %= bank_count;
 		if (cart->rom_index == 0)
 			cart->rom_index = 1;
 		return;
 
 	// Switch RAM bank
 	case 0x4000: case 0x5000:
-		if (value > 0x0C)
-			printf("[Warning] Invalid ram bank / RTC register %02X", value);
-		cart->ram_index = value & 0x0C;
+		if (value <= 0x03) {
+			cart->ram_index = value; // RAM bank
+		} else if (value <= 0x07) {
+			printf("Invalid RAM bank write: %02X\n", value);
+		} else if (value >= 0x08 && value <= 0x0C) {
+			cart->ram_index = value; // RTC register
+		} else {
+			printf("[Warning] Ignoring invalid RAM/RTC select %02X\n", value);
+		}
 		return;
 
-	// Select Banking Mode
+	// Latch the RTC clock
 	case 0x6000: case 0x7000:
+		value &= 0x01;
+		if (latch_prev == 0 && value) {
+			memcpy(latched_regs, rtc_regs, 5);
+		}
+		latch_prev = value;
 		return;
 	}
 }
 
 uint8_t cart_rom_read_mbc3(struct HagemuCart *cart, uint16_t address) {
-	uint32_t rom_address = address;
-	if (address < ROM_BANK_SIZE && cart->mbc_banking_mode) {
-		rom_address |= (cart->ram_index << 19);
-	} else if (address < ROM_BANK_SIZE) {
-		rom_address = address;
+	/* printf("[INFO] Reading from RAM at %04X\n", address); */
+	if (address < ROM_BANK_SIZE) {
+		/* printf("Bank 0\n"); */
+		return cart->rom[address];
 	} else if (address < 2 * ROM_BANK_SIZE) {
-		rom_address -= ROM_BANK_SIZE;
-		rom_address |= ROM_BANK_SIZE * cart->rom_index;
-		rom_address |= (cart->ram_index << 19);
+		/* printf("Bank %d\n", cart->rom_index); */
+		if (cart->rom_index >= cart->rom_size / ROM_BANK_SIZE)
+			printf("ERROR: Out of bounds read from the cartridge\n");
+		if (cart->rom_index == 0) cart->rom_index = 1;
+		uint32_t offset = address - ROM_BANK_SIZE;
+		uint32_t rom_address = (uint32_t)cart->rom_index * (uint32_t)ROM_BANK_SIZE + offset;
+		return cart->rom[rom_address];
 	} else {
 		printf("ERROR: Out of bounds read from the cartridge\n");
 		exit(EXIT_FAILURE);
 	}
-	rom_address %= cart->rom_size;
-	return cart->rom[rom_address];
 }
 
 void cart_ram_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t value) {
+	/* printf("[INFO] Writing %02X to RAM at %04X\n", value, address); */
 	uint32_t ram_address = address;
 	if (!cart->ram_enabled) {
 		fprintf(stderr, "Attempt to write value %d to RAM address %04X, but it was disabled\n", value, address);
 		return;
-	} else if (cart->mbc_banking_mode) {
-		ram_address |= RAM_BANK_SIZE * cart->ram_index;
+	} else if (cart->ram_index < 0x08) {
+		ram_address += RAM_BANK_SIZE * cart->ram_index;
+		cart->ram[ram_address] = value;
+		return;
+	} else {
+		/* uint8_t reg_index = cart->ram_index - 0x08; */
+		/* latched_regs[reg_index] = value; */
+		//fprintf(stderr, "Tried to write to RTC, ignoring\n");
+		return;
 	}
-	ram_address %= cart->ram_size;
-	cart->ram[ram_address] = value;
 }
 
 uint8_t cart_ram_read_mbc3(struct HagemuCart *cart, uint16_t address) {
+	/* printf("[INFO] Reading from RAM at %04X\n", address); */
 	uint32_t ram_address = address;
 	if (!cart->ram_enabled) {
 		fprintf(stderr, "Attempt to read RAM address %04X, but it was disabled\n", address);
 		return 0xFF;
-	} else if (cart->mbc_banking_mode) {
-		ram_address |= RAM_BANK_SIZE * cart->ram_index;
+	} else if (cart->ram_index < 0x08) {
+		ram_address += RAM_BANK_SIZE * cart->ram_index;
+		return cart->ram[ram_address];
+	} else {
+		return latched_regs[cart->ram_index - 0x08];
+		/* uint8_t reg_index = cart->ram_index - 0x08; */
+		/* return latched_regs[reg_index]; */
+		//fprintf(stderr, "Tried to read from RTC, ignoring\n");
 	}
-	ram_address %= cart->ram_size;
-	return cart->ram[ram_address];
 }
