@@ -113,6 +113,8 @@ The following games have been tested:
   - [x] Add support for disabling the PPU
   - [x] Block VRAM and OAM while they're being accessed by the ppu
   - [x] Emulate the timing of the DMA
+  - [x] Add a custom boot rom
+  - [x] Block CPU access to VRAM and OAM during certain ppu modes
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
   - [ ] Mute a sound channel if its frequency is above 20kHz
@@ -125,7 +127,6 @@ The following games have been tested:
   - [ ] Pass Blargg's interrupt_time test
   - [ ] Run the Mooneye Test Suite
   - [ ] Make a cool logo
-  - [ ] Add a custom boot rom
   - [ ] Use some profiling tools to find critical code blocks
   - [ ] Compile program using -O3 and -flto and -ffast-math
 - [x] Glitches that took more than 1 day to fix

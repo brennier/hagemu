@@ -63,6 +63,16 @@ struct HagemuPPU {
 	uint8_t win_scroll_x;
 } ppu = { 0 };
 
+uint32_t screen_buffer[2][144][160];
+bool buffer_index = 0;
+unsigned frames_completed = 0;
+
+uint8_t line_buffer_indices[160];
+uint8_t line_buffer_palettes[160];
+
+int current_window_line = 0;
+bool window_triggered = false;
+
 void ppu_reset() {
 	memset(&ppu, 0, sizeof(struct HagemuPPU));
 }
@@ -214,16 +224,6 @@ void ppu_oam_write(uint16_t address, uint8_t value) {
 		return;
 	ppu.oam[address] = value;
 }
-
-uint32_t screen_buffer[2][144][160];
-bool buffer_index = 0;
-unsigned frames_completed = 0;
-
-uint8_t line_buffer_indices[160];
-uint8_t line_buffer_palettes[160];
-
-int current_window_line = 0;
-bool window_triggered = false;
 
 unsigned ppu_get_frame_count() {
 	return frames_completed;

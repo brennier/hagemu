@@ -75,7 +75,7 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 	case 0xC000: case 0xD000:
 		return wram[address - 0xC000];
 
-	// Top half of echo RAM (4 Kib)
+	// Top half of echo RAM (4 KiB)
 	case 0xE000:
 		return wram[address - 0xE000];
 
@@ -156,8 +156,13 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 		wram[address - 0xC000] = value;
 		return;
 
-	case 0xE000: case 0xF000:
-		// Echo RAM (about 8 KiB)
+	// Top half of echo RAM (4 KiB)
+	case 0xE000:
+		wram[address - 0xE000] = value;
+		return;
+
+	case 0xF000:
+		// Bottom half of echo RAM (about 4 KiB)
 		if (address < 0xFE00)
 			wram[address - 0xE000] = value;
 		// Object Attribute Memory
@@ -202,7 +207,6 @@ void mmu_write(uint16_t address, uint8_t value) {
 	}
 	mmu_write_nonblocking(address, value);
 }
-
 
 void mmu_set_bit(enum special_bit bit) {
 	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
