@@ -181,6 +181,16 @@ void ppu_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
+// This is kind of hacky and needs to be fixed later
+uint8_t ppu_read_direct(uint16_t address) {
+	if (address >= 0x8000 && address < 0xA000)
+		return ppu.vram[address - 0x8000];
+	else if (address >= 0xFE00 && address < 0xFEA0)
+		return ppu.oam[address - 0xFE00];
+	fprintf(stderr, "[ERROR] Invalid raw VRAM read at %04X\n", address);
+	exit(EXIT_FAILURE);
+}
+
 uint8_t ppu_vram_read(uint16_t address) {
 	if (ppu.mode == PIXEL_DRAW)
 		return 0xFF;
@@ -315,7 +325,7 @@ void ppu_draw_scanline() {
 }
 
 uint8_t get_tile_index(uint16_t map_area_start, unsigned row, unsigned col) {
-	return mmu_read(map_area_start + 32 * row + col);
+	return ppu_read_direct(map_area_start + 32 * row + col);
 }
 
 uint16_t get_tile_address(uint16_t data_block_1_start, uint8_t tile_index) {
@@ -327,8 +337,8 @@ uint16_t get_tile_address(uint16_t data_block_1_start, uint8_t tile_index) {
 }
 
 uint8_t get_color_from_tile(uint16_t tile_address, unsigned row, unsigned col) {
-	uint8_t bit_plane0 = mmu_read(tile_address + 2 * row);
-	uint8_t bit_plane1 = mmu_read(tile_address + 2 * row + 1);
+	uint8_t bit_plane0 = ppu_read_direct(tile_address + 2 * row);
+	uint8_t bit_plane1 = ppu_read_direct(tile_address + 2 * row + 1);
 	bit_plane0 >>= 7 - col;
 	bit_plane1 >>= 7 - col;
 	bit_plane0 &= 0x01;
@@ -382,7 +392,7 @@ unsigned ppu_get_sprites(uint16_t *sprite_addresses, unsigned max_sprite_count) 
 	for (int sprite_start = oam_start; sprite_start < oam_end; sprite_start += 4) {
 		if (sprite_count == max_sprite_count)
 			break;
-		int y_position = mmu_read(sprite_start) - 16;
+		int y_position = ppu_read_direct(sprite_start) - 16;
 		int sprite_row = ppu.current_line - y_position;
 		if (sprite_row < 0) {
 			continue;
@@ -401,9 +411,9 @@ unsigned ppu_get_sprites(uint16_t *sprite_addresses, unsigned max_sprite_count) 
 void ppu_sort_sprites(uint16_t *sprite_addresses, unsigned sprite_count) {
 	// Sort sprites based on descending x-coordinate
 	for (int i = 0; i < sprite_count; i++) {
-		int highest_x = mmu_read(sprite_addresses[i] + 1) - 8;
+		int highest_x = ppu_read_direct(sprite_addresses[i] + 1) - 8;
 		for (int j = i + 1; j < sprite_count; j++) {
-			int this_x = mmu_read(sprite_addresses[j] + 1) - 8;
+			int this_x = ppu_read_direct(sprite_addresses[j] + 1) - 8;
 			if (this_x > highest_x) {
 				highest_x = this_x;
 				uint16_t temp = sprite_addresses[i];
@@ -428,10 +438,10 @@ void ppu_draw_sprites() {
 
 	for (int i = 0; i < sprite_count; i++) {
 		uint16_t sprite_start = sprite_addresses[i];
-		int y_position = mmu_read(sprite_start) - 16;
-		int x_position = mmu_read(sprite_start + 1) - 8;
-		uint8_t tile_index = mmu_read(sprite_start + 2);
-		uint8_t attributes = mmu_read(sprite_start + 3);
+		int y_position = ppu_read_direct(sprite_start) - 16;
+		int x_position = ppu_read_direct(sprite_start + 1) - 8;
+		uint8_t tile_index = ppu_read_direct(sprite_start + 2);
+		uint8_t attributes = ppu_read_direct(sprite_start + 3);
 		bool background_has_priority = (attributes >> 7) & 0x01;
 		bool y_flip = (attributes >> 6) & 0x01;
 		bool x_flip = (attributes >> 5) & 0x01;
