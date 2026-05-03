@@ -94,7 +94,7 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 			return upper_memory[address - 0xFF00];
 		// Send to APU
 		else if (address < 0xFF40)
-			return apu_audio_register_read(address);
+			return apu_register_read(address);
 		// Send to the PPU (except for FF46 which is caught earlier)
 		else if (address < 0xFF4C)
 			return ppu_register_read(address);
@@ -176,7 +176,7 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 			upper_memory[address - 0xFF00] = value;
 		// Send to APU
 		else if (address < 0xFF40)
-			apu_audio_register_write(address, value);
+			apu_register_write(address, value);
 		// Send to the PPU (except for FF46 which is caught earlier)
 		else if (address < 0xFF4C)
 			ppu_register_write(address, value);

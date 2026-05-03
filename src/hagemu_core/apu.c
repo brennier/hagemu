@@ -427,7 +427,7 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 	return (value >> bit_start) & ((1 << (bit_end - bit_start + 1)) - 1);
 }
 
-void apu_audio_register_write(uint16_t address, uint8_t value) {
+void apu_register_write(uint16_t address, uint8_t value) {
 	switch (address) {
 
 	// CHANNEL 1
@@ -614,17 +614,29 @@ void apu_audio_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-uint8_t apu_audio_register_read(uint16_t address) {
+uint8_t apu_register_read(uint16_t address) {
 	switch (address) {
 
 	case SOUND_NR50:
 		return (master_controls.volume_left << 4) | master_controls.volume_right;
 
+	case SOUND_NR52: {
+		printf("READ NR52\n");
+		uint8_t value = 0;
+		value |= (channel1.dac_enabled && channel1.enabled) << 0;
+		value |= (channel2.dac_enabled && channel2.enabled) << 1;
+		value |= (channel3.dac_enabled && channel3.enabled) << 2;
+		value |= (channel4.dac_enabled && channel4.enabled) << 3;
+		value |= 0x70;
+		value |= master_controls.apu_enabled << 7;
+		return value;
+	}
+
 	case SOUND_NR10: case SOUND_NR11: case SOUND_NR12: case SOUND_NR13:
 	case SOUND_NR14: case SOUND_NR21: case SOUND_NR22: case SOUND_NR23:
 	case SOUND_NR24: case SOUND_NR30: case SOUND_NR31: case SOUND_NR32:
 	case SOUND_NR33: case SOUND_NR34: case SOUND_NR41: case SOUND_NR42:
-	case SOUND_NR43: case SOUND_NR44: case SOUND_NR51: case SOUND_NR52:
+	case SOUND_NR43: case SOUND_NR44: case SOUND_NR51:
 		return 0xFF; // Unimplemented
 	}
 
