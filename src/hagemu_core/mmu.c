@@ -12,25 +12,22 @@
 #include "dma.h"
 #include "boot.h"
 
-#define GB_MEMORY_SIZE 0x10000
+#define WORK_RAM_SIZE 0x2000 // 8 kilobytes
+#define UPPER_MEMORY  0x100  // 256 bytes
+
+uint8_t wram[WORK_RAM_SIZE] = { 0 };
+uint8_t upper_memory[UPPER_MEMORY] = { 0 };
 bool boot_rom_enabled = true;
 
-// The GB has 64kb of mapped memory
-uint8_t gb_memory[GB_MEMORY_SIZE] = { 0 };
-
 void mmu_reset() {
-	memset(gb_memory, 0, sizeof(gb_memory));
+	memset(wram, 0, sizeof(wram));
+	memset(upper_memory, 0, sizeof(upper_memory));
 	boot_rom_enabled = true;
 }
 
-uint8_t mmu_read(uint16_t address) {
+uint8_t mmu_read_nonblocking(uint16_t address) {
 	if (boot_rom_enabled && address < 0x100) {
 		return boot_read(address);
-	}
-
-	// Block if DMA is active and not accessing HRAM
-	if (dma_is_active() && address < 0xFF80) {
-		return 0x00;
 	}
 
 	// Handle special cases first
@@ -55,15 +52,15 @@ uint8_t mmu_read(uint16_t address) {
 
 	case SERIAL_CONTROL:
 		// bits 1 through 6 should always be 1
-		return gb_memory[SERIAL_CONTROL] | 0x7E;
+		return upper_memory[SERIAL_CONTROL - 0xFF00] | 0x7E;
 
 	case TIMER_CONTROL:
 		// bits 3 through 7 should always be 1
-		return gb_memory[TIMER_CONTROL] | 0xF8;
+		return upper_memory[TIMER_CONTROL - 0xFF00] | 0xF8;
 
 	case INTERRUPT_FLAGS:
 		// bits 3 through 7 should always be 1
-		return gb_memory[INTERRUPT_FLAGS] | 0xE0;
+		return upper_memory[INTERRUPT_FLAGS - 0xFF00] | 0xE0;
 
 	case DMA_START:
 		return dma_read();
@@ -86,12 +83,16 @@ uint8_t mmu_read(uint16_t address) {
 
 	// Work RAM (8 KiB)
 	case 0xC000: case 0xD000:
-		return gb_memory[address];
+		return wram[address - 0xC000];
 
-	case 0xE000: case 0xF000:
-		// Echo RAM (about 8 KiB)
+	// Top half of echo RAM (4 Kib)
+	case 0xE000:
+		return wram[address - 0xE000];
+
+	case 0xF000:
+		// Bottom half of echo RAM (about 4 KiB)
 		if (address < 0xFE00)
-			return gb_memory[address - 0x2000];
+			return wram[address - 0xE000];
 		// Object Attribute Memory
 		else if (address < 0xFEA0)
 			return ppu_oam_read(address - 0xFE00);
@@ -100,25 +101,20 @@ uint8_t mmu_read(uint16_t address) {
 			return 0xFF;
 		// IO registers
 		else if (address < 0xFF10)
-			return gb_memory[address];
+			return upper_memory[address - 0xFF00];
 		// Send to APU
 		else if (address < 0xFF40)
 			return apu_audio_register_read(address);
 		// More IO registers and high ram
 		else
-			return gb_memory[address];
+			return upper_memory[address - 0xFF00];
 	}
 
 	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
 	exit(EXIT_FAILURE);
 }
 
-void mmu_write(uint16_t address, uint8_t value) {
-	// Block if DMA is active and not accessing HRAM
-	if (dma_is_active() && address < 0xFF80) {
-		return;
-	}
-
+void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 	// Handle special cases first
 	switch (address) {
 
@@ -144,7 +140,7 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	case TIMER_CONTROL:
 		value &= 0x07; // Mask all but the lowest 3 bits
-		gb_memory[address] = value;
+		upper_memory[address - 0xFF00] = value;
 		return;
 
 	case DMA_START:
@@ -176,13 +172,13 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	// Work RAM (8 KiB)
 	case 0xC000: case 0xD000:
-		gb_memory[address] = value;
+		wram[address - 0xC000] = value;
 		return;
 
 	case 0xE000: case 0xF000:
 		// Echo RAM (about 8 KiB)
 		if (address < 0xFE00)
-			gb_memory[address - 0x2000] = value;
+			wram[address - 0xE000] = value;
 		// Object Attribute Memory
 		else if (address < 0xFEA0)
 			ppu_oam_write(address - 0xFE00, value);
@@ -191,13 +187,13 @@ void mmu_write(uint16_t address, uint8_t value) {
 			return;
 		// IO registers
 		else if (address < 0xFF10)
-			gb_memory[address] = value;
+			upper_memory[address - 0xFF00] = value;
 		// Send to APU
 		else if (address < 0xFF40)
 			apu_audio_register_write(address, value);
 		// More IO registers and high ram
 		else
-			gb_memory[address] = value;
+			upper_memory[address - 0xFF00] = value;
 		return;
 	}
 
@@ -207,24 +203,37 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 // mmu_read blocks when the DMA is active
 // This function is for the DMA to read directly from memory
-uint8_t mmu_read_nonblocking(uint16_t address) {
-	return gb_memory[address];
+uint8_t mmu_read(uint16_t address) {
+	// Block if DMA is active and not accessing HRAM
+	if (dma_is_active() && address < 0xFF80) {
+		return 0x00;
+	}
+	return mmu_read_nonblocking(address);
 }
+
+void mmu_write(uint16_t address, uint8_t value) {
+	// Block if DMA is active and not accessing HRAM
+	if (dma_is_active() && address < 0xFF80) {
+		return;
+	}
+	mmu_write_nonblocking(address, value);
+}
+
 
 void mmu_set_bit(enum special_bit bit) {
 	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
 	int bit_position = bit & 0xF;
-	gb_memory[bit_address] |= (1 << bit_position);
+	upper_memory[bit_address - 0xFF00] |= (1 << bit_position);
 }
 
 bool mmu_get_bit(enum special_bit bit) {
 	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
 	int bit_position = bit & 0xF;
-	return (gb_memory[bit_address] >> bit_position) & 0x01;
+	return (upper_memory[bit_address - 0xFF00] >> bit_position) & 0x01;
 }
 
 void mmu_clear_bit(enum special_bit bit) {
 	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
 	int bit_position = bit & 0xF;
-	gb_memory[bit_address] &= ~(1 << bit_position);
+	upper_memory[bit_address - 0xFF00] &= ~(1 << bit_position);
 }
