@@ -10,6 +10,7 @@ struct HagemuDMA {
 	uint16_t source;
 	uint8_t  index;
 	uint8_t  cycle;
+	uint8_t  last_data;
 } dma = { 0 };
 
 void dma_start(uint8_t value) {
@@ -23,16 +24,16 @@ void dma_start(uint8_t value) {
 }
 
 void dma_tick_once() {
-    if (!dma.active) return;
-    dma.cycle++;
+	if (!dma.active) return;
+	dma.cycle++;
 
-    if (dma.cycle % 4 == 0) {
-	    uint8_t data = mmu_read_nonblocking(dma.source + dma.index);
-	    ppu_oam_write(dma.index, data);
-	    dma.index++;
-	    if (dma.index == 160)
-		    dma.active = false;
-    }
+	if (dma.cycle % 4 == 0) {
+		dma.last_data = mmu_read_nonblocking(dma.source + dma.index);
+		ppu_oam_write(dma.index, dma.last_data);
+		dma.index++;
+		if (dma.index == 160)
+			dma.active = false;
+	}
 }
 
 void dma_tick(int t_cycles) {
@@ -42,4 +43,8 @@ void dma_tick(int t_cycles) {
 
 bool dma_is_active() {
 	return dma.active;
+}
+
+uint8_t dma_read() {
+	return dma.last_data;
 }

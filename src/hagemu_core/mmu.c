@@ -19,7 +19,7 @@ uint8_t gb_memory[GB_MEMORY_SIZE] = { 0 };
 uint8_t mmu_read(uint16_t address) {
 	// Block if DMA is active and not accessing HRAM
 	if (dma_is_active() && address < 0xFF80) {
-		return 0xFF;
+		return 0x00;
 	}
 
 	// Handle special cases first
@@ -53,6 +53,9 @@ uint8_t mmu_read(uint16_t address) {
 	case INTERRUPT_FLAGS:
 		// bits 3 through 7 should always be 1
 		return gb_memory[INTERRUPT_FLAGS] | 0xE0;
+
+	case DMA_START:
+		return dma_read();
 	}
 
 	switch (address & 0xF000) {
