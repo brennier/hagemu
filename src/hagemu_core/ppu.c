@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include "ppu.h"
 #include "mmu.h"
 
@@ -49,7 +50,11 @@ struct HagemuPPU {
 	bool interrupt_select_vblank;   // bit 4
 	bool interrupt_select_oam_scan; // bit 5
 	bool interrupt_select_LYC;      // bit 6
-} ppu = { .mode = OAM_SCAN, .enabled = true };
+} ppu = { 0 };
+
+void ppu_reset() {
+	memset(&ppu, 0, sizeof(struct HagemuPPU));
+}
 
 uint8_t ppu_vram_read(uint16_t address) {
 	if (ppu.mode == PIXEL_DRAW)

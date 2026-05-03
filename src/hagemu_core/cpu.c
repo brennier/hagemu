@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include "mmu.h"
 #include "clock.h"
 
@@ -25,7 +26,7 @@ struct HagemuCPU {
 
 struct HagemuCPU *cpu_create() {
 	struct HagemuCPU *cpu = malloc(sizeof(struct HagemuCPU));
-	cpu_reset(cpu);
+	memset(cpu, 0, sizeof(struct HagemuCPU));
 	return cpu;
 }
 
@@ -231,22 +232,7 @@ static inline void set_reg16(struct HagemuCPU *cpu, enum Reg16 reg, uint16_t val
 }
 
 void cpu_reset(struct HagemuCPU *cpu) {
-	// Inital state of registers
-	set_reg8(cpu, REG_A, 0x01);
-	set_reg8(cpu, REG_F, 0xB0);
-	set_reg8(cpu, REG_B, 0x00);
-	set_reg8(cpu, REG_C, 0x13);
-	set_reg8(cpu, REG_D, 0x00);
-	set_reg8(cpu, REG_E, 0xD8);
-	set_reg8(cpu, REG_H, 0x01);
-	set_reg8(cpu, REG_L, 0x4D);
-	set_reg16(cpu, REG_SP, 0xFFFE);
-	set_reg16(cpu, REG_PC, 0x0100);
-
-	// Various flags
-	cpu->flag_master_interrupt = false;
-	cpu->flag_master_interrupt_pending = false;
-	cpu->flag_is_halted = false;
+	memset(cpu, 0, sizeof(struct HagemuCPU));
 }
 
 void cpu_print_state(struct HagemuCPU *cpu) {

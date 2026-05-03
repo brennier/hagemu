@@ -10,13 +10,24 @@
 #include "joypad.h"
 #include "cart.h"
 #include "dma.h"
+#include "boot.h"
 
 #define GB_MEMORY_SIZE 0x10000
+bool boot_rom_enabled = true;
 
 // The GB has 64kb of mapped memory
 uint8_t gb_memory[GB_MEMORY_SIZE] = { 0 };
 
+void mmu_reset() {
+	memset(gb_memory, 0, sizeof(gb_memory));
+	boot_rom_enabled = true;
+}
+
 uint8_t mmu_read(uint16_t address) {
+	if (boot_rom_enabled && address < 0x100) {
+		return boot_read(address);
+	}
+
 	// Block if DMA is active and not accessing HRAM
 	if (dma_is_active() && address < 0xFF80) {
 		return 0x00;
@@ -138,6 +149,10 @@ void mmu_write(uint16_t address, uint8_t value) {
 
 	case DMA_START:
 		dma_start(value);
+		return;
+
+	case BOOT_ROM_CONTROL:
+		boot_rom_enabled = false;
 		return;
 	}
 

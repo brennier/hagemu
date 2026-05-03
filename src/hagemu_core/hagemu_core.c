@@ -6,6 +6,7 @@
 #include "joypad.h"
 #include "cart.h"
 #include "dma.h"
+#include "mmu.h"
 
 struct HagemuGB {
 	struct HagemuCPU *cpu;
@@ -14,12 +15,13 @@ struct HagemuGB {
 struct HagemuGB* hagemu_create() {
 	struct HagemuGB *gb = malloc(sizeof(struct HagemuGB));
 	gb->cpu = cpu_create();
-	cpu_reset(gb->cpu);
 	return gb;
 }
 
 void hagemu_reset(struct HagemuGB* gb) {
 	cpu_reset(gb->cpu);
+	mmu_reset();
+	ppu_reset();
 }
 
 void hagemu_destory(struct HagemuGB* gb) {
