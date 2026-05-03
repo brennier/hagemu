@@ -36,6 +36,11 @@ void apu_set_audio_sample_rate(unsigned new_sample_rate) {
 	DECIMATION_FACTOR = ((double)APU_TICK_RATE / (double)new_sample_rate);
 }
 
+void queue_clear(AudioQueue *queue) {
+	memset(queue, 0, sizeof(AudioQueue));
+	queue->capacity = AUDIO_QUEUE_FRAME_SIZE;
+}
+
 unsigned queue_size(AudioQueue *queue) {
 	return queue->size;
 }
@@ -122,6 +127,14 @@ struct Channel {
 	unsigned lfsr_clock_shift;
 	unsigned lfsr_clock_divider;
 } channel1 = { 0 }, channel2 = { 0 }, channel3 = { 0 }, channel4 = { 0 };
+
+void apu_reset() {
+	memset(&channel1, 0, sizeof(struct Channel));
+	memset(&channel2, 0, sizeof(struct Channel));
+	memset(&channel3, 0, sizeof(struct Channel));
+	memset(&channel4, 0, sizeof(struct Channel));
+	queue_clear(&audio_fifo);
+}
 
 void tick_length_timer(struct Channel *channel, unsigned length_max) {
 	if (!channel->length_enabled)
