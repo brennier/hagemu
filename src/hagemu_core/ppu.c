@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "ppu.h"
 #include "mmu.h"
 
@@ -32,7 +33,6 @@ struct HagemuPPU {
 	uint8_t oam[0xA0];    // 160 bytes
 
 	enum PPUMode mode;
-	int current_line;
 	int current_cycle;
 
 	// These correspond to the bits of the LCD_CONTROL register
@@ -50,10 +50,135 @@ struct HagemuPPU {
 	bool interrupt_select_vblank;   // bit 4
 	bool interrupt_select_oam_scan; // bit 5
 	bool interrupt_select_LYC;      // bit 6
+
+	// These correspond to the other PPU registers
+	uint8_t bg_scroll_y;
+	uint8_t bg_scroll_x;
+	uint8_t current_line;
+	uint8_t line_compare;
+	uint8_t bg_palette;
+	uint8_t obj0_palette;
+	uint8_t obj1_palette;
+	uint8_t win_scroll_y;
+	uint8_t win_scroll_x;
 } ppu = { 0 };
 
 void ppu_reset() {
 	memset(&ppu, 0, sizeof(struct HagemuPPU));
+}
+
+void ppu_set_lcd_control(uint8_t value) {
+	bool old_ppu_state = ppu.enabled;
+
+	ppu.bg_enabled           = value & (1u << 0);
+	ppu.objects_enabled      = value & (1u << 1);
+	ppu.objects_size         = value & (1u << 2);
+	ppu.bg_tile_map_area     = value & (1u << 3);
+	ppu.bg_tile_data_area    = value & (1u << 4);
+	ppu.window_enabled       = value & (1u << 5);
+	ppu.window_tile_map_area = value & (1u << 6);
+	ppu.enabled              = value & (1u << 7);
+
+	if (old_ppu_state == ppu.enabled)
+		return;
+
+	ppu.current_line  = 0;
+	ppu.current_cycle = 0;
+}
+
+uint8_t ppu_get_lcd_control() {
+	uint8_t value = 0;
+	value |= (ppu.bg_enabled           << 0);
+	value |= (ppu.objects_enabled      << 1);
+	value |= (ppu.objects_size         << 2);
+	value |= (ppu.bg_tile_map_area     << 3);
+	value |= (ppu.bg_tile_data_area    << 4);
+	value |= (ppu.window_enabled       << 5);
+	value |= (ppu.window_tile_map_area << 6);
+	value |= (ppu.enabled              << 7);
+	return value;
+}
+
+void ppu_set_lcd_status(uint8_t value) {
+	// bits 0, 1, 2, and 7 are read-only and thus ignored
+	ppu.interrupt_select_hblank   = value & (1u << 3);
+	ppu.interrupt_select_vblank   = value & (1u << 4);
+	ppu.interrupt_select_oam_scan = value & (1u << 5);
+	ppu.interrupt_select_LYC      = value & (1u << 6);
+}
+
+uint8_t ppu_get_lcd_status() {
+	uint8_t result = 0;
+	// bits 0 and 1 are the PPU mode
+	if (ppu.mode != DISABLED)
+		result |= ppu.mode << 0;
+	bool bit2 = (ppu.current_line == ppu.line_compare);
+	bool bit3 = ppu.interrupt_select_hblank;
+	bool bit4 = ppu.interrupt_select_vblank;
+	bool bit5 = ppu.interrupt_select_oam_scan;
+	bool bit6 = ppu.interrupt_select_LYC;
+	bool bit7 = 1;
+	result |= bit2 << 2;
+	result |= bit3 << 3;
+	result |= bit4 << 4;
+	result |= bit5 << 5;
+	result |= bit6 << 6;
+	result |= bit7 << 7;
+	return result;
+}
+
+#define REG_LCD_CONTROL   0xFF40
+#define REG_LCD_STATUS    0xFF41
+#define REG_BG_SCROLL_Y   0xFF42
+#define REG_BG_SCROLL_X   0xFF43
+#define REG_LCD_Y_COORD   0xFF44
+#define REG_LY_COMPARE    0xFF45
+#define REG_BG_PALETTE    0xFF47
+#define REG_OBJ0_PALETTE  0xFF48
+#define REG_OBJ1_PALETTE  0xFF49
+#define REG_WIN_SCROLL_Y  0xFF4A
+#define REG_WIN_SCROLL_X  0xFF4B
+
+uint8_t ppu_register_read(uint16_t address) {
+	switch (address) {
+	case REG_LCD_CONTROL:  return ppu_get_lcd_control();
+	case REG_LCD_STATUS:   return ppu_get_lcd_status();
+	case REG_BG_SCROLL_Y:  return ppu.bg_scroll_y;
+	case REG_BG_SCROLL_X:  return ppu.bg_scroll_x;
+	case REG_LCD_Y_COORD:  return ppu.current_line;
+	case REG_LY_COMPARE:   return ppu.line_compare;
+	case REG_BG_PALETTE:   return ppu.bg_palette;
+	case REG_OBJ0_PALETTE: return ppu.obj0_palette;
+	case REG_OBJ1_PALETTE: return ppu.obj1_palette;
+	case REG_WIN_SCROLL_Y: return ppu.win_scroll_y;
+	case REG_WIN_SCROLL_X: return ppu.win_scroll_x;
+	default:
+		fprintf(stderr, "[ERROR] Invalid PPU register read at %04X\n", address);
+		exit(EXIT_FAILURE);
+	}
+}
+
+void ppu_register_write(uint16_t address, uint8_t value) {
+	switch (address) {
+	case REG_LCD_CONTROL:  ppu_set_lcd_control(value); break;
+	case REG_LCD_STATUS:   ppu_set_lcd_status(value);  break;
+	case REG_BG_SCROLL_Y:  ppu.bg_scroll_y  = value;   break;
+	case REG_BG_SCROLL_X:  ppu.bg_scroll_x  = value;   break;
+	case REG_LCD_Y_COORD:  break; // this register is read-only
+	case REG_BG_PALETTE:   ppu.bg_palette   = value;   break;
+	case REG_OBJ0_PALETTE: ppu.obj0_palette = value;   break;
+	case REG_OBJ1_PALETTE: ppu.obj1_palette = value;   break;
+	case REG_WIN_SCROLL_Y: ppu.win_scroll_y = value;   break;
+	case REG_WIN_SCROLL_X: ppu.win_scroll_x = value;   break;
+	case REG_LY_COMPARE: // Setting this register could trigger an interrupt
+		ppu.line_compare = value;
+		if (ppu.interrupt_select_LYC && ppu.current_line == ppu.line_compare)
+			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
+		break;
+	default:
+		fprintf(stderr, "[ERROR] Invalid PPU register write at %04X\n", address);
+		exit(EXIT_FAILURE);
+	}
 }
 
 uint8_t ppu_vram_read(uint16_t address) {
@@ -90,72 +215,8 @@ uint8_t line_buffer_palettes[160];
 int current_window_line = 0;
 bool window_triggered = false;
 
-int ppu_get_current_line() {
-	return ppu.current_line;
-}
-
 unsigned ppu_get_frame_count() {
 	return frames_completed;
-}
-
-void ppu_set_lcd_control(uint8_t value) {
-	bool old_ppu_state = ppu.enabled;
-
-	ppu.bg_enabled           = value & (1u << 0);
-	ppu.objects_enabled      = value & (1u << 1);
-	ppu.objects_size         = value & (1u << 2);
-	ppu.bg_tile_map_area     = value & (1u << 3);
-	ppu.bg_tile_data_area    = value & (1u << 4);
-	ppu.window_enabled       = value & (1u << 5);
-	ppu.window_tile_map_area = value & (1u << 6);
-	ppu.enabled              = value & (1u << 7);
-
-	if (old_ppu_state == ppu.enabled)
-		return;
-
-	ppu.current_line  = 0;
-	ppu.current_cycle = 0;
-}
-
-uint8_t ppu_get_lcd_control() {
-	uint8_t value = 0;
-	value |= (ppu.bg_enabled           << 0);
-	value |= (ppu.objects_enabled      << 1);
-	value |= (ppu.objects_size         << 2);
-	value |= (ppu.bg_tile_map_area     << 3);
-	value |= (ppu.bg_tile_data_area    << 4);
-	value |= (ppu.window_enabled       << 5);
-	value |= (ppu.window_tile_map_area << 6);
-	value |= (ppu.enabled              << 7);
-	return value;
-}
-
-void ppu_set_lcd_status(uint8_t value) {
-	// bits 0, 1, and 7 are read-only and thus ignored
-	ppu.interrupt_select_hblank   = value & (1u << 3);
-	ppu.interrupt_select_vblank   = value & (1u << 4);
-	ppu.interrupt_select_oam_scan = value & (1u << 5);
-	ppu.interrupt_select_LYC      = value & (1u << 6);
-}
-
-uint8_t ppu_get_lcd_status() {
-	uint8_t result = 0;
-	// bits 0 and 1 are the PPU mode
-	if (ppu.mode != DISABLED)
-		result |= ppu.mode << 0;
-	bool bit2 = (ppu.current_line == mmu_read(LY_COMPARE));
-	bool bit3 = ppu.interrupt_select_hblank;
-	bool bit4 = ppu.interrupt_select_vblank;
-	bool bit5 = ppu.interrupt_select_oam_scan;
-	bool bit6 = ppu.interrupt_select_LYC;
-	bool bit7 = 1;
-	result |= bit2 << 2;
-	result |= bit3 << 3;
-	result |= bit4 << 4;
-	result |= bit5 << 5;
-	result |= bit6 << 6;
-	result |= bit7 << 7;
-	return result;
 }
 
 void ppu_tick_once() {
@@ -171,7 +232,7 @@ void ppu_tick_once() {
 
 	if (ppu.current_line != scanline_line) {
 		ppu.current_line = scanline_line;
-		if (ppu.interrupt_select_LYC && ppu.current_line == mmu_read(LY_COMPARE))
+		if (ppu.interrupt_select_LYC && ppu.current_line == ppu.line_compare)
 			mmu_set_bit(LCD_INTERRUPT_FLAG_BIT);
 	}
 
@@ -236,7 +297,7 @@ void ppu_draw_scanline() {
 		line_buffer_palettes[i] = 0;
 	}
 
-	if (mmu_read(WIN_SCROLL_Y) == ppu.current_line)
+	if (ppu.win_scroll_y == ppu.current_line)
 		window_triggered = true;
 
 	if (ppu.bg_enabled) {
@@ -285,12 +346,12 @@ uint8_t get_color_from_map(uint16_t map_area_start, uint16_t data_block_1_start,
 void ppu_draw_background() {
 	uint16_t tile_map_start = ppu.bg_tile_map_area ? 0x9C00 : 0x9800;
 	uint16_t data_block_1_start = ppu.bg_tile_data_area ? 0x8000 : 0x9000;
-	uint8_t bg_row = (ppu.current_line + mmu_read(BG_SCROLL_Y)) % 256;
+	uint8_t bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
 
 	for (int i = 0; i < 160; i++) {
-		uint8_t bg_col = (mmu_read(BG_SCROLL_X) + i) % 256;
+		uint8_t bg_col = (ppu.bg_scroll_x + i) % 256;
 		line_buffer_indices[i] = get_color_from_map(tile_map_start, data_block_1_start, bg_row, bg_col);
-		line_buffer_palettes[i] = mmu_read(BG_PALETTE);
+		line_buffer_palettes[i] = ppu.bg_palette;
 	}
 }
 
@@ -298,13 +359,13 @@ void ppu_draw_window() {
 	uint16_t tile_map_start = ppu.window_tile_map_area ? 0x9C00 : 0x9800;
 	uint16_t data_block_1_start = ppu.bg_tile_data_area ? 0x8000 : 0x9000;
 	uint8_t window_row = current_window_line;
-	int window_col_start = mmu_read(WIN_SCROLL_X) - 7;
+	int window_col_start = ppu.win_scroll_x - 7;
 
 	for (int i = window_col_start; i < 160; i++) {
 		if (i < 0) continue;
 		uint8_t window_col = (i - window_col_start) % 256;
 		line_buffer_indices[i] = get_color_from_map(tile_map_start, data_block_1_start, window_row, window_col);
-		line_buffer_palettes[i] = mmu_read(BG_PALETTE);
+		line_buffer_palettes[i] = ppu.bg_palette;
 	}
 
 	// If the window was actually displayed at all, increment the window counter
@@ -410,9 +471,9 @@ void ppu_draw_sprites() {
 			line_buffer_indices[x_position + col] = color;
 
 			if (palette_select)
-				line_buffer_palettes[x_position + col] = mmu_read(OBJ1_PALETTE);
+				line_buffer_palettes[x_position + col] = ppu.obj1_palette;
 			else
-				line_buffer_palettes[x_position + col] = mmu_read(OBJ0_PALETTE);
+				line_buffer_palettes[x_position + col] = ppu.obj0_palette;
 		}
 	}
 }

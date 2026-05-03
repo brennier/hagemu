@@ -40,16 +40,6 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 	case JOYPAD_INPUT:
 		return joypad_get_byte();
 
-	case LCD_Y_COORDINATE:
-		// get the current line from the PPU
-		return ppu_get_current_line();
-
-	case LCD_STATUS:
-		return ppu_get_lcd_status();
-
-	case LCD_CONTROL:
-		return ppu_get_lcd_control();
-
 	case SERIAL_CONTROL:
 		// bits 1 through 6 should always be 1
 		return upper_memory[SERIAL_CONTROL - 0xFF00] | 0x7E;
@@ -105,6 +95,9 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 		// Send to APU
 		else if (address < 0xFF40)
 			return apu_audio_register_read(address);
+		// Send to the PPU (except for FF46 which is caught earlier)
+		else if (address < 0xFF4C)
+			return ppu_register_read(address);
 		// More IO registers and high ram
 		else
 			return upper_memory[address - 0xFF00];
@@ -124,18 +117,6 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 
 	case JOYPAD_INPUT:
 		joypad_set_byte(value);
-		return;
-
-	case LCD_Y_COORDINATE:
-		printf("Illegal write to LCD Y Coordinate. Ignoring.\n");
-		return;
-
-	case LCD_STATUS:
-		ppu_set_lcd_status(value);
-		return;
-
-	case LCD_CONTROL:
-		ppu_set_lcd_control(value);
 		return;
 
 	case TIMER_CONTROL:
@@ -191,6 +172,9 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 		// Send to APU
 		else if (address < 0xFF40)
 			apu_audio_register_write(address, value);
+		// Send to the PPU (except for FF46 which is caught earlier)
+		else if (address < 0xFF4C)
+			ppu_register_write(address, value);
 		// More IO registers and high ram
 		else
 			upper_memory[address - 0xFF00] = value;
