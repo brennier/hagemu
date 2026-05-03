@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "mmu.h"
-#include "clock.h"
+#include "timer.h"
 
 struct HagemuCPU {
 	// CPU Registers (except af)
@@ -82,13 +82,13 @@ static inline void set_f(struct HagemuCPU *cpu, uint8_t f_value) {
 
 static inline uint8_t fetch_byte(uint16_t address) {
 	uint8_t value = mmu_read(address);
-	clock_increment();
+	timer_tick();
 	return value;
 }
 
 static inline void write_byte(uint16_t address, uint8_t value) {
 	mmu_write(address, value);
-	clock_increment();
+	timer_tick();
 }
 
 static inline uint8_t fetch_immediate8(struct HagemuCPU *cpu) {
@@ -108,7 +108,7 @@ static inline uint16_t pop_stack(struct HagemuCPU *cpu) {
 }
 
 static inline void push_stack(struct HagemuCPU *cpu, uint16_t value) {
-	clock_increment(); // internal increment (reason unknown)
+	timer_tick(); // internal increment (reason unknown)
 	uint8_t lower = (value & 0x00FF);
 	uint8_t upper = (value & 0xFF00) >> 8;
 	cpu->sp--;
@@ -122,8 +122,8 @@ static void handle_interrupts(struct HagemuCPU *cpu) {
 	interrupts &= mmu_read(INTERRUPT_ENABLE);
 	if (!interrupts) return;
 
-	clock_increment();
-	clock_increment();
+	timer_tick();
+	timer_tick();
 	cpu->flag_master_interrupt = false;
 	push_stack(cpu, cpu->pc);
 
@@ -143,7 +143,7 @@ static void handle_interrupts(struct HagemuCPU *cpu) {
 		cpu->pc = 0x0060;
 		mmu_clear_bit(JOYPAD_INTERRUPT_FLAG_BIT);
 	}
-	clock_increment();
+	timer_tick();
 }
 
 static inline uint8_t get_reg8(struct HagemuCPU *cpu, enum Reg8 reg) {
@@ -433,7 +433,7 @@ static inline void op_jump(struct HagemuCPU *cpu, bool condition) {
 	uint16_t address = get_reg16(cpu, IMMEDIATE16);
 	if (condition) {
 		cpu->pc = address;
-		clock_increment();
+		timer_tick();
 	}
 }
 
@@ -446,7 +446,7 @@ static inline void op_jr(struct HagemuCPU *cpu, bool condition) {
 	int8_t offset = get_reg8(cpu, IMMEDIATE8);
 	if (condition) {
 		cpu->pc += offset;
-		clock_increment();
+		timer_tick();
 	}
 }
 
@@ -501,7 +501,7 @@ static inline void op_add16(struct HagemuCPU *cpu, enum Reg16 reg1, enum Reg16 r
 	cpu->f_half_carry = (value1 ^ value2 ^ result) & 0x1000;
 	cpu->f_subtract   = false;
 	set_reg16(cpu, reg1, result);
-	clock_increment();
+	timer_tick();
 }
 
 static inline void op_call(struct HagemuCPU *cpu, bool condition) {
@@ -545,12 +545,12 @@ static inline void op_load16(struct HagemuCPU *cpu, enum Reg16 dest, enum Reg16 
 
 static inline void op_inc16(struct HagemuCPU *cpu, enum Reg16 reg) {
 	set_reg16(cpu, reg, get_reg16(cpu, reg) + 1);
-	clock_increment();
+	timer_tick();
 }
 
 static inline void op_dec16(struct HagemuCPU *cpu, enum Reg16 reg) {
 	set_reg16(cpu, reg, get_reg16(cpu, reg) - 1);
-	clock_increment();
+	timer_tick();
 }
 
 static inline void op_rlca(struct HagemuCPU *cpu) {
@@ -577,14 +577,14 @@ static inline void op_store_sp(struct HagemuCPU *cpu) {
 	uint16_t address = get_reg16(cpu, IMMEDIATE16);
 	uint16_t value   = get_reg16(cpu, REG_SP);
 	mmu_write(address, value & 0x00FF);
-	clock_increment();
+	timer_tick();
 	mmu_write(address + 1, (value & 0xFF00) >> 8);
-	clock_increment();
+	timer_tick();
 }
 
 static inline void op_stop(struct HagemuCPU *cpu) {
-	clock_reset();
-	clock_stop();
+	timer_reset();
+	timer_stop();
 	fprintf(stderr, "Warning: STOP is not fully implemented yet\n");
 	// The next byte is ignored for some reason
 	cpu->pc++;
@@ -620,11 +620,11 @@ static inline void op_pop(struct HagemuCPU *cpu, enum Reg16 reg) {
 
 static inline void op_ret(struct HagemuCPU *cpu) {
 	cpu->pc = pop_stack(cpu);
-	clock_increment();
+	timer_tick();
 }
 
 static inline void op_ret_cond(struct HagemuCPU *cpu, bool condition) {
-	clock_increment();
+	timer_tick();
 	if (condition) {
 		op_ret(cpu);
 	}
@@ -643,8 +643,8 @@ static inline void op_add_sp_offset(struct HagemuCPU *cpu, enum Reg8 offset) {
 	cpu->f_subtract   = false;
 	cpu->f_zero       = false;
 	cpu->sp           = result;
-	clock_increment();
-	clock_increment();
+	timer_tick();
+	timer_tick();
 }
 
 static inline void op_load_sp_offset(struct HagemuCPU *cpu, enum Reg16 reg, enum Reg8 offset) {
@@ -655,7 +655,7 @@ static inline void op_load_sp_offset(struct HagemuCPU *cpu, enum Reg16 reg, enum
 	cpu->f_subtract   = false;
 	cpu->f_zero       = false;
 	set_reg16(cpu, reg, result);
-	clock_increment();
+	timer_tick();
 }
 
 static inline void op_di(struct HagemuCPU *cpu) {
@@ -672,7 +672,7 @@ static inline void op_halt(struct HagemuCPU *cpu) {
 }
 
 static inline void op_load_sp_hl(struct HagemuCPU *cpu) {
-	clock_increment();
+	timer_tick();
 	cpu->sp = cpu->hl;
 }
 
@@ -1024,13 +1024,13 @@ static void process_opcode(struct HagemuCPU *cpu, uint8_t opcode_byte) {
 
 // Returns the number of t-cycles it took to complete the next instruction
 int cpu_do_next_instruction(struct HagemuCPU *cpu) {
-	int old_clock = clock_get();
+	int old_time = timer_get();
 
 	if (mmu_read(INTERRUPT_FLAGS) & mmu_read(INTERRUPT_ENABLE))
 		cpu->flag_is_halted = false;
 
 	if (cpu->flag_is_halted) {
-		clock_increment();
+		timer_tick();
 		return 4; // clock only incremented once
 	}
 
@@ -1043,8 +1043,8 @@ int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 
 	uint8_t opcode_byte = fetch_immediate8(cpu);
 	process_opcode(cpu, opcode_byte);
-	if (clock_get() - old_clock > 0)
-		return clock_get() - old_clock;
+	if (timer_get() - old_time > 0)
+		return timer_get() - old_time;
 	else
-		return 0xFFFF - (old_clock - clock_get());
+		return 0xFFFF - (old_time - timer_get());
 }

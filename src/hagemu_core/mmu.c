@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "clock.h"
+#include "timer.h"
 #include "ppu.h"
 #include "apu.h"
 #include "joypad.h"
@@ -34,8 +34,8 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 	switch (address) {
 
 	case TIMER_DIVIDER:
-		// get the time from the clock file
-		return ((clock_get() & 0xFF00) >> 8);
+		// get the time from timer.h
+		return ((timer_get() & 0xFF00) >> 8);
 
 	case JOYPAD_INPUT:
 		return joypad_get_byte();
@@ -112,7 +112,7 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 	switch (address) {
 
 	case TIMER_DIVIDER:
-		clock_reset();
+		timer_reset();
 		return;
 
 	case JOYPAD_INPUT:

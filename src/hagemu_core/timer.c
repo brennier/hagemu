@@ -1,20 +1,22 @@
-#include "clock.h"
+#include "timer.h"
 #include "mmu.h"
 
-uint16_t master_clock = 0; // measured in t-cycles
-bool clock_running = true;
+struct HagemuTimer {
+	uint16_t time; // measured in t-cycles
+	bool is_running;
+} timer = { .is_running = true };
 
-uint16_t clock_get() {
-	return master_clock;
+uint16_t timer_get() {
+	return timer.time;
 }
 
-void clock_start() {
-	clock_running = true;
+void timer_start() {
+	timer.is_running = true;
 }
 
-void clock_increment() {
-	if (clock_is_running())
-		master_clock += 4;
+void timer_tick() {
+	if (timer.is_running)
+		timer.time += 4;
 
 	// Return early if timer control is off
 	if (!mmu_get_bit(TIMER_CONTROL_ENABLE_BIT))
@@ -28,7 +30,7 @@ void clock_increment() {
         case 0x03: increment_factor = 256;  break;
 	}
 
-	if (master_clock % increment_factor != 0)
+	if (timer.time % increment_factor != 0)
 		return;
 
 	if (mmu_read(TIMER_COUNTER) == 0xFF) {
@@ -39,14 +41,10 @@ void clock_increment() {
 	}
 }
 
-void clock_stop() {
-	clock_running = false;
+void timer_stop() {
+	timer.is_running = false;
 }
 
-void clock_reset() {
-	master_clock = 0;
-}
-
-bool clock_is_running() {
-	return clock_running;
+void timer_reset() {
+	timer.time = 0;
 }
