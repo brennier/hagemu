@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <SDL3/SDL.h>
 
-#include "hagemu.h"
+#include "hagemu_core.h"
 #include "text.h"
 #include "file.h"
 #include "web.h" // Does nothing unless PLATFORM_WEB is defined
