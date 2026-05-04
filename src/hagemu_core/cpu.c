@@ -7,18 +7,6 @@
 #include "mmu.h"
 #include "interrupt.h"
 
-#include "timer.h"
-#include "ppu.h"
-#include "apu.h"
-#include "dma.h"
-void system_tick() {
-	int t_cycles = 4;
-	ppu_tick(t_cycles);
-	apu_tick(t_cycles);
-	dma_tick(t_cycles);
-	timer_tick(t_cycles);
-}
-
 struct HagemuCPU {
 	// CPU Registers (except af)
 	uint16_t bc, de, hl, sp, pc;
@@ -34,7 +22,21 @@ struct HagemuCPU {
 	bool flag_master_interrupt;
 	bool flag_master_interrupt_pending;
 	bool flag_is_halted;
+	uint8_t cycles_passed;
 };
+
+#include "timer.h"
+#include "ppu.h"
+#include "apu.h"
+#include "dma.h"
+void system_tick(struct HagemuCPU *cpu) {
+	int t_cycles = 4;
+	ppu_tick(t_cycles);
+	apu_tick(t_cycles);
+	dma_tick(t_cycles);
+	timer_tick(t_cycles);
+	cpu->cycles_passed += t_cycles;
+}
 
 struct HagemuCPU *cpu_create() {
 	struct HagemuCPU *cpu = malloc(sizeof(struct HagemuCPU));
@@ -92,19 +94,19 @@ static inline void set_f(struct HagemuCPU *cpu, uint8_t f_value) {
 	cpu->f_zero       = f_value & (0x01 << 7);
 }
 
-static inline uint8_t fetch_byte(uint16_t address) {
+static inline uint8_t fetch_byte(struct HagemuCPU *cpu, uint16_t address) {
 	uint8_t value = mmu_read(address);
-	system_tick();
+	system_tick(cpu);
 	return value;
 }
 
-static inline void write_byte(uint16_t address, uint8_t value) {
+static inline void write_byte(struct HagemuCPU *cpu,uint16_t address, uint8_t value) {
 	mmu_write(address, value);
-	system_tick();
+	system_tick(cpu);
 }
 
 static inline uint8_t fetch_immediate8(struct HagemuCPU *cpu) {
-	return fetch_byte(cpu->pc++);
+	return fetch_byte(cpu, cpu->pc++);
 }
 
 static inline uint16_t fetch_immediate16(struct HagemuCPU *cpu) {
@@ -114,26 +116,26 @@ static inline uint16_t fetch_immediate16(struct HagemuCPU *cpu) {
 }
 
 static inline uint16_t pop_stack(struct HagemuCPU *cpu) {
-	uint8_t lower = fetch_byte(cpu->sp++);
-	uint8_t upper = fetch_byte(cpu->sp++);
+	uint8_t lower = fetch_byte(cpu, cpu->sp++);
+	uint8_t upper = fetch_byte(cpu, cpu->sp++);
 	return (upper << 8) | lower;
 }
 
 static inline void push_stack(struct HagemuCPU *cpu, uint16_t value) {
-	system_tick(); // internal increment (reason unknown)
+	system_tick(cpu); // internal increment (reason unknown)
 	uint8_t lower = (value & 0x00FF);
 	uint8_t upper = (value & 0xFF00) >> 8;
 	cpu->sp--;
-	write_byte(cpu->sp, upper);
+	write_byte(cpu, cpu->sp, upper);
 	cpu->sp--;
-	write_byte(cpu->sp, lower);
+	write_byte(cpu, cpu->sp, lower);
 }
 
 static void handle_interrupts(struct HagemuCPU *cpu) {
 	if (!interrupt_pending())
 		return;
-	system_tick();
-	system_tick();
+	system_tick(cpu);
+	system_tick(cpu);
 	cpu->flag_master_interrupt = false;
 	push_stack(cpu, cpu->pc);
 
@@ -148,7 +150,7 @@ static void handle_interrupts(struct HagemuCPU *cpu) {
 	}
 
 	interrupt_clear(flag);
-	system_tick();
+	system_tick(cpu);
 }
 
 static inline uint8_t get_reg8(struct HagemuCPU *cpu, enum Reg8 reg) {
@@ -163,16 +165,16 @@ static inline uint8_t get_reg8(struct HagemuCPU *cpu, enum Reg8 reg) {
 	case REG_H: value = (cpu->hl >> 8);            break;
 	case REG_L: value = (cpu->hl & 0x00FF);        break;
 
-	case REG_BC_ADDR:      value = fetch_byte(cpu->bc);             break;
-	case REG_DE_ADDR:      value = fetch_byte(cpu->de);             break;
-	case REG_HL_ADDR:      value = fetch_byte(cpu->hl);             break;
-	case REG_HL_ADDR_INC:  value = fetch_byte(cpu->hl++);           break;
-	case REG_HL_ADDR_DEC:  value = fetch_byte(cpu->hl--);           break;
-	case IMMEDIATE8:       value = fetch_byte(cpu->pc++);           break;
-	case IMMEDIATE16_ADDR: value = fetch_byte(fetch_immediate16(cpu)); break;
+	case REG_BC_ADDR:      value = fetch_byte(cpu, cpu->bc);             break;
+	case REG_DE_ADDR:      value = fetch_byte(cpu, cpu->de);             break;
+	case REG_HL_ADDR:      value = fetch_byte(cpu, cpu->hl);             break;
+	case REG_HL_ADDR_INC:  value = fetch_byte(cpu, cpu->hl++);           break;
+	case REG_HL_ADDR_DEC:  value = fetch_byte(cpu, cpu->hl--);           break;
+	case IMMEDIATE8:       value = fetch_byte(cpu, cpu->pc++);           break;
+	case IMMEDIATE16_ADDR: value = fetch_byte(cpu, fetch_immediate16(cpu)); break;
 
-	case HIGH_ADDR_IMM8:  value = fetch_byte(0xFF00 | fetch_immediate8(cpu));   break;
-	case HIGH_ADDR_REG_C: value = fetch_byte(0xFF00 | get_reg8(cpu, REG_C)); break;
+	case HIGH_ADDR_IMM8:  value = fetch_byte(cpu, 0xFF00 | fetch_immediate8(cpu));   break;
+	case HIGH_ADDR_REG_C: value = fetch_byte(cpu, 0xFF00 | get_reg8(cpu, REG_C)); break;
 	}
 
 	return value;
@@ -190,20 +192,20 @@ static inline void set_reg8(struct HagemuCPU *cpu, enum Reg8 reg, uint8_t value)
 	case REG_H: cpu->hl &= 0x00FF; cpu->hl |= (value << 8); break;
 	case REG_L: cpu->hl &= 0xFF00; cpu->hl |= value;        break;
 
-	case REG_BC_ADDR: write_byte(cpu->bc, value); break;
-	case REG_DE_ADDR: write_byte(cpu->de, value); break;
-	case REG_HL_ADDR: write_byte(cpu->hl, value); break;
-	case REG_HL_ADDR_INC: write_byte(cpu->hl++, value); break;
-	case REG_HL_ADDR_DEC: write_byte(cpu->hl--, value); break;
+	case REG_BC_ADDR: write_byte(cpu, cpu->bc, value); break;
+	case REG_DE_ADDR: write_byte(cpu, cpu->de, value); break;
+	case REG_HL_ADDR: write_byte(cpu, cpu->hl, value); break;
+	case REG_HL_ADDR_INC: write_byte(cpu, cpu->hl++, value); break;
+	case REG_HL_ADDR_DEC: write_byte(cpu, cpu->hl--, value); break;
 
 	case IMMEDIATE8:
 		printf("Can't write the value %02X to an immediate", value);
 		exit(EXIT_FAILURE);
 		break;
-	case IMMEDIATE16_ADDR: write_byte(fetch_immediate16(cpu), value); break;
+	case IMMEDIATE16_ADDR: write_byte(cpu, fetch_immediate16(cpu), value); break;
 
-	case HIGH_ADDR_IMM8:  write_byte(0xFF00 | fetch_immediate8(cpu), value); break;
-	case HIGH_ADDR_REG_C: write_byte(0xFF00 | get_reg8(cpu, REG_C), value); break;
+	case HIGH_ADDR_IMM8:  write_byte(cpu, 0xFF00 | fetch_immediate8(cpu), value); break;
+	case HIGH_ADDR_REG_C: write_byte(cpu, 0xFF00 | get_reg8(cpu, REG_C), value); break;
 	}
 }
 
@@ -438,7 +440,7 @@ static inline void op_jump(struct HagemuCPU *cpu, bool condition) {
 	uint16_t address = get_reg16(cpu, IMMEDIATE16);
 	if (condition) {
 		cpu->pc = address;
-		system_tick();
+		system_tick(cpu);
 	}
 }
 
@@ -451,7 +453,7 @@ static inline void op_jr(struct HagemuCPU *cpu, bool condition) {
 	int8_t offset = get_reg8(cpu, IMMEDIATE8);
 	if (condition) {
 		cpu->pc += offset;
-		system_tick();
+		system_tick(cpu);
 	}
 }
 
@@ -506,7 +508,7 @@ static inline void op_add16(struct HagemuCPU *cpu, enum Reg16 reg1, enum Reg16 r
 	cpu->f_half_carry = (value1 ^ value2 ^ result) & 0x1000;
 	cpu->f_subtract   = false;
 	set_reg16(cpu, reg1, result);
-	system_tick();
+	system_tick(cpu);
 }
 
 static inline void op_call(struct HagemuCPU *cpu, bool condition) {
@@ -550,12 +552,12 @@ static inline void op_load16(struct HagemuCPU *cpu, enum Reg16 dest, enum Reg16 
 
 static inline void op_inc16(struct HagemuCPU *cpu, enum Reg16 reg) {
 	set_reg16(cpu, reg, get_reg16(cpu, reg) + 1);
-	system_tick();
+	system_tick(cpu);
 }
 
 static inline void op_dec16(struct HagemuCPU *cpu, enum Reg16 reg) {
 	set_reg16(cpu, reg, get_reg16(cpu, reg) - 1);
-	system_tick();
+	system_tick(cpu);
 }
 
 static inline void op_rlca(struct HagemuCPU *cpu) {
@@ -582,9 +584,9 @@ static inline void op_store_sp(struct HagemuCPU *cpu) {
 	uint16_t address = get_reg16(cpu, IMMEDIATE16);
 	uint16_t value   = get_reg16(cpu, REG_SP);
 	mmu_write(address, value & 0x00FF);
-	system_tick();
+	system_tick(cpu);
 	mmu_write(address + 1, (value & 0xFF00) >> 8);
-	system_tick();
+	system_tick(cpu);
 }
 
 static inline void op_stop(struct HagemuCPU *cpu) {
@@ -625,11 +627,11 @@ static inline void op_pop(struct HagemuCPU *cpu, enum Reg16 reg) {
 
 static inline void op_ret(struct HagemuCPU *cpu) {
 	cpu->pc = pop_stack(cpu);
-	system_tick();
+	system_tick(cpu);
 }
 
 static inline void op_ret_cond(struct HagemuCPU *cpu, bool condition) {
-	system_tick();
+	system_tick(cpu);
 	if (condition) {
 		op_ret(cpu);
 	}
@@ -648,8 +650,8 @@ static inline void op_add_sp_offset(struct HagemuCPU *cpu, enum Reg8 offset) {
 	cpu->f_subtract   = false;
 	cpu->f_zero       = false;
 	cpu->sp           = result;
-	system_tick();
-	system_tick();
+	system_tick(cpu);
+	system_tick(cpu);
 }
 
 static inline void op_load_sp_offset(struct HagemuCPU *cpu, enum Reg16 reg, enum Reg8 offset) {
@@ -660,7 +662,7 @@ static inline void op_load_sp_offset(struct HagemuCPU *cpu, enum Reg16 reg, enum
 	cpu->f_subtract   = false;
 	cpu->f_zero       = false;
 	set_reg16(cpu, reg, result);
-	system_tick();
+	system_tick(cpu);
 }
 
 static inline void op_di(struct HagemuCPU *cpu) {
@@ -677,7 +679,7 @@ static inline void op_halt(struct HagemuCPU *cpu) {
 }
 
 static inline void op_load_sp_hl(struct HagemuCPU *cpu) {
-	system_tick();
+	system_tick(cpu);
 	cpu->sp = cpu->hl;
 }
 
@@ -1029,14 +1031,13 @@ static void process_opcode(struct HagemuCPU *cpu, uint8_t opcode_byte) {
 
 // Returns the number of t-cycles it took to complete the next instruction
 int cpu_do_next_instruction(struct HagemuCPU *cpu) {
-	int old_time = timer_get();
-
+	cpu->cycles_passed = 0;
 	if (interrupt_pending())
 		cpu->flag_is_halted = false;
 
 	if (cpu->flag_is_halted) {
-		system_tick();
-		return 4; // clock only incremented once
+		system_tick(cpu);
+		return cpu->cycles_passed; // clock only incremented once
 	}
 
 	if (cpu->flag_master_interrupt_pending) {
@@ -1048,8 +1049,5 @@ int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 
 	uint8_t opcode_byte = fetch_immediate8(cpu);
 	process_opcode(cpu, opcode_byte);
-	if (timer_get() - old_time > 0)
-		return timer_get() - old_time;
-	else
-		return 0xFFFF - (old_time - timer_get());
+	return cpu->cycles_passed;
 }
