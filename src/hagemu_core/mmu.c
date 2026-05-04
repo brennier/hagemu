@@ -13,18 +13,22 @@
 #include "boot.h"
 
 #define WORK_RAM_SIZE 0x2000 // 8 kilobytes
-#define UPPER_MEMORY  0x100  // 256 bytes
+#define HIGH_RAM_SIZE 0x80   // 128 bytes
 
 uint8_t wram[WORK_RAM_SIZE] = { 0 };
-uint8_t upper_memory[UPPER_MEMORY] = { 0 };
+uint8_t hram[HIGH_RAM_SIZE] = { 0 };
 bool boot_rom_enabled = true;
 uint8_t interrupt_flags = 0;
+uint8_t serial_data    = 0;
+uint8_t serial_control = 0;
 
 void mmu_reset() {
 	memset(wram, 0, sizeof(wram));
-	memset(upper_memory, 0, sizeof(upper_memory));
+	memset(hram, 0, sizeof(hram));
 	boot_rom_enabled = true;
 	interrupt_flags = 0;
+	serial_data     = 0;
+	serial_control  = 0;
 }
 
 uint8_t mmu_read_nonblocking(uint16_t address) {
@@ -68,6 +72,11 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 		// Send to Joypad
 		else if (address == 0xFF00)
 			return joypad_get_byte();
+		// Send to serial port (not implemented
+		else if (address == 0xFF01)
+			return serial_data;
+		else if (address == 0xFF02)
+			return serial_control;
 		// Send to Timer
 		else if (address >= 0xFF04 && address <= 0xFF07)
 			return timer_register_read(address);
@@ -75,21 +84,24 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 		else if (address == 0xFF0F)
 			// bits 3 through 7 should always be 1
 			return interrupt_flags | 0xE0;
-		// IO registers
-		else if (address < 0xFF10)
-			return upper_memory[address - 0xFF00];
 		// Send to APU
-		else if (address < 0xFF40)
+		else if (address >= 0xFF10 && address <= 0xFF3F)
 			return apu_register_read(address);
 		// Send to DMA
 		else if (address == 0xFF46)
 			return dma_read();
 		// Send to the PPU (except for FF46 which is caught earlier)
-		else if (address < 0xFF4C)
+		else if (address >= 0xFF40 && address <= 0xFF4B)
 			return ppu_register_read(address);
-		// More IO registers and high ram
+		// Disable the bootrom
+		else if (address == 0xFF50)
+			return boot_rom_enabled;
+		// Unmapped IO register
+		else if (address < 0xFF80)
+			return 0xFF;
+		// high ram + interupt enable
 		else
-			return upper_memory[address - 0xFF00];
+			return hram[address - 0xFF80];
 	}
 
 	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
@@ -138,6 +150,11 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 		// Send to Joypad
 		else if (address == 0xFF00)
 			joypad_set_byte(value);
+		// Send to serial port (not implemented
+		else if (address == 0xFF01)
+			serial_data = value;
+		else if (address == 0xFF02)
+			serial_control = value;
 		// Send to Timer
 		else if (address >= 0xFF04 && address <= 0xFF07)
 			timer_register_write(address, value);
@@ -145,24 +162,24 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 		else if (address == 0xFF0F)
 			// bits 3 through 7 should always be 1
 			interrupt_flags = value | 0xE0;
-		// IO registers
-		else if (address < 0xFF10)
-			upper_memory[address - 0xFF00] = value;
 		// Send to APU
-		else if (address < 0xFF40)
+		else if (address >= 0xFF10 && address <= 0xFF3F)
 			apu_register_write(address, value);
 		// Send to DMA
 		else if (address == 0xFF46)
 			dma_start(value);
 		// Send to PPU
-		else if (address < 0xFF4C)
+		else if (address >= 0xFF40 && address <= 0xFF4B)
 			ppu_register_write(address, value);
 		// Disable the bootrom
 		else if (address == 0xFF50)
 			boot_rom_enabled = false;
+		// Unmapped IO register
+		else if (address < 0xFF80)
+			return;
 		// More IO registers and high ram
 		else
-			upper_memory[address - 0xFF00] = value;
+			hram[address - 0xFF80] = value;
 		return;
 	}
 
