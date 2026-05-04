@@ -28,24 +28,21 @@ void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 
 	// Switch ROM bank
 	case 0x2000: case 0x3000:
-		cart->rom_index = value & 0x7F;
-		uint16_t bank_count = (cart->rom_size / ROM_BANK_SIZE);
-		cart->rom_index %= bank_count;
+		cart->rom_index = value;
+		cart->rom_index %= (cart->rom_size / ROM_BANK_SIZE);
 		if (cart->rom_index == 0)
 			cart->rom_index = 1;
 		return;
 
 	// Switch RAM bank
 	case 0x4000: case 0x5000:
-		if (value <= 0x03) {
+		if (value < 0x08) {
 			cart->ram_index = value; // RAM bank
-		} else if (value <= 0x07) {
-			printf("Invalid RAM bank write: %02X\n", value);
-		} else if (value >= 0x08 && value <= 0x0C) {
+			cart->ram_index %= (cart->ram_size / RAM_BANK_SIZE);
+		} else if (value < 0x0D)
 			cart->ram_index = value; // RTC register
-		} else {
+		else
 			printf("[Warning] Ignoring invalid RAM/RTC select %02X\n", value);
-		}
 		return;
 
 	// Latch the RTC clock
@@ -60,18 +57,12 @@ void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 }
 
 uint8_t cart_rom_read_mbc3(struct HagemuCart *cart, uint16_t address) {
-	/* printf("[INFO] Reading from RAM at %04X\n", address); */
 	if (address < ROM_BANK_SIZE) {
-		/* printf("Bank 0\n"); */
 		return cart->rom[address];
 	} else if (address < 2 * ROM_BANK_SIZE) {
-		/* printf("Bank %d\n", cart->rom_index); */
-		if (cart->rom_index >= cart->rom_size / ROM_BANK_SIZE)
-			printf("ERROR: Out of bounds read from the cartridge\n");
-		if (cart->rom_index == 0) cart->rom_index = 1;
-		uint32_t offset = address - ROM_BANK_SIZE;
-		uint32_t rom_address = (uint32_t)cart->rom_index * (uint32_t)ROM_BANK_SIZE + offset;
-		return cart->rom[rom_address];
+		address -= ROM_BANK_SIZE;
+		uint32_t rom_bank_start = cart->rom_index * (uint32_t)ROM_BANK_SIZE;
+		return cart->rom[rom_bank_start + address];
 	} else {
 		printf("ERROR: Out of bounds read from the cartridge\n");
 		exit(EXIT_FAILURE);
@@ -79,7 +70,6 @@ uint8_t cart_rom_read_mbc3(struct HagemuCart *cart, uint16_t address) {
 }
 
 void cart_ram_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t value) {
-	/* printf("[INFO] Writing %02X to RAM at %04X\n", value, address); */
 	uint32_t ram_address = address;
 	if (!cart->ram_enabled) {
 		fprintf(stderr, "Attempt to write value %d to RAM address %04X, but it was disabled\n", value, address);
@@ -97,7 +87,6 @@ void cart_ram_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 }
 
 uint8_t cart_ram_read_mbc3(struct HagemuCart *cart, uint16_t address) {
-	/* printf("[INFO] Reading from RAM at %04X\n", address); */
 	uint32_t ram_address = address;
 	if (!cart->ram_enabled) {
 		fprintf(stderr, "Attempt to read RAM address %04X, but it was disabled\n", address);

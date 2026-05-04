@@ -91,13 +91,14 @@ The following games have been tested:
   - [x] MCB1 (Full support, tested with Mooneye's MBC1 test roms)
   - [ ] MCB1M
   - [ ] MCB2
-  - [ ] MCB3
+  - [x] MCB3 (without RTC) (tested with ZoomTen's MBC30 test rom)
   - [x] MCB5 (without rumble) (tested with Mooneye's MBC5 test roms)
-  - [ ] MCB5 (with rumble)
   - [ ] MCB6
   - [ ] MCB7
+  - [x] MBC30 (tested with ZoomTen's MBC30 test rom)
   - [ ] Other, less popular MCBs
   - [ ] Real Time Clock support
+  - [ ] Rumble support
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
   - [x] Add support for gamepads
@@ -118,14 +119,15 @@ The following games have been tested:
   - [x] Block CPU access to all memory except high ram during DMA transfer
   - [x] The CPU ticks all other components (this is a stop gap until the CPU can tick one M-cycle at a time)
   - [x] Writes to unused IO registers are ignored and reads return 0xFF
+  - [ ] Implement the STOP instruction
+  - [ ] Test the HALT instruction
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
+  - [ ] Clear all APU registers when disabled
   - [ ] Mute a sound channel if its frequency is above 20kHz
   - [ ] Add support for the VIN sound channel
   - [ ] Rewrite PPU to be more modular
   - [ ] Add option to blend frames
-  - [ ] Implement the STOP instruction
-  - [ ] Test the HALT instruction
   - [ ] Add support for the serial data port
   - [ ] Pass Blargg's interrupt_time test
   - [ ] Run the Mooneye Test Suite
