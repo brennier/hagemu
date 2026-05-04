@@ -31,11 +31,7 @@ void hagemu_destory(struct HagemuGB* gb) {
 }
 
 unsigned hagemu_next_instruction(struct HagemuGB* gb) {
-	int t_cycles = cpu_do_next_instruction(gb->cpu);
-	ppu_tick(t_cycles);
-	apu_tick(t_cycles);
-	dma_tick(t_cycles);
-	return t_cycles;
+        return cpu_do_next_instruction(gb->cpu);
 }
 
 void hagemu_set_rom(struct HagemuGB *gb, const uint8_t *data, size_t size) {
@@ -45,13 +41,8 @@ void hagemu_set_rom(struct HagemuGB *gb, const uint8_t *data, size_t size) {
 
 void hagemu_run_frame(struct HagemuGB *gb) {
 	unsigned current_frame = ppu_get_frame_count();
-	int t_cycles = 0;
-
 	while (ppu_get_frame_count() == current_frame) {
-		t_cycles = cpu_do_next_instruction(gb->cpu);
-		ppu_tick(t_cycles);
-		apu_tick(t_cycles);
-		dma_tick(t_cycles);
+		cpu_do_next_instruction(gb->cpu);
 	}
 }
 
