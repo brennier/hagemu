@@ -140,7 +140,6 @@ static void handle_interrupts(struct HagemuCPU *cpu) {
 	if (!interrupt_pending())
 		return;
 	system_tick(cpu);
-	system_tick(cpu);
 	cpu->master_interrupt = false;
 	push_stack(cpu, cpu->pc);
 
