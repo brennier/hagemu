@@ -64,7 +64,8 @@ void interrupt_enable_register_write(uint8_t value) {
 }
 
 bool interrupt_pending() {
-	return interrupt_register_read() & interrupt.enabled_register;
+	// Only check the lower 5 bits
+	return interrupt_register_read() & interrupt.enabled_register & 0x1F;
 }
 
 enum HagemuInterruptFlag interrupt_get_next() {
@@ -80,6 +81,6 @@ enum HagemuInterruptFlag interrupt_get_next() {
 	else if (interrupts & 0x10)
 		return JOYPAD_INTERRUPT;
 
-	printf("Interrupt_get was called, but there were no pending interrupts\n");
+	printf("interrupt_get_next was called, but there were no pending interrupts\n");
 	exit(EXIT_FAILURE);
 }
