@@ -174,8 +174,9 @@ uint8_t cart_rom_read(uint16_t address) {
 }
 
 void cart_ram_write(uint16_t address, uint8_t value) {
-	switch (cart.info.type) {
+	if (!cart.ram) return;
 
+	switch (cart.info.type) {
 	case NO_MBC: cart.ram[address] = value; break;
 	case MBC1:   cart_ram_write_mbc1(&cart, address, value); break;
 	case MBC3:   cart_ram_write_mbc3(&cart, address, value); break;
@@ -187,8 +188,9 @@ void cart_ram_write(uint16_t address, uint8_t value) {
 }
 
 uint8_t cart_ram_read(uint16_t address) {
-	switch (cart.info.type) {
+	if (!cart.ram) return 0xFF;
 
+	switch (cart.info.type) {
 	case NO_MBC: return cart.ram[address]; break;
 	case MBC1:   return cart_ram_read_mbc1(&cart, address); break;
 	case MBC3:   return cart_ram_read_mbc3(&cart, address); break;
