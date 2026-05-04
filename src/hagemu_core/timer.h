@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-void timer_tick();
+void timer_tick(int t_cycles);
 uint16_t timer_get();
 void timer_start();
 void timer_stop();

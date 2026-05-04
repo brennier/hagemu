@@ -11,10 +11,11 @@
 #include "apu.h"
 #include "dma.h"
 void system_tick() {
-	ppu_tick(4);
-	apu_tick(4);
-	dma_tick(4);
-	timer_tick();
+	int t_cycles = 4;
+	ppu_tick(t_cycles);
+	apu_tick(t_cycles);
+	dma_tick(t_cycles);
+	timer_tick(t_cycles);
 }
 
 struct HagemuCPU {

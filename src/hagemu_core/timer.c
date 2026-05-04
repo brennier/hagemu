@@ -53,9 +53,9 @@ void timer_start() {
 	timer.is_running = true;
 }
 
-void timer_tick() {
+void timer_tick_once() {
 	if (timer.is_running)
-		timer.time += 4;
+		timer.time++;
 
 	// Return early if timer control is off
 	if (!timer.enabled)
@@ -81,6 +81,11 @@ void timer_tick() {
 	} else {
 		timer.counter++;
 	}
+}
+
+void timer_tick(int t_cycles) {
+	for (int i = 0; i < t_cycles; i++)
+		timer_tick_once();
 }
 
 void timer_stop() {
