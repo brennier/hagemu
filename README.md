@@ -110,11 +110,14 @@ The following games have been tested:
   - [x] Fill the sound buffer directly instead of using a callback
   - [x] Use float instead of int16_t for audio bit depth
   - [x] Use RGBA8888 instead of RGBA5551 for pixel format
+  - [x] All file handling is done by the SDL app. The core simply takes a pointer to data.
   - [x] Add support for disabling the PPU
-  - [x] Block VRAM and OAM while they're being accessed by the ppu
+  - [x] Block access to the VRAM and OAM while they're being accessed by the ppu
   - [x] Emulate the timing of the DMA
   - [x] Add a custom boot rom
-  - [x] Block CPU access to VRAM and OAM during certain ppu modes
+  - [x] Block CPU access to all memory except high ram during DMA transfer
+  - [x] The CPU ticks all other components (this is a stop gap until the CPU can tick one M-cycle at a time)
+  - [x] Writes to unused IO registers are ignored and reads return 0xFF
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
   - [ ] Mute a sound channel if its frequency is above 20kHz
