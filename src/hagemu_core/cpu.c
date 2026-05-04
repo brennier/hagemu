@@ -129,19 +129,19 @@ static void handle_interrupts(struct HagemuCPU *cpu) {
 
 	if (interrupts & 0x01) {
 		cpu->pc = 0x0040;
-		mmu_clear_bit(VBLANK_INTERRUPT_FLAG_BIT);
+		mmu_clear_flag(VBLANK_INTERRUPT_FLAG);
 	} else if (interrupts & 0x02) {
 		cpu->pc = 0x0048;
-		mmu_clear_bit(LCD_INTERRUPT_FLAG_BIT);
+		mmu_clear_flag(LCD_INTERRUPT_FLAG);
 	} else if (interrupts & 0x04) {
 		cpu->pc = 0x0050;
-		mmu_clear_bit(TIMER_INTERRUPT_FLAG_BIT);
+		mmu_clear_flag(TIMER_INTERRUPT_FLAG);
 	} else if (interrupts & 0x08) {
 		cpu->pc = 0x0058;
-		mmu_clear_bit(SERIAL_INTERRUPT_FLAG_BIT);
+		mmu_clear_flag(SERIAL_INTERRUPT_FLAG);
 	} else if (interrupts & 0x10) {
 		cpu->pc = 0x0060;
-		mmu_clear_bit(JOYPAD_INTERRUPT_FLAG_BIT);
+		mmu_clear_flag(JOYPAD_INTERRUPT_FLAG);
 	}
 	timer_tick();
 }

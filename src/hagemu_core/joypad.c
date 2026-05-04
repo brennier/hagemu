@@ -29,7 +29,7 @@ void joypad_set_button(HagemuButton button, bool is_down) {
 	}
 
 	if (is_down)
-		mmu_set_bit(JOYPAD_INTERRUPT_FLAG_BIT);
+		mmu_set_flag(JOYPAD_INTERRUPT_FLAG);
 }
 
 void joypad_set_byte(uint8_t byte) {

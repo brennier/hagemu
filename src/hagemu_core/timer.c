@@ -77,7 +77,7 @@ void timer_tick() {
 
 	if (timer.counter == 0xFF) {
 		timer.counter = timer.modulo;
-		mmu_set_bit(TIMER_INTERRUPT_FLAG_BIT);
+		mmu_set_flag(TIMER_INTERRUPT_FLAG);
 	} else {
 		timer.counter++;
 	}

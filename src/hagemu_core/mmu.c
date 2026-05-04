@@ -18,34 +18,18 @@
 uint8_t wram[WORK_RAM_SIZE] = { 0 };
 uint8_t upper_memory[UPPER_MEMORY] = { 0 };
 bool boot_rom_enabled = true;
+uint8_t interrupt_flags = 0;
 
 void mmu_reset() {
 	memset(wram, 0, sizeof(wram));
 	memset(upper_memory, 0, sizeof(upper_memory));
 	boot_rom_enabled = true;
+	interrupt_flags = 0;
 }
 
 uint8_t mmu_read_nonblocking(uint16_t address) {
 	if (boot_rom_enabled && address < 0x100) {
 		return boot_read(address);
-	}
-
-	// Handle special cases first
-	switch (address) {
-
-	case JOYPAD_INPUT:
-		return joypad_get_byte();
-
-	case SERIAL_CONTROL:
-		// bits 1 through 6 should always be 1
-		return upper_memory[SERIAL_CONTROL - 0xFF00] | 0x7E;
-
-	case INTERRUPT_FLAGS:
-		// bits 3 through 7 should always be 1
-		return upper_memory[INTERRUPT_FLAGS - 0xFF00] | 0xE0;
-
-	case DMA_START:
-		return dma_read();
 	}
 
 	switch (address & 0xF000) {
@@ -81,15 +65,25 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 		// Unusable forbidden memory
 		else if (address < 0xFF00)
 			return 0xFF;
+		// Send to Joypad
+		else if (address == 0xFF00)
+			return joypad_get_byte();
 		// Send to Timer
 		else if (address >= 0xFF04 && address <= 0xFF07)
 			return timer_register_read(address);
+		// Interrupt flags
+		else if (address == 0xFF0F)
+			// bits 3 through 7 should always be 1
+			return interrupt_flags | 0xE0;
 		// IO registers
 		else if (address < 0xFF10)
 			return upper_memory[address - 0xFF00];
 		// Send to APU
 		else if (address < 0xFF40)
 			return apu_register_read(address);
+		// Send to DMA
+		else if (address == 0xFF46)
+			return dma_read();
 		// Send to the PPU (except for FF46 which is caught earlier)
 		else if (address < 0xFF4C)
 			return ppu_register_read(address);
@@ -103,22 +97,6 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 }
 
 void mmu_write_nonblocking(uint16_t address, uint8_t value) {
-	// Handle special cases first
-	switch (address) {
-
-	case JOYPAD_INPUT:
-		joypad_set_byte(value);
-		return;
-
-	case DMA_START:
-		dma_start(value);
-		return;
-
-	case BOOT_ROM_CONTROL:
-		boot_rom_enabled = false;
-		return;
-	}
-
 	switch (address & 0xF000) {
 
 	// Disable/Enable cartridge RAM
@@ -157,18 +135,31 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 		// Unusable forbidden memory
 		else if (address < 0xFF00)
 			return;
+		// Send to Joypad
+		else if (address == 0xFF00)
+			joypad_set_byte(value);
 		// Send to Timer
 		else if (address >= 0xFF04 && address <= 0xFF07)
 			timer_register_write(address, value);
+		// Interrupt flags
+		else if (address == 0xFF0F)
+			// bits 3 through 7 should always be 1
+			interrupt_flags = value | 0xE0;
 		// IO registers
 		else if (address < 0xFF10)
 			upper_memory[address - 0xFF00] = value;
 		// Send to APU
 		else if (address < 0xFF40)
 			apu_register_write(address, value);
-		// Send to the PPU (except for FF46 which is caught earlier)
+		// Send to DMA
+		else if (address == 0xFF46)
+			dma_start(value);
+		// Send to PPU
 		else if (address < 0xFF4C)
 			ppu_register_write(address, value);
+		// Disable the bootrom
+		else if (address == 0xFF50)
+			boot_rom_enabled = false;
 		// More IO registers and high ram
 		else
 			upper_memory[address - 0xFF00] = value;
@@ -197,20 +188,12 @@ void mmu_write(uint16_t address, uint8_t value) {
 	mmu_write_nonblocking(address, value);
 }
 
-void mmu_set_bit(enum special_bit bit) {
-	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
-	int bit_position = bit & 0xF;
-	upper_memory[bit_address - 0xFF00] |= (1 << bit_position);
+void mmu_set_flag(enum InterruptFlag flag) {
+	int bit_position = flag & 0xF;
+	interrupt_flags |= (1 << bit_position);
 }
 
-bool mmu_get_bit(enum special_bit bit) {
-	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
-	int bit_position = bit & 0xF;
-	return (upper_memory[bit_address - 0xFF00] >> bit_position) & 0x01;
-}
-
-void mmu_clear_bit(enum special_bit bit) {
-	uint16_t bit_address = (bit & 0xFFFF0) >> 4;
-	int bit_position = bit & 0xF;
-	upper_memory[bit_address - 0xFF00] &= ~(1 << bit_position);
+void mmu_clear_flag(enum InterruptFlag flag) {
+	int bit_position = flag & 0xF;
+	interrupt_flags &= ~(1 << bit_position);
 }
