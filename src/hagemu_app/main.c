@@ -174,7 +174,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	return true;
 }
 
-void hagemu_handle_keypress(SDL_Scancode scancode, bool is_pressed) {
+void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool is_pressed) {
 	HagemuButton button;
 	switch (scancode) {
 
@@ -196,10 +196,10 @@ void hagemu_handle_keypress(SDL_Scancode scancode, bool is_pressed) {
 	default: return;
 	}
 
-	hagemu_set_button(button, is_pressed);
+	hagemu_set_button(app->gb, button, is_pressed);
 }
 
-void hagemu_handle_gamepad(SDL_GamepadButton gpad_button, bool is_pressed) {
+void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button, bool is_pressed) {
 	HagemuButton button;
 	switch (gpad_button) {
 
@@ -216,7 +216,7 @@ void hagemu_handle_gamepad(SDL_GamepadButton gpad_button, bool is_pressed) {
 	default: return;
 	}
 
-	hagemu_set_button(button, is_pressed);
+	hagemu_set_button(app->gb, button, is_pressed);
 }
 
 void hagemu_handle_events(struct HagemuApp *app) {
@@ -227,10 +227,10 @@ void hagemu_handle_events(struct HagemuApp *app) {
 			app->state = HAGEMU_QUIT;
 			break;
 		case SDL_EVENT_KEY_DOWN:
-			hagemu_handle_keypress(app->event.key.scancode, true);
+			hagemu_handle_keypress(app, app->event.key.scancode, true);
 			break;
 		case SDL_EVENT_KEY_UP:
-			hagemu_handle_keypress(app->event.key.scancode, false);
+			hagemu_handle_keypress(app, app->event.key.scancode, false);
 			break;
 		case SDL_EVENT_GAMEPAD_ADDED:
 			if (app->gamepad) SDL_CloseGamepad(app->gamepad);
@@ -241,10 +241,10 @@ void hagemu_handle_events(struct HagemuApp *app) {
 			app->gamepad = NULL;
 			break;
 		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-			hagemu_handle_gamepad(app->event.gbutton.button, true);
+			hagemu_handle_gamepad(app, app->event.gbutton.button, true);
 			break;
 		case SDL_EVENT_GAMEPAD_BUTTON_UP:
-			hagemu_handle_gamepad(app->event.gbutton.button, false);
+			hagemu_handle_gamepad(app, app->event.gbutton.button, false);
 			break;
 		case SDL_EVENT_DROP_FILE:
 		case SDL_EVENT_DROP_TEXT:

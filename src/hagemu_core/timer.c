@@ -14,9 +14,8 @@ struct HagemuTimer {
 	uint8_t  modulo;
 	uint8_t  counter;
 	uint8_t  clock_select;
-	bool     is_running;
 	bool     enabled;
-} timer = { .is_running = true };
+} timer = { 0 };
 
 uint8_t timer_register_read(uint16_t address) {
 	switch (address) {
@@ -45,17 +44,8 @@ void timer_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-uint16_t timer_get() {
-	return timer.time;
-}
-
-void timer_start() {
-	timer.is_running = true;
-}
-
 void timer_tick_once() {
-	if (timer.is_running)
-		timer.time++;
+	timer.time++;
 
 	// Return early if timer control is off
 	if (!timer.enabled)
@@ -86,12 +76,4 @@ void timer_tick_once() {
 void timer_tick(int t_cycles) {
 	for (int i = 0; i < t_cycles; i++)
 		timer_tick_once();
-}
-
-void timer_stop() {
-	timer.is_running = false;
-}
-
-void timer_reset() {
-	timer.time = 0;
 }

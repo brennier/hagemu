@@ -19,9 +19,10 @@ struct HagemuCPU {
 	bool f_zero;
 
 	// other misc flags
-	bool flag_master_interrupt;
-	bool flag_master_interrupt_pending;
-	bool flag_is_halted;
+	bool master_interrupt;
+	bool master_interrupt_pending;
+	bool is_halted;
+	bool is_stopped;
 	uint8_t cycles_passed;
 };
 
@@ -42,6 +43,10 @@ struct HagemuCPU *cpu_create() {
 	struct HagemuCPU *cpu = malloc(sizeof(struct HagemuCPU));
 	memset(cpu, 0, sizeof(struct HagemuCPU));
 	return cpu;
+}
+
+void cpu_resume_if_stopped(struct HagemuCPU *cpu) {
+	cpu->is_stopped = false;
 }
 
 void cpu_destory(struct HagemuCPU *cpu) {
@@ -136,7 +141,7 @@ static void handle_interrupts(struct HagemuCPU *cpu) {
 		return;
 	system_tick(cpu);
 	system_tick(cpu);
-	cpu->flag_master_interrupt = false;
+	cpu->master_interrupt = false;
 	push_stack(cpu, cpu->pc);
 
 	enum HagemuInterruptFlag flag = interrupt_get_next();
@@ -590,10 +595,8 @@ static inline void op_store_sp(struct HagemuCPU *cpu) {
 }
 
 static inline void op_stop(struct HagemuCPU *cpu) {
-	timer_reset();
-	timer_stop();
-	fprintf(stderr, "Warning: STOP is not fully implemented yet\n");
-	// The next byte is ignored for some reason
+	printf("[WARNING] The stop operation is not fully tested\n");
+	cpu->is_stopped = true;
 	cpu->pc++;
 }
 
@@ -639,7 +642,7 @@ static inline void op_ret_cond(struct HagemuCPU *cpu, bool condition) {
 
 static inline void op_reti(struct HagemuCPU *cpu) {
 	op_ret(cpu);
-	cpu->flag_master_interrupt = true;
+	cpu->master_interrupt = true;
 }
 
 static inline void op_add_sp_offset(struct HagemuCPU *cpu, enum Reg8 offset) {
@@ -666,16 +669,16 @@ static inline void op_load_sp_offset(struct HagemuCPU *cpu, enum Reg16 reg, enum
 }
 
 static inline void op_di(struct HagemuCPU *cpu) {
-	cpu->flag_master_interrupt_pending = false;
-	cpu->flag_master_interrupt = false;
+	cpu->master_interrupt_pending = false;
+	cpu->master_interrupt = false;
 }
 
 static inline void op_ei(struct HagemuCPU *cpu) {
-	cpu->flag_master_interrupt_pending = true;
+	cpu->master_interrupt_pending = true;
 }
 
 static inline void op_halt(struct HagemuCPU *cpu) {
-	cpu->flag_is_halted = true;
+	cpu->is_halted = true;
 }
 
 static inline void op_load_sp_hl(struct HagemuCPU *cpu) {
@@ -1032,18 +1035,25 @@ static void process_opcode(struct HagemuCPU *cpu, uint8_t opcode_byte) {
 // Returns the number of t-cycles it took to complete the next instruction
 int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 	cpu->cycles_passed = 0;
-	if (interrupt_pending())
-		cpu->flag_is_halted = false;
 
-	if (cpu->flag_is_halted) {
+	if (cpu->is_stopped) {
+		// system_tick isn't called, but I still need to return 4
+		// to keep hagemu_app running normally
+		return 4;
+	}
+
+	if (interrupt_pending())
+		cpu->is_halted = false;
+
+	if (cpu->is_halted) {
 		system_tick(cpu);
 		return cpu->cycles_passed; // clock only incremented once
 	}
 
-	if (cpu->flag_master_interrupt_pending) {
-		cpu->flag_master_interrupt_pending = false;
-		cpu->flag_master_interrupt = true;
-	} else if (cpu->flag_master_interrupt) {
+	if (cpu->master_interrupt_pending) {
+		cpu->master_interrupt_pending = false;
+		cpu->master_interrupt = true;
+	} else if (cpu->master_interrupt) {
 		handle_interrupts(cpu);
 	}
 

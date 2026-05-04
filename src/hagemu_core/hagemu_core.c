@@ -49,8 +49,9 @@ void hagemu_run_frame(struct HagemuGB *gb) {
 	}
 }
 
-void hagemu_set_button(HagemuButton button, bool is_down) {
+void hagemu_set_button(struct HagemuGB *gb, HagemuButton button, bool is_down) {
 	joypad_set_button(button, is_down);
+	if (is_down) cpu_resume_if_stopped(gb->cpu);
 }
 
 const uint32_t *hagemu_get_framebuffer() {

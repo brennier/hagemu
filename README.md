@@ -119,8 +119,7 @@ The following games have been tested:
   - [x] Block CPU access to all memory except high ram during DMA transfer
   - [x] The CPU ticks all other components (this is a stop gap until the CPU can tick one M-cycle at a time)
   - [x] Writes to unused IO registers are ignored and reads return 0xFF
-  - [ ] Implement the STOP instruction
-  - [ ] Test the HALT instruction
+  - [x] Implement the STOP instruction (untested)
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
   - [ ] Clear all APU registers when disabled
