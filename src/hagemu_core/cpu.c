@@ -19,6 +19,8 @@ void system_tick() {
 	timer_tick(t_cycles);
 }
 
+#define INTERRUPT_ENABLE 0xFFFF
+
 struct HagemuCPU {
 	// CPU Registers (except af)
 	uint16_t bc, de, hl, sp, pc;
@@ -130,7 +132,7 @@ static inline void push_stack(struct HagemuCPU *cpu, uint16_t value) {
 }
 
 static void handle_interrupts(struct HagemuCPU *cpu) {
-	uint8_t interrupts = mmu_read(INTERRUPT_FLAGS);
+	uint8_t interrupts = interrupt_register_read();
 	interrupts &= mmu_read(INTERRUPT_ENABLE);
 	if (!interrupts) return;
 
@@ -1038,7 +1040,7 @@ static void process_opcode(struct HagemuCPU *cpu, uint8_t opcode_byte) {
 int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 	int old_time = timer_get();
 
-	if (mmu_read(INTERRUPT_FLAGS) & mmu_read(INTERRUPT_ENABLE))
+	if (interrupt_register_read() & mmu_read(INTERRUPT_ENABLE))
 		cpu->flag_is_halted = false;
 
 	if (cpu->flag_is_halted) {

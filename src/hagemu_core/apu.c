@@ -1,6 +1,7 @@
 #include "mmu.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #define APU_TICK_RATE (1 << 22)
 #define AUDIO_QUEUE_FRAME_SIZE 4096
@@ -426,6 +427,37 @@ unsigned apu_read_audio(float *output, unsigned max_frames) {
 static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit_end) {
 	return (value >> bit_start) & ((1 << (bit_end - bit_start + 1)) - 1);
 }
+
+// Channel 1 Registers
+#define SOUND_NR10 0xFF10
+#define SOUND_NR11 0xFF11
+#define SOUND_NR12 0xFF12
+#define SOUND_NR13 0xFF13
+#define SOUND_NR14 0xFF14
+
+// Channel 2 Registers
+#define SOUND_NR21 0xFF16
+#define SOUND_NR22 0xFF17
+#define SOUND_NR23 0xFF18
+#define SOUND_NR24 0xFF19
+
+// Channel 3 Registers
+#define SOUND_NR30 0xFF1A
+#define SOUND_NR31 0xFF1B
+#define SOUND_NR32 0xFF1C
+#define SOUND_NR33 0xFF1D
+#define SOUND_NR34 0xFF1E
+
+// Channel 4 Registers
+#define SOUND_NR41 0xFF20
+#define SOUND_NR42 0xFF21
+#define SOUND_NR43 0xFF22
+#define SOUND_NR44 0xFF23
+
+// Audio Control Registers
+#define SOUND_NR50 0xFF24
+#define SOUND_NR51 0xFF25
+#define SOUND_NR52 0xFF26
 
 void apu_register_write(uint16_t address, uint8_t value) {
 	switch (address) {
