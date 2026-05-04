@@ -33,20 +33,12 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 	// Handle special cases first
 	switch (address) {
 
-	case TIMER_DIVIDER:
-		// get the time from timer.h
-		return ((timer_get() & 0xFF00) >> 8);
-
 	case JOYPAD_INPUT:
 		return joypad_get_byte();
 
 	case SERIAL_CONTROL:
 		// bits 1 through 6 should always be 1
 		return upper_memory[SERIAL_CONTROL - 0xFF00] | 0x7E;
-
-	case TIMER_CONTROL:
-		// bits 3 through 7 should always be 1
-		return upper_memory[TIMER_CONTROL - 0xFF00] | 0xF8;
 
 	case INTERRUPT_FLAGS:
 		// bits 3 through 7 should always be 1
@@ -87,8 +79,11 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 		else if (address < 0xFEA0)
 			return ppu_oam_read(address - 0xFE00);
 		// Unusable forbidden memory
-		else if (address < 0xFEFF)
+		else if (address < 0xFF00)
 			return 0xFF;
+		// Send to Timer
+		else if (address >= 0xFF04 && address <= 0xFF07)
+			return timer_register_read(address);
 		// IO registers
 		else if (address < 0xFF10)
 			return upper_memory[address - 0xFF00];
@@ -111,17 +106,8 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 	// Handle special cases first
 	switch (address) {
 
-	case TIMER_DIVIDER:
-		timer_reset();
-		return;
-
 	case JOYPAD_INPUT:
 		joypad_set_byte(value);
-		return;
-
-	case TIMER_CONTROL:
-		value &= 0x07; // Mask all but the lowest 3 bits
-		upper_memory[address - 0xFF00] = value;
 		return;
 
 	case DMA_START:
@@ -169,8 +155,11 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 		else if (address < 0xFEA0)
 			ppu_oam_write(address - 0xFE00, value);
 		// Unusable forbidden memory
-		else if (address < 0xFEFF)
+		else if (address < 0xFF00)
 			return;
+		// Send to Timer
+		else if (address >= 0xFF04 && address <= 0xFF07)
+			timer_register_write(address, value);
 		// IO registers
 		else if (address < 0xFF10)
 			upper_memory[address - 0xFF00] = value;
