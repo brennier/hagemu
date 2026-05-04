@@ -7,6 +7,7 @@
 #include "cart.h"
 #include "dma.h"
 #include "mmu.h"
+#include "interrupt.h"
 
 struct HagemuGB {
 	struct HagemuCPU *cpu;
@@ -23,6 +24,8 @@ void hagemu_reset(struct HagemuGB* gb) {
 	mmu_reset();
 	ppu_reset();
 	apu_reset();
+	interrupt_reset();
+	dma_reset();
 }
 
 void hagemu_destory(struct HagemuGB* gb) {

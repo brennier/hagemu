@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "mmu.h"
+#include "interrupt.h"
 
 #include "timer.h"
 #include "ppu.h"
@@ -140,19 +141,19 @@ static void handle_interrupts(struct HagemuCPU *cpu) {
 
 	if (interrupts & 0x01) {
 		cpu->pc = 0x0040;
-		mmu_clear_flag(VBLANK_INTERRUPT_FLAG);
+		interrupt_clear(VBLANK_INTERRUPT);
 	} else if (interrupts & 0x02) {
 		cpu->pc = 0x0048;
-		mmu_clear_flag(LCD_INTERRUPT_FLAG);
+		interrupt_clear(LCD_INTERRUPT);
 	} else if (interrupts & 0x04) {
 		cpu->pc = 0x0050;
-		mmu_clear_flag(TIMER_INTERRUPT_FLAG);
+		interrupt_clear(TIMER_INTERRUPT);
 	} else if (interrupts & 0x08) {
 		cpu->pc = 0x0058;
-		mmu_clear_flag(SERIAL_INTERRUPT_FLAG);
+		interrupt_clear(SERIAL_INTERRUPT);
 	} else if (interrupts & 0x10) {
 		cpu->pc = 0x0060;
-		mmu_clear_flag(JOYPAD_INTERRUPT_FLAG);
+		interrupt_clear(JOYPAD_INTERRUPT);
 	}
 	system_tick();
 }

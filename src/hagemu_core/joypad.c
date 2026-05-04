@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "joypad.h"
-#include "mmu.h"
+#include "interrupt.h"
 
 struct HagemuJoypad {
 	bool select_dpad;
@@ -29,7 +29,7 @@ void joypad_set_button(HagemuButton button, bool is_down) {
 	}
 
 	if (is_down)
-		mmu_set_flag(JOYPAD_INTERRUPT_FLAG);
+		interrupt_raise(JOYPAD_INTERRUPT);
 }
 
 void joypad_set_byte(uint8_t byte) {

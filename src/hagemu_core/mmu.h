@@ -59,15 +59,4 @@ void mmu_reset();
 // this function is for the DMA to read directly from memory
 uint8_t mmu_read_nonblocking(uint16_t address);
 
-enum InterruptFlag {
-	VBLANK_INTERRUPT_FLAG = 0,
-	LCD_INTERRUPT_FLAG    = 1,
-	TIMER_INTERRUPT_FLAG  = 2,
-	SERIAL_INTERRUPT_FLAG = 3,
-	JOYPAD_INTERRUPT_FLAG = 4,
-};
-
-void mmu_set_flag(enum InterruptFlag flag);
-void mmu_clear_flag(enum InterruptFlag flag);
-
 #endif

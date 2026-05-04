@@ -1,7 +1,7 @@
 #include "timer.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "mmu.h"
+#include "interrupt.h"
 
 #define TIMER_DIVIDER 0xFF04
 #define TIMER_COUNTER 0xFF05
@@ -77,7 +77,7 @@ void timer_tick_once() {
 
 	if (timer.counter == 0xFF) {
 		timer.counter = timer.modulo;
-		mmu_set_flag(TIMER_INTERRUPT_FLAG);
+		interrupt_raise(TIMER_INTERRUPT);
 	} else {
 		timer.counter++;
 	}

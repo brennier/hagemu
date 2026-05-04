@@ -1,6 +1,7 @@
 #include "dma.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "ppu.h"
 #include "mmu.h"
@@ -12,6 +13,10 @@ struct HagemuDMA {
 	uint8_t  cycle;
 	uint8_t  last_data;
 } dma = { 0 };
+
+void dma_reset() {
+	memset(&dma, 0, sizeof(struct HagemuDMA));
+}
 
 void dma_start(uint8_t value) {
 	if (value > 0xDF) {

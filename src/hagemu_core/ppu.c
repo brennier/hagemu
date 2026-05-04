@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "ppu.h"
-#include "mmu.h"
+#include "interrupt.h"
 
 #define PIXEL_DRAW_LENGTH 200
 #define SPRITE_LIMIT 10
@@ -183,7 +183,7 @@ void ppu_register_write(uint16_t address, uint8_t value) {
 	case REG_LY_COMPARE: // Setting this register could trigger an interrupt
 		ppu.line_compare = value;
 		if (ppu.interrupt_select_LYC && ppu.current_line == ppu.line_compare)
-			mmu_set_flag(LCD_INTERRUPT_FLAG);
+			interrupt_raise(LCD_INTERRUPT);
 		break;
 	default:
 		fprintf(stderr, "[ERROR] Invalid PPU register write at %04X\n", address);
@@ -243,7 +243,7 @@ void ppu_tick_once() {
 	if (ppu.current_line != scanline_line) {
 		ppu.current_line = scanline_line;
 		if (ppu.interrupt_select_LYC && ppu.current_line == ppu.line_compare)
-			mmu_set_flag(LCD_INTERRUPT_FLAG);
+			interrupt_raise(LCD_INTERRUPT);
 	}
 
 	enum PPUMode old_mode = ppu.mode;
@@ -264,14 +264,14 @@ void ppu_tick_once() {
 
 	case OAM_SCAN:
 		if (ppu.interrupt_select_oam_scan)
-			mmu_set_flag(LCD_INTERRUPT_FLAG);
+			interrupt_raise(LCD_INTERRUPT);
 		break;
 	case PIXEL_DRAW:
 		break;
 	case HBLANK:
 		ppu_draw_scanline();
 		if (ppu.interrupt_select_hblank)
-			mmu_set_flag(LCD_INTERRUPT_FLAG);
+			interrupt_raise(LCD_INTERRUPT);
 		break;
 	case VBLANK:
 		// Swap buffers once VBLANK starts
@@ -280,8 +280,8 @@ void ppu_tick_once() {
 		current_window_line = 0;
 		window_triggered = false;
 		if (ppu.interrupt_select_vblank)
-			mmu_set_flag(LCD_INTERRUPT_FLAG);
-		mmu_set_flag(VBLANK_INTERRUPT_FLAG);
+			interrupt_raise(LCD_INTERRUPT);
+		interrupt_raise(VBLANK_INTERRUPT);
 		break;
 
 	case DISABLED:

@@ -11,6 +11,7 @@
 #include "cart.h"
 #include "dma.h"
 #include "boot.h"
+#include "interrupt.h"
 
 #define WORK_RAM_SIZE 0x2000 // 8 kilobytes
 #define HIGH_RAM_SIZE 0x80   // 128 bytes
@@ -18,7 +19,6 @@
 uint8_t wram[WORK_RAM_SIZE] = { 0 };
 uint8_t hram[HIGH_RAM_SIZE] = { 0 };
 bool boot_rom_enabled = true;
-uint8_t interrupt_flags = 0;
 uint8_t serial_data    = 0;
 uint8_t serial_control = 0;
 
@@ -26,7 +26,6 @@ void mmu_reset() {
 	memset(wram, 0, sizeof(wram));
 	memset(hram, 0, sizeof(hram));
 	boot_rom_enabled = true;
-	interrupt_flags = 0;
 	serial_data     = 0;
 	serial_control  = 0;
 }
@@ -82,8 +81,7 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 			return timer_register_read(address);
 		// Interrupt flags
 		else if (address == 0xFF0F)
-			// bits 3 through 7 should always be 1
-			return interrupt_flags | 0xE0;
+			return interrupt_register_read();
 		// Send to APU
 		else if (address >= 0xFF10 && address <= 0xFF3F)
 			return apu_register_read(address);
@@ -160,8 +158,7 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 			timer_register_write(address, value);
 		// Interrupt flags
 		else if (address == 0xFF0F)
-			// bits 3 through 7 should always be 1
-			interrupt_flags = value | 0xE0;
+			interrupt_register_write(value);
 		// Send to APU
 		else if (address >= 0xFF10 && address <= 0xFF3F)
 			apu_register_write(address, value);
@@ -203,14 +200,4 @@ void mmu_write(uint16_t address, uint8_t value) {
 		return;
 	}
 	mmu_write_nonblocking(address, value);
-}
-
-void mmu_set_flag(enum InterruptFlag flag) {
-	int bit_position = flag & 0xF;
-	interrupt_flags |= (1 << bit_position);
-}
-
-void mmu_clear_flag(enum InterruptFlag flag) {
-	int bit_position = flag & 0xF;
-	interrupt_flags &= ~(1 << bit_position);
 }
