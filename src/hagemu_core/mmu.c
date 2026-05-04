@@ -97,6 +97,9 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 		// Unmapped IO register
 		else if (address < 0xFF80)
 			return 0xFF;
+		// Interrupts enabled flag
+		else if (address == 0xFFFF)
+			return interrupt_enable_register_read();
 		// high ram + interupt enable
 		else
 			return hram[address - 0xFF80];
@@ -174,6 +177,9 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 		// Unmapped IO register
 		else if (address < 0xFF80)
 			return;
+		// Interrupts enabled flag
+		else if (address == 0xFFFF)
+			interrupt_enable_register_write(value);
 		// More IO registers and high ram
 		else
 			hram[address - 0xFF80] = value;

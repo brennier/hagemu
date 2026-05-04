@@ -19,8 +19,6 @@ void system_tick() {
 	timer_tick(t_cycles);
 }
 
-#define INTERRUPT_ENABLE 0xFFFF
-
 struct HagemuCPU {
 	// CPU Registers (except af)
 	uint16_t bc, de, hl, sp, pc;
@@ -132,31 +130,24 @@ static inline void push_stack(struct HagemuCPU *cpu, uint16_t value) {
 }
 
 static void handle_interrupts(struct HagemuCPU *cpu) {
-	uint8_t interrupts = interrupt_register_read();
-	interrupts &= mmu_read(INTERRUPT_ENABLE);
-	if (!interrupts) return;
-
+	if (!interrupt_pending())
+		return;
 	system_tick();
 	system_tick();
 	cpu->flag_master_interrupt = false;
 	push_stack(cpu, cpu->pc);
 
-	if (interrupts & 0x01) {
-		cpu->pc = 0x0040;
-		interrupt_clear(VBLANK_INTERRUPT);
-	} else if (interrupts & 0x02) {
-		cpu->pc = 0x0048;
-		interrupt_clear(LCD_INTERRUPT);
-	} else if (interrupts & 0x04) {
-		cpu->pc = 0x0050;
-		interrupt_clear(TIMER_INTERRUPT);
-	} else if (interrupts & 0x08) {
-		cpu->pc = 0x0058;
-		interrupt_clear(SERIAL_INTERRUPT);
-	} else if (interrupts & 0x10) {
-		cpu->pc = 0x0060;
-		interrupt_clear(JOYPAD_INTERRUPT);
+	enum HagemuInterruptFlag flag = interrupt_get_next();
+
+	switch (flag) {
+	case VBLANK_INTERRUPT: cpu->pc = 0x0040; break;
+	case LCD_INTERRUPT:    cpu->pc = 0x0048; break;
+	case TIMER_INTERRUPT:  cpu->pc = 0x0050; break;
+	case SERIAL_INTERRUPT: cpu->pc = 0x0058; break;
+	case JOYPAD_INTERRUPT: cpu->pc = 0x0060; break;
 	}
+
+	interrupt_clear(flag);
 	system_tick();
 }
 
@@ -1040,7 +1031,7 @@ static void process_opcode(struct HagemuCPU *cpu, uint8_t opcode_byte) {
 int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 	int old_time = timer_get();
 
-	if (interrupt_register_read() & mmu_read(INTERRUPT_ENABLE))
+	if (interrupt_pending())
 		cpu->flag_is_halted = false;
 
 	if (cpu->flag_is_halted) {

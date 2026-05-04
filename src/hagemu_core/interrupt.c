@@ -1,6 +1,8 @@
 #include "interrupt.h"
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 struct HagemuInterrupts {
 	bool vblank;
@@ -8,6 +10,7 @@ struct HagemuInterrupts {
 	bool timer;
 	bool serial;
 	bool joypad;
+	uint8_t enabled_register;
 } interrupt = { 0 };
 
 void interrupt_reset() {
@@ -50,4 +53,33 @@ void interrupt_register_write(uint8_t value) {
 	interrupt.timer  = value & (1 << 2);
 	interrupt.serial = value & (1 << 3);
 	interrupt.joypad = value & (1 << 4);
+}
+
+uint8_t interrupt_enable_register_read() {
+	return interrupt.enabled_register;
+}
+
+void interrupt_enable_register_write(uint8_t value) {
+	interrupt.enabled_register = value;
+}
+
+bool interrupt_pending() {
+	return interrupt_register_read() & interrupt.enabled_register;
+}
+
+enum HagemuInterruptFlag interrupt_get_next() {
+	uint8_t interrupts = interrupt_register_read() & interrupt.enabled_register;
+	if (interrupts & 0x01)
+		return VBLANK_INTERRUPT;
+	else if (interrupts & 0x02)
+		return LCD_INTERRUPT;
+	else if (interrupts & 0x04)
+		return TIMER_INTERRUPT;
+	else if (interrupts & 0x08)
+		return SERIAL_INTERRUPT;
+	else if (interrupts & 0x10)
+		return JOYPAD_INTERRUPT;
+
+	printf("Interrupt_get was called, but there were no pending interrupts\n");
+	exit(EXIT_FAILURE);
 }
