@@ -53,6 +53,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	app->old_time = 0;
 	app->cycle_accumulator = 0;
 	app->audio_sample_rate_adjust = 1.0;
+	app->smooth_delta_time = 1.0 / 60.0; // starting guess is 60hz
 
 	SDL_SetAppMetadata(WINDOW_TITLE, APP_VERSION, NULL);
 
@@ -61,12 +62,6 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
-	// Set a good starting point for smooth_delta_time based on the monitor refresh rate
-	const SDL_DisplayMode *display_mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
-	if (display_mode != NULL)
-		app->smooth_delta_time = 1 / display_mode->refresh_rate;
-	else
-		app->smooth_delta_time = 0;
 
 	app->window = SDL_CreateWindow(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
 	if (!app->window) {
