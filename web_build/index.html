@@ -138,13 +138,46 @@
       <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
       <div id="logo">Hagemu GameBoy Emulator
 	<div id="under-logo">
-	  (<button id="terminal-button">Terminal</button>) (<a href="https://github.com/brennier/hagemu">Source</a>)
+	  (<button id="terminal-button">Terminal</button>) (<a href="https://github.com/brennier/hagemu">Source</a>) (<button onclick="downloadSRAM()">Download Save</button>)
 	</div>
       </div>
       <textarea readonly id="terminal-output" rows="8"></textarea>
     </div>
 
     <script type='text/javascript'>
+      function downloadSRAM() {
+          const ptr      = Module._web_get_sram_pointer();
+          const size     = Module._web_get_sram_size();
+          const filename_ptr = Module._web_get_sram_file_name();
+          const filename     = Module.UTF8ToString(filename_ptr);
+
+          if (!ptr || size <= 0) {
+              alert("No save data available to download.");
+              return;
+          }
+
+          // Copy from WASM heap
+          const data = new Uint8Array(Module.HEAPU8.buffer, ptr, size);
+
+          // IMPORTANT: copy it out (avoid referencing live WASM memory)
+          const copy = new Uint8Array(data);
+
+          // Create file
+          const blob = new Blob([copy], { type: "application/octet-stream" });
+
+          // Create download link
+          const url = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+
+          // Cleanup
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+      }
 
       var button = document.getElementById('terminal-button');
       button.onclick = function() {
