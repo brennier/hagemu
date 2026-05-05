@@ -9,6 +9,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
     <link rel="shortcut icon" href="./images/favicon.ico" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <style>
       body {
 	  font-family: arial;
@@ -19,24 +20,37 @@
 
       a {
           color: inherit;
+          text-decoration: none;
+      }
+
+      a:hover {
+          filter: brightness(0.85);
       }
 
       button {
           color: inherit;
-          background: none;
-          border: none;
-          padding: 0;
+          /* background: #306657; */
+          /* background: #20453A; */
+          background: #2e6354;
+          border: 1px;
+          border-radius: 5px;
+          padding: 7px;
           font: inherit;
           cursor: pointer;
           outline: inherit;
-          text-decoration: underline;
+          margin: 2px;
+          box-shadow: 4px 4px 10px rgba(0,0,0,0.3);
+      }
+
+      button:hover {
+          filter: brightness(0.85);
       }
 
       #content {
           position: absolute;
           background-color: #20453A;
-          border: 10px #20453A solid;
-          border-radius: 10px;
+          border: 15px #20453A solid;
+          border-radius: 15px;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
@@ -54,24 +68,31 @@
       #logo {
 	  font-family: "Courier New", monospace;
 	  font-weight: bold;
-	  font-size: 2.5vh;
-	  font-size: 2.5svh;
+	  font-size: 3vh;
+	  font-size: 3svh;
 	  color: #8abd4c;
 	  text-align: center;
-	  padding-top: 5px;
+	  margin-top: .75vh;
+	  margin-top: .75svh;
       }
 
       #under-logo {
+          padding-top: 5px;
           font-size: 1.5vh;
           font-size: 1.5svh;
           vertical-align: middle;
           white-space: nowrap;
+          text-align: center;
+	  font-family: "Courier New", monospace;
+	  font-weight: bold;
+	  color: #8abd4c;
+	  text-align: center;
       }
 
       @media (min-aspect-ratio: 10 / 9) {
           #canvas {
-              height: 90vh;
-              height: 90svh;
+              height: 80vh;
+              height: 80svh;
               width: auto;
           }
           #logo {
@@ -87,12 +108,12 @@
       @media (max-aspect-ratio: 10 / 9) {
           #canvas {
               height: auto;
-              width: 90vw;
-              width: 90svw;
+              width: 80vw;
+              width: 80svw;
           }
           #logo {
-	      font-size: 2.5vw;
-	      font-size: 2.5svw;
+	      font-size: 2.75vw;
+	      font-size: 2.75svw;
           }
           #under-logo {
 	      font-size: 1.5vw;
@@ -136,16 +157,16 @@
     <progress value="0" max="100" id="progress" hidden=1></progress>
     <div id="content">
       <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-      <div id="logo">Hagemu GameBoy Emulator
-	<div id="under-logo">
-          (<button onclick="downloadSRAM()">Download Save File</button>)
-          <label style="cursor:pointer;">
-            (<button type="button" onclick="triggerUpload()">Upload ROM or Save File</button>)
-            <input type="file" id="fileInput" style="display:none" />
-	    (<button id="terminal-button">Show Terminal Output</button>)
-            (<a href="https://github.com/brennier/hagemu">Source Code</a>)
-          </label>
-	</div>
+      <div id="logo">
+        <a href="https://github.com/brennier/hagemu">Hagemu Gameboy Emulator</a>
+      </div>
+      <div id="under-logo">
+        <label style="cursor:pointer;">
+          <button onclick="triggerUpload()">Upload ROM or Save File</button>
+          <input type="file" id="fileInput" style="display:none" />
+        </label>
+        <button onclick="downloadSRAM()">Download Save File</button>
+	<button id="terminal-button">Show Terminal Output</button>
       </div>
       <textarea readonly id="terminal-output" rows="8"></textarea>
     </div>
