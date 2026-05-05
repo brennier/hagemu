@@ -195,7 +195,7 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 uint8_t mmu_read(uint16_t address) {
 	// Block if DMA is active and not accessing HRAM
 	if (dma_is_active() && address < 0xFF80) {
-		return 0x00;
+		return dma_read();
 	}
 	return mmu_read_nonblocking(address);
 }

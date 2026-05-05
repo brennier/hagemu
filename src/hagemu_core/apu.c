@@ -653,7 +653,7 @@ uint8_t apu_register_read(uint16_t address) {
 		return (master_controls.volume_left << 4) | master_controls.volume_right;
 
 	case SOUND_NR52: {
-		printf("READ NR52\n");
+		/* printf("READ NR52\n"); */
 		uint8_t value = 0;
 		value |= (channel1.dac_enabled && channel1.enabled) << 0;
 		value |= (channel2.dac_enabled && channel2.enabled) << 1;
