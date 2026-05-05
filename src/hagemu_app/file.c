@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifdef PLATFORM_WEB
+#ifdef __EMSCRIPTEN__
 char *hagemu_file_sram_name(const char* rom_name) {
 	// Returns the string "/savedata/[basename].sav" where [basename] is the basename part of rom_name.
 	// It is up to the caller to free the memory for the string.

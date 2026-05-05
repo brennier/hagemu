@@ -1,53 +1,29 @@
+#include "main.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <SDL3/SDL.h>
 
 #include "hagemu_core.h"
 #include "text.h"
 #include "file.h"
-#include "web.h" // Does nothing unless PLATFORM_WEB is defined
+#include "web.h" // Does nothing unless compiled with emscripten
+
+#ifdef __EMSCRIPTEN__
+#include "emscripten.h"
+#endif
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
 #define SCALE_FACTOR 6
 #define WINDOW_WIDTH 160 * SCALE_FACTOR
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
-#define AUDIO_SAMPLE_RATE 48000
-
-#ifdef __EMSCRIPTEN__
-// Around 8 video frames worth of audio is buffered for the web build
-#define AUDIO_TARGET_FRAMES (8 * (AUDIO_SAMPLE_RATE / 60))
-#else
-#define AUDIO_TARGET_FRAMES (3 * (AUDIO_SAMPLE_RATE / 60))
-#endif
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76,  255 }
 #define GREEN2 (Color){ 64,  133, 109, 255 }
 #define GREEN3 (Color){ 48,  102, 87,  255 }
 #define GREEN4 (Color){ 36,  76,  64,  255 }
-
-enum AppState {
-	HAGEMU_NO_ROM,
-	HAGEMU_PAUSE_MENU,
-	HAGEMU_GAME_RUNNING,
-	HAGEMU_QUIT,
-};
-
-struct HagemuApp {
-	struct HagemuGB *gb;
-	SDL_Window *window;
-	SDL_Renderer *renderer;
-	SDL_Texture *screen_texture;
-	SDL_AudioStream *audio_stream;
-	SDL_Gamepad *gamepad;
-	SDL_Event event;
-	float audio_buffer[2 * AUDIO_TARGET_FRAMES];
-	enum AppState state;
-	char *rom_filename;
-};
 
 bool hagemu_app_setup(struct HagemuApp *app) {
 	app->gb = hagemu_create();
@@ -131,8 +107,9 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	printf("Loading SRAM data from '%s'\n", filename);
 	size_t sram_size;
 	uint8_t *sram_data = hagemu_file_load(filename, &sram_size);
-	hagemu_reset(app->gb);
-	hagemu_set_sram(sram_data, sram_size);
+	bool result = hagemu_set_sram(sram_data, sram_size);
+	if (result)
+		hagemu_reset(app->gb);
 	free(sram_data);
 	return true;
 }
@@ -293,10 +270,14 @@ void main_loop(void* arg) {
 }
 
 int main(int argc, char *argv[]) {
-	web_setup_filesystem(); // Does nothing unless PLATFORM_WEB is defined
+	// Does nothing unless using emscripten
+	web_setup_filesystem();
 
 	struct HagemuApp app = { 0 };
 	hagemu_app_setup(&app);
+
+	// Does nothing unless using emscripten
+	web_save_pointer_for_javascript(&app);
 
 	if (argc == 2) {
 		hagemu_app_load_rom(&app, argv[1]);
