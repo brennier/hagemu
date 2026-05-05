@@ -279,6 +279,9 @@ int main(int argc, char *argv[]) {
 	// Does nothing unless using emscripten
 	web_save_pointer_for_javascript(&app);
 
+	printf("Application started successfully\n");
+	printf("Waiting for a rom file\n");
+
 	if (argc == 2) {
 		hagemu_app_load_rom(&app, argv[1]);
 	} else if (argc > 2) {

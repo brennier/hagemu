@@ -132,12 +132,12 @@
       }
 
       #terminal-output {
+          position: absolute;
           display: none;
           border-radius: 5px;
           box-sizing: border-box;
           width: 100%;
-          height: 200px;
-          margin: 5px 0 0 0;
+          height: 40%;
           border: 0;
           padding: 5px;
           background-color: black;
@@ -156,6 +156,7 @@
     <div id="status"></div>
     <progress value="0" max="100" id="progress" hidden=1></progress>
     <div id="content">
+      <textarea readonly id="terminal-output" rows="8"></textarea>
       <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
       <div id="logo">
         <a href="https://github.com/brennier/hagemu">Hagemu Gameboy Emulator</a>
@@ -168,7 +169,6 @@
         <button onclick="downloadSRAM()">Download Save File</button>
 	<button id="terminal-button">Show Terminal Output</button>
       </div>
-      <textarea readonly id="terminal-output" rows="8"></textarea>
     </div>
 
     <script type='text/javascript'>
