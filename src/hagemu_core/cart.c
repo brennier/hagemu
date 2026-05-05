@@ -70,19 +70,20 @@ bool cart_sram_available() {
 	return cart.ram;
 }
 
-void cart_set_sram(const uint8_t *data, size_t size) {
+bool cart_set_sram(const uint8_t *data, size_t size) {
 	if (!cart.rom) {
 		printf("Error: Unable to load SRAM data before loading a rom file\n");
-		return;
+		return false;
 	} else if (!cart.info.has_ram || !cart.info.has_battery) {
 		printf("Failed to load SRAM data. This cartridge doesn't support battery-backed RAM.\n");
-		return;
+		return false;
 	} else if (size != cart.ram_size) {
 		printf("Failed to copy SRAM data. Expected %zu bytes, but data was %zu bytes\n", cart.ram_size, size);
-		return;
+		return false;
 	}
 	printf("Copying SRAM data to emulator core\n");
 	memcpy(cart.ram, data, size);
+	return true;
 }
 
 const uint8_t *cart_get_sram(size_t *out_size) {

@@ -34,7 +34,7 @@ struct HagemuCart {
 };
 
 void cart_set_rom(const uint8_t *data, size_t size);
-void cart_set_sram(const uint8_t *data, size_t size);
+bool cart_set_sram(const uint8_t *data, size_t size);
 
 void cart_rom_write(uint16_t address, uint8_t value);
 void cart_ram_write(uint16_t address, uint8_t value);

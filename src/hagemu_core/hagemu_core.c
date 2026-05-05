@@ -67,8 +67,8 @@ unsigned hagemu_audio_available() {
 	return apu_audio_available();
 }
 
-void hagemu_set_sram(const uint8_t *data, size_t size) {
-	cart_set_sram(data, size);
+bool hagemu_set_sram(const uint8_t *data, size_t size) {
+	return cart_set_sram(data, size);
 }
 
 bool hagemu_sram_available() {
