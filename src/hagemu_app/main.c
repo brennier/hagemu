@@ -293,9 +293,14 @@ int main(int argc, char *argv[]) {
 		SDL_RenderClear(app.renderer);
 		SDL_SetRenderDrawColor(app.renderer, 48, 102, 87, 255);
 		text_draw_centered(app.renderer,
-				   "Please drop a .gb file onto this window",
+				   "Click the \"Upload ROM\" button below",
 				   WINDOW_WIDTH / 2,
-				   WINDOW_HEIGHT / 2,
+				   WINDOW_HEIGHT / 2 - 7 * SCALE_FACTOR,
+				   7 * SCALE_FACTOR);
+		text_draw_centered(app.renderer,
+				   "or drop a rom file directly onto this window",
+				   WINDOW_WIDTH / 2,
+				   WINDOW_HEIGHT / 2 + 7 * SCALE_FACTOR,
 				   7 * SCALE_FACTOR);
 		text_draw(app.renderer,
 			  "Compilation Date: " __DATE__,

@@ -145,14 +145,14 @@ The following games have been tested:
   - [x] Add a simple front-end UI
   - [x] Upload to my website (https://uezu.dev/projects/hagemu)
   - [x] Automatically save and load .sav files using a local IndexedDB file system
+  - [x] Download and upload save files
+  - [x] Select file using a mobile browser
   - [ ] Progressive Web Application support
     - [x] Basic support
     - [ ] Add a service worker for caching and retrieving files without the internet
   - [ ] Rewrite the html index file from scratch
   - [ ] Automatically cache and load the last played game
-  - [ ] Select file using a mobile browser
   - [ ] Touchscreen support
-  - [ ] Download and upload save files
   - [ ] Put the loading bar where the canvas is
 - [ ] Add a UI
   - [x] Drag and drop rom files onto the window

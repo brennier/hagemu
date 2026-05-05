@@ -31,4 +31,8 @@ struct HagemuApp {
 	char *rom_filename;
 };
 
+void hagemu_handle_drop_event(struct HagemuApp *app, const char *filename);
+bool hagemu_app_load_rom_file(struct HagemuApp *app, const char *filename);
+bool hagemu_app_load_sram(struct HagemuApp *app, const char *filename);
+
 #endif // HAGEMU_MAIN_H

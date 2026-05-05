@@ -138,13 +138,45 @@
       <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
       <div id="logo">Hagemu GameBoy Emulator
 	<div id="under-logo">
-	  (<button id="terminal-button">Terminal</button>) (<a href="https://github.com/brennier/hagemu">Source</a>) (<button onclick="downloadSRAM()">Download Save</button>)
+          (<button onclick="downloadSRAM()">Download Save File</button>)
+          <label style="cursor:pointer;">
+            (<button type="button" onclick="triggerUpload()">Upload ROM or Save File</button>)
+            <input type="file" id="fileInput" style="display:none" />
+	    (<button id="terminal-button">Show Terminal Output</button>)
+            (<a href="https://github.com/brennier/hagemu">Source Code</a>)
+          </label>
 	</div>
       </div>
       <textarea readonly id="terminal-output" rows="8"></textarea>
     </div>
 
     <script type='text/javascript'>
+      function triggerUpload() {
+          document.getElementById("fileInput").click();
+      }
+
+      document.getElementById("fileInput").addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+              const buffer = await file.arrayBuffer();
+              const data = new Uint8Array(buffer);
+
+              // FS.mkdir("/tmp");
+              const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+              const path = "/tmp/" + safeName;
+
+              // Write file into virtual FS
+              FS.writeFile(path, data);
+
+              Module.ccall("web_load_file", null, ["string"], [path]);
+          } catch (err) {
+              console.error(err);
+              alert("Failed to load file.");
+          }
+      });
+
       function downloadSRAM() {
           const ptr      = Module._web_get_sram_pointer();
           const size     = Module._web_get_sram_size();

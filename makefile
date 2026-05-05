@@ -60,7 +60,7 @@ web:
 	@mkdir -p web_build
 	@sh src/emsdk/emsdk install latest
 	@sh src/emsdk/emsdk activate latest
-	@source src/emsdk/emsdk_env.sh && emcc -O3 -flto -lidbfs.js src/hagemu_core/*.c src/hagemu_app/*.c -o web_build/hagemu.js ${INCLUDES} -I src/emsdk/upstream/emscripten/cache/sysroot/include/ -s USE_SDL=3 -s ASYNCIFY -s EXPORTED_RUNTIME_METHODS='["HEAPU8","UTF8ToString"]'
+	@source src/emsdk/emsdk_env.sh && emcc -O3 -flto -lidbfs.js src/hagemu_core/*.c src/hagemu_app/*.c -o web_build/hagemu.js ${INCLUDES} -I src/emsdk/upstream/emscripten/cache/sysroot/include/ -s USE_SDL=3 -s ASYNCIFY -s EXPORTED_RUNTIME_METHODS='["HEAPU8","UTF8ToString","ccall","cwrap"]'
 	@cd web_build && python -m http.server 8000
 
 clean:
