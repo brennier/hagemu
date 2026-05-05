@@ -127,6 +127,16 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 	SDL_Quit();
 }
 
+bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
+	printf("Loading SRAM data from '%s'\n", filename);
+	size_t sram_size;
+	uint8_t *sram_data = hagemu_file_load(filename, &sram_size);
+	hagemu_reset(app->gb);
+	hagemu_set_sram(sram_data, sram_size);
+	free(sram_data);
+	return true;
+}
+
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	printf("Loading the rom file '%s'\n", filename);
 	size_t rom_size;
@@ -150,11 +160,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	char *sram_file_name = hagemu_file_sram_name(app->rom_filename);
 	bool sram_file_exists = SDL_GetPathInfo(sram_file_name, NULL);
 	if (sram_file_exists) {
-		printf("Loading SRAM data from '%s'\n", sram_file_name);
-		size_t sram_size;
-		uint8_t *sram_data = hagemu_file_load(sram_file_name, &sram_size);
-		hagemu_set_sram(sram_data, sram_size);
-		free(sram_data);
+		hagemu_app_load_sram(app, sram_file_name);
 	} else {
 		printf("Unable to locate an SRAM file '%s'.\n", sram_file_name);
 		printf("Using a blank SRAM file instead...\n");
@@ -208,6 +214,16 @@ void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button,
 	hagemu_set_button(app->gb, button, is_pressed);
 }
 
+void hagemu_handle_drop_event(struct HagemuApp *app, const char *filename) {
+	const char *ext = strrchr(filename, '.');
+	if (strcmp(ext, ".gb") == 0 || strcmp(ext, ".gbc") == 0)
+		hagemu_app_load_rom(app, filename);
+	else if (strcmp(ext, ".sav") == 0 || strcmp(ext, ".sram") == 0)
+		hagemu_app_load_sram(app, filename);
+	else
+		printf("Dropped file '%s' has an unknown extension. Ignoring...\n", filename);
+}
+
 void hagemu_handle_events(struct HagemuApp *app) {
 	while (SDL_PollEvent(&app->event)) {
 		switch (app->event.type) {
@@ -237,7 +253,7 @@ void hagemu_handle_events(struct HagemuApp *app) {
 			break;
 		case SDL_EVENT_DROP_FILE:
 		case SDL_EVENT_DROP_TEXT:
-			hagemu_app_load_rom(app, app->event.drop.data);
+			hagemu_handle_drop_event(app, app->event.drop.data);
 			break;
 		default:
 			break;
