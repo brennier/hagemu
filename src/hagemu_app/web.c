@@ -88,7 +88,6 @@ const char *web_get_sram_file_name() {
 
 EMSCRIPTEN_KEEPALIVE
 void web_load_file(const char *filename) {
-	printf("FILE UPLOADED\n");
 	hagemu_handle_drop_event(hagemu_app, filename);
 }
 

@@ -150,8 +150,8 @@ void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool i
 	HagemuButton button;
 	switch (scancode) {
 
-	case SDL_SCANCODE_L: button = HAGEMU_BUTTON_A; break;
-	case SDL_SCANCODE_K: button = HAGEMU_BUTTON_B; break;
+	case SDL_SCANCODE_K: button = HAGEMU_BUTTON_A; break;
+	case SDL_SCANCODE_J: button = HAGEMU_BUTTON_B; break;
 	case SDL_SCANCODE_X: button = HAGEMU_BUTTON_START;  break;
 	case SDL_SCANCODE_Z: button = HAGEMU_BUTTON_SELECT; break;
 
@@ -217,10 +217,12 @@ void hagemu_handle_events(struct HagemuApp *app) {
 		case SDL_EVENT_GAMEPAD_ADDED:
 			if (app->gamepad) SDL_CloseGamepad(app->gamepad);
 			app->gamepad = SDL_OpenGamepad(app->event.gdevice.which);
+			printf("GamePad automatically connected\n");
 			break;
 		case SDL_EVENT_GAMEPAD_REMOVED:
 			SDL_CloseGamepad(app->gamepad);
 			app->gamepad = NULL;
+			printf("GamePad disconnected\n");
 			break;
 		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
 			hagemu_handle_gamepad(app, app->event.gbutton.button, true);

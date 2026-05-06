@@ -96,28 +96,28 @@
               width: auto;
           }
           #logo {
-	      font-size: 2.75vh;
-	      font-size: 2.75svh;
+	      font-size: 3vh;
+	      font-size: 3svh;
           }
           #under-logo {
-	      font-size: 1.65vh;
-	      font-size: 1.65svh;
+	      font-size: 1.75vh;
+	      font-size: 1.75svh;
           }
       }
 
       @media (max-aspect-ratio: 10 / 9) {
           #canvas {
-              height: auto;
-              width: 80vw;
-              width: 80svw;
+              height: 80vh;
+              height: 80svh;
+              width: auto;
           }
           #logo {
-	      font-size: 2.75vw;
-	      font-size: 2.75svw;
+	      font-size: 3vh;
+	      font-size: 3svh;
           }
           #under-logo {
-	      font-size: 1.5vw;
-	      font-size: 1.5svw;
+	      font-size: 1.75vh;
+	      font-size: 1.75svh;
           }
       }
 
@@ -163,8 +163,12 @@
       </div>
       <div id="under-logo">
         <label style="cursor:pointer;">
-          <button onclick="triggerUpload()">Upload ROM or Save File</button>
-          <input type="file" id="fileInput" style="display:none" />
+          <button onclick="triggerRomUpload()">Upload ROM</button>
+          <input type="file" accept=".gb,.gbc" id="romFileInput" style="display:none" />
+        </label>
+        <label style="cursor:pointer;">
+          <button onclick="triggerSaveUpload()">Upload Save File</button>
+          <input type="file" accept=".sav,.sram" id="saveFileInput" style="display:none" />
         </label>
         <button onclick="downloadSRAM()">Download Save File</button>
 	<button id="terminal-button">Show Terminal Output</button>
@@ -172,11 +176,37 @@
     </div>
 
     <script type='text/javascript'>
-      function triggerUpload() {
-          document.getElementById("fileInput").click();
+      function triggerRomUpload() {
+          document.getElementById("romFileInput").click();
       }
 
-      document.getElementById("fileInput").addEventListener("change", async (e) => {
+      function triggerSaveUpload() {
+          document.getElementById("saveFileInput").click();
+      }
+
+      document.getElementById("saveFileInput").addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+              const buffer = await file.arrayBuffer();
+              const data = new Uint8Array(buffer);
+
+              // FS.mkdir("/tmp");
+              const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+              const path = "/tmp/" + safeName;
+
+              // Write file into virtual FS
+              FS.writeFile(path, data);
+
+              Module.ccall("web_load_file", null, ["string"], [path]);
+          } catch (err) {
+              console.error(err);
+              alert("Failed to load file.");
+          }
+      });
+
+      document.getElementById("romFileInput").addEventListener("change", async (e) => {
           const file = e.target.files[0];
           if (!file) return;
 
