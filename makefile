@@ -1,15 +1,15 @@
 CFLAGS = -O3 -std=c99 -Wall -pedantic
 SOURCES = $(wildcard src/hagemu_core/*.c)
 OBJECTS = $(patsubst src/hagemu_core/%.c,build/%.o,$(SOURCES))
-INCLUDES = -I src/hagemu_core -I src/hagemu_app
+INCLUDES = -I src/hagemu_core -I src/hagemu_app $(shell pkg-config --cflags sdl3)
 
 # Use different linker libraries and output names depending on the OS
 ifeq ($(OS),Windows_NT)
-	LFLAGS = -lSDL3 -lhagemu -lopengl32 -lgdi32 -lwinmm
+	LFLAGS = -lhagemu -lSDL3 -lopengl32 -lgdi32 -lwinmm
 # Maybe add -mwindows later
 	OUTPUT = hagemu.exe
 else
-	LFLAGS = -lSDL3 -lhagemu -lGL -lm -lpthread -ldl -lrt -lX11
+	LFLAGS = -lhagemu $(shell pkg-config --libs sdl3)
 	OUTPUT = hagemu
 endif
 
@@ -22,7 +22,7 @@ ${OUTPUT}: build/libhagemu.a build/main.o build/text.o build/file.o build/web.o
 build/libhagemu.a: ${OBJECTS}
 	@mkdir -p build
 	@printf %s "Linking together the emulator core..."
-	@ar rcs $@ $^ -o $@
+	@ar rcs $@ $^
 	@ranlib $@
 	@echo sucessful!
 
