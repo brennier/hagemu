@@ -14,10 +14,11 @@
 #endif
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
-#define SCALE_FACTOR 2
+#define SCALE_FACTOR 4
 #define WINDOW_WIDTH 160 * SCALE_FACTOR
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
+#define GB_CLOCK_FREQUENCY (1 << 22)
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76,  255 }
@@ -25,23 +26,13 @@
 #define GREEN3 (Color){ 48,  102, 87,  255 }
 #define GREEN4 (Color){ 36,  76,  64,  255 }
 
-void hagemu_audio_callback(void *app_data, SDL_AudioStream *stream, int additional_amount, int total_amount) {
-	struct HagemuApp *app = (struct HagemuApp *)app_data;
-	int frames_needed = additional_amount / (2 * sizeof(float));
-	while (hagemu_audio_available() < frames_needed)
-		hagemu_next_instruction(app->gb);
-
-	int frames_available = hagemu_audio_available();
-	if (frames_available > 2 * AUDIO_TARGET_FRAMES)
-		frames_available = 2 * AUDIO_TARGET_FRAMES;
-	int frames = hagemu_audio_read(app->audio_buffer, frames_available);
-	SDL_PutAudioStreamData(stream, app->audio_buffer, 2 * sizeof(float) * frames);
-}
-
 bool hagemu_app_setup(struct HagemuApp *app) {
 	app->gb = hagemu_create();
 	app->state = HAGEMU_NO_ROM;
 	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
+	app->smooth_sample_rate_adjust = 1.0;
+	app->smooth_delta_time  = 1.0 / 60.0;
+	app->old_time = SDL_GetPerformanceCounter();
 
 	SDL_SetAppMetadata(WINDOW_TITLE, APP_VERSION, NULL);
 
@@ -82,14 +73,14 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	SDL_AudioSpec audio_spec = {
 		.format = SDL_AUDIO_F32,   // 16-bit signed int format
 		.channels = 2,             // Stereo
-		.freq = AUDIO_SAMPLE_RATE, // 48000 Hz
+		.freq = BASE_AUDIO_SAMPLE_RATE, // 48000 Hz
 	};
 
 	app->audio_stream = SDL_OpenAudioDeviceStream(
 		SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
 		&audio_spec,
-		hagemu_audio_callback,
-		app
+		NULL,
+		NULL
 		);
 	if (!app->audio_stream) {
 		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
@@ -263,12 +254,63 @@ void hagemu_handle_events(struct HagemuApp *app) {
 	}
 }
 
+// Calculutes how much the audio should be resampled to meet the target number
+// of frames queued in the SDL_AudioStream.
+int calculate_sample_rate(struct HagemuApp *app) {
+	int queued_bytes = SDL_GetAudioStreamQueued(app->audio_stream);
+	if (queued_bytes == 0 && SDL_GetTicks() > 5000)
+		printf("AUDIO BUFFER EMPTY!\n");
+	int queued_frames = queued_bytes / (2 * sizeof(float));
+	float error = (AUDIO_TARGET_FRAMES - queued_frames) / (float)AUDIO_TARGET_FRAMES;
+	float gain = 0.02f;
+	error *= gain;
+	if (error < -0.005f) error = -0.005f;
+	if (error >  0.005f) error =  0.005f;
+	double new_sample_rate = 1.0 + error;
+	app->smooth_sample_rate_adjust *= 0.99;
+	app->smooth_sample_rate_adjust += 0.01 * new_sample_rate;
+	return BASE_AUDIO_SAMPLE_RATE * app->smooth_sample_rate_adjust;
+}
+
+double get_smooth_delta_time(struct HagemuApp *app) {
+	Uint64 now = SDL_GetPerformanceCounter();
+	double delta_time = (double)(now - app->old_time) / SDL_GetPerformanceFrequency();
+	app->old_time = now;
+	// If dt is too high, the thread was probably frozen and reawakened.
+	// It's better to return 0 and get a more realistic delta_time during
+	// the next iteration.
+	if (delta_time > 2.0 / 60.0)
+		return 0.0;
+	app->smooth_delta_time *= 0.99;
+	app->smooth_delta_time += 0.01 * delta_time;
+	return app->smooth_delta_time;
+}
+
 void main_loop(void* arg) {
 	struct HagemuApp *app = (struct HagemuApp *)arg;
 	hagemu_handle_events(app);
+
+	double smooth_delta_time = get_smooth_delta_time(app);
+	app->cycle_accumulator += smooth_delta_time * GB_CLOCK_FREQUENCY;
+	while (app->cycle_accumulator > 0)
+		app->cycle_accumulator -= hagemu_next_instruction(app->gb);
+
+	// Even if there's not a new frame, updating the texture every loop
+	// iteration makes the workload smoother and more consistent
 	SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
 	SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
 	SDL_RenderPresent(app->renderer);
+
+	int sample_rate = calculate_sample_rate(app);
+	hagemu_set_audio_sample_rate(sample_rate);
+	int frames_available = hagemu_audio_available();
+	if (frames_available > AUDIO_BUFFER_SIZE / 2)
+		frames_available = AUDIO_BUFFER_SIZE / 2;
+	int frames = hagemu_audio_read(app->audio_buffer, frames_available);
+	// Lower the volume (later this will be adjustable)
+	for (int i = 0; i < 2 * frames; i++)
+		app->audio_buffer[i] /= 8.0;
+	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, 2 * sizeof(float) * frames);
 }
 
 int main(int argc, char *argv[]) {
