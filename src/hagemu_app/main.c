@@ -14,7 +14,7 @@
 #endif
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
-#define SCALE_FACTOR 6
+#define SCALE_FACTOR 2
 #define WINDOW_WIDTH 160 * SCALE_FACTOR
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
@@ -24,6 +24,19 @@
 #define GREEN2 (Color){ 64,  133, 109, 255 }
 #define GREEN3 (Color){ 48,  102, 87,  255 }
 #define GREEN4 (Color){ 36,  76,  64,  255 }
+
+void hagemu_audio_callback(void *app_data, SDL_AudioStream *stream, int additional_amount, int total_amount) {
+	struct HagemuApp *app = (struct HagemuApp *)app_data;
+	int frames_needed = additional_amount / (2 * sizeof(float));
+	while (hagemu_audio_available() < frames_needed)
+		hagemu_next_instruction(app->gb);
+
+	int frames_available = hagemu_audio_available();
+	if (frames_available > 2 * AUDIO_TARGET_FRAMES)
+		frames_available = 2 * AUDIO_TARGET_FRAMES;
+	int frames = hagemu_audio_read(app->audio_buffer, frames_available);
+	SDL_PutAudioStreamData(stream, app->audio_buffer, 2 * sizeof(float) * frames);
+}
 
 bool hagemu_app_setup(struct HagemuApp *app) {
 	app->gb = hagemu_create();
@@ -50,6 +63,11 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
+	if (!SDL_SetRenderVSync(app->renderer, 1)) {
+		fprintf(stderr, "Error failed to set vsync: %s\n", SDL_GetError());
+		return false;
+	}
+
 	app->screen_texture = SDL_CreateTexture(app->renderer,
 						SDL_PIXELFORMAT_RGBA8888,
 						SDL_TEXTUREACCESS_STREAMING,
@@ -61,18 +79,22 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
-	SDL_AudioSpec spec = {
+	SDL_AudioSpec audio_spec = {
 		.format = SDL_AUDIO_F32,   // 16-bit signed int format
 		.channels = 2,             // Stereo
 		.freq = AUDIO_SAMPLE_RATE, // 48000 Hz
 	};
 
-	app->audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
+	app->audio_stream = SDL_OpenAudioDeviceStream(
+		SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+		&audio_spec,
+		hagemu_audio_callback,
+		app
+		);
 	if (!app->audio_stream) {
 		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
 		return false;
 	}
-	SDL_ResumeAudioStreamDevice(app->audio_stream);
 
 	if (!text_init(app->renderer)) {
 		fprintf(stderr, "Error initializing font: %s\n", SDL_GetError());
@@ -128,6 +150,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	app->rom_filename = malloc(strlen(filename) + 1);
 	strcpy(app->rom_filename, filename);
 	SDL_ClearAudioStream(app->audio_stream);
+	SDL_ResumeAudioStreamDevice(app->audio_stream);
 	app->state = HAGEMU_GAME_RUNNING;
 
 	if (!hagemu_sram_available())
@@ -240,33 +263,10 @@ void hagemu_handle_events(struct HagemuApp *app) {
 	}
 }
 
-void run_gb_until_audio_target(struct HagemuApp *app) {
-	int frames_queued = SDL_GetAudioStreamAvailable(app->audio_stream) / (2 * sizeof(float));
-	while (hagemu_audio_available() < AUDIO_TARGET_FRAMES - frames_queued)
-		hagemu_next_instruction(app->gb);
-}
-
 void main_loop(void* arg) {
 	struct HagemuApp *app = (struct HagemuApp *)arg;
 	hagemu_handle_events(app);
-	unsigned frame_count = hagemu_get_frame_count();
-
-	// The number of queued frames of audio in the audio stream may have
-	// lessened a considerable amount while running the gameboy emulation
-	// for an entire frame. As such, the function is run twice to get the
-	// app a bit closer to the target audio frame count.
-	run_gb_until_audio_target(app);
-	run_gb_until_audio_target(app);
-
-	int frames_available = hagemu_audio_available();
-	if (frames_available > 2 * AUDIO_TARGET_FRAMES)
-		frames_available = 2 * AUDIO_TARGET_FRAMES;
-	int frames = hagemu_audio_read(app->audio_buffer, frames_available);
-	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, 2 * sizeof(float) * frames);
-
-	if (frame_count != hagemu_get_frame_count()) {
-		SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
-	}
+	SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
 	SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
 	SDL_RenderPresent(app->renderer);
 }
