@@ -90,7 +90,7 @@ The following games have been tested:
   - [x] Separate MBC code into its own file
   - [x] MCB1 (Full support, tested with Mooneye's MBC1 test roms)
   - [ ] MCB1M
-  - [ ] MCB2
+  - [x] MCB2 (tested with Mooneye's MBC2 test roms)
   - [x] MCB3 (without RTC) (tested with ZoomTen's MBC30 test rom)
   - [x] MCB5 (without rumble) (tested with Mooneye's MBC5 test roms)
   - [ ] MCB6

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "mbc1.h"
+#include "mbc2.h"
 #include "mbc3.h"
 #include "mbc5.h"
 
@@ -61,9 +62,13 @@ void cart_set_info(struct HagemuCart *cart) {
 	uint8_t ram_size_byte = cart->rom[RAM_SIZE_LOCATION];
 
 	memcpy(cart->title, &cart->rom[GAME_TITLE_LOCATION], 16);
-	cart->rom_size = 32 * (1 << rom_size_byte) * 1024;
-	cart->ram_size = ram_size_table[ram_size_byte];
 	cart->info     = cart_info_table[mbc_info_byte];
+	cart->rom_size = 32 * (1 << rom_size_byte) * 1024;
+	// The MBC2 mapper has a fixed RAM size of 256 bytes
+	if (cart->info.type == MBC2)
+		cart->ram_size = 0x200;
+	else
+		ram_size_table[ram_size_byte];;
 }
 
 bool cart_sram_available() {
@@ -74,7 +79,7 @@ bool cart_set_sram(const uint8_t *data, size_t size) {
 	if (!cart.rom) {
 		printf("Error: Unable to load SRAM data before loading a rom file\n");
 		return false;
-	} else if (!cart.info.has_ram || !cart.info.has_battery) {
+	} else if (cart.ram_size == 0 || !cart.info.has_battery) {
 		printf("Failed to load SRAM data. This cartridge doesn't support battery-backed RAM.\n");
 		return false;
 	} else if (size != cart.ram_size) {
@@ -125,12 +130,15 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 	printf("Rom Title is %s\n", cart.title);
 	printf("Cartridge type is MBC%d\n", cart.info.type);
 	printf("ROM size is %zu KiB\n",  cart.rom_size / 1024);
-	printf("RAM size is %zu KiB\n", cart.ram_size / 1024);
+	if (cart.ram_size < 1024)
+		printf("RAM size is 256 bytes\n", cart.ram_size);
+	else
+		printf("RAM size is %zu KiB\n", cart.ram_size / 1024);
 
 	if (size != cart.rom_size)
 		printf("WARNING: Cartridge file is %zu bytes, but expected %zu bytes\n", size, cart.rom_size);
 
-	if (!cart.info.has_ram || cart.ram_size == 0) {
+	if (cart.ram_size == 0) {
 		printf("Cartridge contains no SRAM\n");
 		return;
 	}
@@ -153,6 +161,7 @@ void cart_rom_write(uint16_t address, uint8_t value) {
 
 	case NO_MBC: break;
 	case MBC1:   cart_rom_write_mbc1(&cart, address, value); break;
+	case MBC2:   cart_rom_write_mbc2(&cart, address, value); break;
 	case MBC3:   cart_rom_write_mbc3(&cart, address, value); break;
 	case MBC5:   cart_rom_write_mbc5(&cart, address, value); break;
 	default:
@@ -166,6 +175,7 @@ uint8_t cart_rom_read(uint16_t address) {
 
 	case NO_MBC: return cart.rom[address]; break;
 	case MBC1:   return cart_rom_read_mbc1(&cart, address); break;
+	case MBC2:   return cart_rom_read_mbc2(&cart, address); break;
 	case MBC3:   return cart_rom_read_mbc3(&cart, address); break;
 	case MBC5:   return cart_rom_read_mbc5(&cart, address); break;
 	default:
@@ -180,6 +190,7 @@ void cart_ram_write(uint16_t address, uint8_t value) {
 	switch (cart.info.type) {
 	case NO_MBC: cart.ram[address] = value; break;
 	case MBC1:   cart_ram_write_mbc1(&cart, address, value); break;
+	case MBC2:   cart_ram_write_mbc2(&cart, address, value); break;
 	case MBC3:   cart_ram_write_mbc3(&cart, address, value); break;
 	case MBC5:   cart_ram_write_mbc5(&cart, address, value); break;
 	default:
@@ -194,6 +205,7 @@ uint8_t cart_ram_read(uint16_t address) {
 	switch (cart.info.type) {
 	case NO_MBC: return cart.ram[address]; break;
 	case MBC1:   return cart_ram_read_mbc1(&cart, address); break;
+	case MBC2:   return cart_ram_read_mbc2(&cart, address); break;
 	case MBC3:   return cart_ram_read_mbc3(&cart, address); break;
 	case MBC5:   return cart_ram_read_mbc5(&cart, address); break;
 	default:
