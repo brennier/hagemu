@@ -18,7 +18,7 @@ void ppu_draw_window();
 /* const uint32_t ppu_default_colors[4] = { 0xFFFFFFFF, 0xADADADFF, 0x525252FF, 0x000000FF }; */
 
 // Green color palette from lightest to darkest
-const uint32_t ppu_default_colors[4] = { 0x8CBD4AFF, 0x42846BFF, 0x316352FF, 0x214A42FF };
+const uint32_t ppu_default_colors[4] = { 0xFF8CBD4A, 0xFF42846B, 0xFF316352, 0xFF214A42 };
 
 enum PPUMode {
 	HBLANK     = 0, // also referred to as MODE 0

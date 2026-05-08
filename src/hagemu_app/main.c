@@ -69,7 +69,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	}
 
 	app->screen_texture = SDL_CreateTexture(app->renderer,
-						SDL_PIXELFORMAT_RGBA8888,
+						SDL_PIXELFORMAT_XRGB8888,
 						SDL_TEXTUREACCESS_STREAMING,
 						160, 144);
 	SDL_SetTextureScaleMode(app->screen_texture, SDL_SCALEMODE_NEAREST);
