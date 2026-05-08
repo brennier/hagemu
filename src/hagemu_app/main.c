@@ -41,7 +41,6 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		return false;
 	}
 
-
 	app->window = SDL_CreateWindow(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
 	if (!app->window) {
 		fprintf(stderr, "Error creating Window: %s\n", SDL_GetError());
@@ -86,6 +85,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 		fprintf(stderr, "Error creating screen texture: %s\n", SDL_GetError());
 		return false;
 	}
+	SDL_ResumeAudioStreamDevice(app->audio_stream);
 
 	if (!text_init(app->renderer)) {
 		fprintf(stderr, "Error initializing font: %s\n", SDL_GetError());
@@ -140,8 +140,8 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 
 	app->rom_filename = malloc(strlen(filename) + 1);
 	strcpy(app->rom_filename, filename);
-	SDL_ClearAudioStream(app->audio_stream);
-	SDL_ResumeAudioStreamDevice(app->audio_stream);
+
+	app->old_time = SDL_GetPerformanceCounter();
 	app->state = HAGEMU_GAME_RUNNING;
 
 	if (!hagemu_sram_available())
@@ -258,17 +258,16 @@ void hagemu_handle_events(struct HagemuApp *app) {
 // of frames queued in the SDL_AudioStream.
 int calculate_sample_rate(struct HagemuApp *app) {
 	int queued_bytes = SDL_GetAudioStreamQueued(app->audio_stream);
-	if (queued_bytes == 0 && SDL_GetTicks() > 5000)
-		printf("AUDIO BUFFER EMPTY!\n");
+	if (queued_bytes == 0)
+		printf("[DEBUG] Audio buffer is empty\n");
 	int queued_frames = queued_bytes / (2 * sizeof(float));
-	float error = (AUDIO_TARGET_FRAMES - queued_frames) / (float)AUDIO_TARGET_FRAMES;
-	float gain = 0.02f;
-	error *= gain;
+	float error = (AUDIO_TARGET_FRAMES - (hagemu_audio_available() + queued_frames)) / (float)AUDIO_TARGET_FRAMES;
+	error *= 0.05f;
 	if (error < -0.005f) error = -0.005f;
 	if (error >  0.005f) error =  0.005f;
 	double new_sample_rate = 1.0 + error;
-	app->smooth_sample_rate_adjust *= 0.99;
-	app->smooth_sample_rate_adjust += 0.01 * new_sample_rate;
+	app->smooth_sample_rate_adjust *= 0.95;
+	app->smooth_sample_rate_adjust += 0.05 * new_sample_rate;
 	return BASE_AUDIO_SAMPLE_RATE * app->smooth_sample_rate_adjust;
 }
 
@@ -277,12 +276,13 @@ double get_smooth_delta_time(struct HagemuApp *app) {
 	double delta_time = (double)(now - app->old_time) / SDL_GetPerformanceFrequency();
 	app->old_time = now;
 	// If dt is too high, the thread was probably frozen and reawakened.
-	// It's better to return 0 and get a more realistic delta_time during
-	// the next iteration.
-	if (delta_time > 2.0 / 60.0)
-		return 0.0;
-	app->smooth_delta_time *= 0.99;
-	app->smooth_delta_time += 0.01 * delta_time;
+	// Cap it at a reasonable rate and assume it'll return to normal.
+	if (delta_time > 5.0 / 60.0) {
+		printf("[DEBUG] High delta time: %.3f secs\n", delta_time);
+		delta_time = 5.0 / 60.0;
+	}
+	app->smooth_delta_time *= 0.95;
+	app->smooth_delta_time += 0.05 * delta_time;
 	return app->smooth_delta_time;
 }
 
