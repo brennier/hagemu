@@ -120,17 +120,17 @@ The following games have been tested:
   - [x] The CPU ticks all other components (this is a stop gap until the CPU can tick one M-cycle at a time)
   - [x] Writes to unused IO registers are ignored and reads return 0xFF
   - [x] Implement the STOP instruction (untested)
+  - [x] Make a cool logo
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
   - [ ] Clear all APU registers when disabled
-  - [ ] Mute a sound channel if its frequency is above 20kHz
   - [ ] Add support for the VIN sound channel
   - [ ] Rewrite PPU to be more modular
   - [ ] Add option to blend frames
   - [ ] Add support for the serial data port
   - [ ] Pass Blargg's interrupt_time test
+  - [ ] Pass Blargg's APU test
   - [ ] Run the Mooneye Test Suite
-  - [ ] Make a cool logo
   - [ ] Use some profiling tools to find critical code blocks
   - [ ] Compile program using -O3 and -flto and -ffast-math
 - [x] Glitches that took more than 1 day to fix

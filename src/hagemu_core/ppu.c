@@ -29,11 +29,33 @@ enum PPUMode {
 };
 
 struct HagemuPPU {
+	enum PPUMode mode;
+	unsigned frames_completed;
+	unsigned current_cycle;
+
+	uint32_t screen_buffer[2][144][160];
 	uint8_t vram[0x2000]; // 8 kilobytes
 	uint8_t oam[0xA0];    // 160 bytes
 
-	enum PPUMode mode;
-	int current_cycle;
+	// Used during scanline processing
+	uint8_t line_buffer_indices[160];
+	uint8_t line_buffer_palettes[160];
+	uint8_t current_window_line;
+
+	// These correspond to various PPU registers
+	uint8_t bg_scroll_y;
+	uint8_t bg_scroll_x;
+	uint8_t current_line;
+	uint8_t line_compare;
+	uint8_t bg_palette;
+	uint8_t obj0_palette;
+	uint8_t obj1_palette;
+	uint8_t win_scroll_y;
+	uint8_t win_scroll_x;
+
+	// Bools used during processing
+	bool buffer_index;
+	bool window_triggered;
 
 	// These correspond to the bits of the LCD_CONTROL register
 	bool bg_enabled;           // bit 0
@@ -50,28 +72,7 @@ struct HagemuPPU {
 	bool interrupt_select_vblank;   // bit 4
 	bool interrupt_select_oam_scan; // bit 5
 	bool interrupt_select_LYC;      // bit 6
-
-	// These correspond to the other PPU registers
-	uint8_t bg_scroll_y;
-	uint8_t bg_scroll_x;
-	uint8_t current_line;
-	uint8_t line_compare;
-	uint8_t bg_palette;
-	uint8_t obj0_palette;
-	uint8_t obj1_palette;
-	uint8_t win_scroll_y;
-	uint8_t win_scroll_x;
 } ppu = { 0 };
-
-uint32_t screen_buffer[2][144][160];
-bool buffer_index = 0;
-unsigned frames_completed = 0;
-
-uint8_t line_buffer_indices[160];
-uint8_t line_buffer_palettes[160];
-
-int current_window_line = 0;
-bool window_triggered = false;
 
 void ppu_reset() {
 	memset(&ppu, 0, sizeof(struct HagemuPPU));
@@ -226,7 +227,7 @@ void ppu_oam_write(uint16_t address, uint8_t value) {
 }
 
 unsigned ppu_get_frame_count() {
-	return frames_completed;
+	return ppu.frames_completed;
 }
 
 void ppu_tick_once() {
@@ -275,10 +276,10 @@ void ppu_tick_once() {
 		break;
 	case VBLANK:
 		// Swap buffers once VBLANK starts
-		buffer_index = !buffer_index;
-		frames_completed++;
-		current_window_line = 0;
-		window_triggered = false;
+		ppu.buffer_index = !ppu.buffer_index;
+		ppu.frames_completed++;
+		ppu.current_window_line = 0;
+		ppu.window_triggered = false;
 		if (ppu.interrupt_select_vblank)
 			interrupt_raise(LCD_INTERRUPT);
 		interrupt_raise(VBLANK_INTERRUPT);
@@ -303,17 +304,17 @@ uint32_t apply_color(unsigned color_index, uint8_t palette_data) {
 void ppu_draw_scanline() {
 	// Clear the line with default background color
 	for (int i = 0; i < 160; i++) {
-		line_buffer_indices[i]  = 0;
-		line_buffer_palettes[i] = 0;
+		ppu.line_buffer_indices[i]  = 0;
+		ppu.line_buffer_palettes[i] = 0;
 	}
 
 	if (ppu.win_scroll_y == ppu.current_line)
-		window_triggered = true;
+		ppu.window_triggered = true;
 
 	if (ppu.bg_enabled) {
 		ppu_draw_background();
 
-		if (window_triggered && ppu.window_enabled)
+		if (ppu.window_triggered && ppu.window_enabled)
 			ppu_draw_window();
 	}
 
@@ -321,7 +322,7 @@ void ppu_draw_scanline() {
 		ppu_draw_sprites();
 
 	for (int i = 0; i < 160; i++)
-		screen_buffer[buffer_index][ppu.current_line][i] = apply_color(line_buffer_indices[i], line_buffer_palettes[i]);
+		ppu.screen_buffer[ppu.buffer_index][ppu.current_line][i] = apply_color(ppu.line_buffer_indices[i], ppu.line_buffer_palettes[i]);
 }
 
 uint8_t get_tile_index(uint16_t map_area_start, unsigned row, unsigned col) {
@@ -360,27 +361,27 @@ void ppu_draw_background() {
 
 	for (int i = 0; i < 160; i++) {
 		uint8_t bg_col = (ppu.bg_scroll_x + i) % 256;
-		line_buffer_indices[i] = get_color_from_map(tile_map_start, data_block_1_start, bg_row, bg_col);
-		line_buffer_palettes[i] = ppu.bg_palette;
+		ppu.line_buffer_indices[i] = get_color_from_map(tile_map_start, data_block_1_start, bg_row, bg_col);
+		ppu.line_buffer_palettes[i] = ppu.bg_palette;
 	}
 }
 
 void ppu_draw_window() {
 	uint16_t tile_map_start = ppu.window_tile_map_area ? 0x9C00 : 0x9800;
 	uint16_t data_block_1_start = ppu.bg_tile_data_area ? 0x8000 : 0x9000;
-	uint8_t window_row = current_window_line;
+	uint8_t window_row = ppu.current_window_line;
 	int window_col_start = ppu.win_scroll_x - 7;
 
 	for (int i = window_col_start; i < 160; i++) {
 		if (i < 0) continue;
 		uint8_t window_col = (i - window_col_start) % 256;
-		line_buffer_indices[i] = get_color_from_map(tile_map_start, data_block_1_start, window_row, window_col);
-		line_buffer_palettes[i] = ppu.bg_palette;
+		ppu.line_buffer_indices[i] = get_color_from_map(tile_map_start, data_block_1_start, window_row, window_col);
+		ppu.line_buffer_palettes[i] = ppu.bg_palette;
 	}
 
 	// If the window was actually displayed at all, increment the window counter
 	if (window_col_start < 160)
-		current_window_line++;
+		ppu.current_window_line++;
 }
 
 unsigned ppu_get_sprites(uint16_t *sprite_addresses, unsigned max_sprite_count) {
@@ -473,21 +474,21 @@ void ppu_draw_sprites() {
 
 			if (x_position + col < 0 || x_position + col >= 160)
 				continue;
-			else if (background_has_priority && line_buffer_indices[x_position + col])
+			else if (background_has_priority && ppu.line_buffer_indices[x_position + col])
 				continue;
 			else if (color == 0)
 				continue;
 
-			line_buffer_indices[x_position + col] = color;
+			ppu.line_buffer_indices[x_position + col] = color;
 
 			if (palette_select)
-				line_buffer_palettes[x_position + col] = ppu.obj1_palette;
+				ppu.line_buffer_palettes[x_position + col] = ppu.obj1_palette;
 			else
-				line_buffer_palettes[x_position + col] = ppu.obj0_palette;
+				ppu.line_buffer_palettes[x_position + col] = ppu.obj0_palette;
 		}
 	}
 }
 
 const uint32_t* ppu_get_frame() {
-	return (const uint32_t*)screen_buffer[!buffer_index];
+	return (const uint32_t*)ppu.screen_buffer[!ppu.buffer_index];
 }
