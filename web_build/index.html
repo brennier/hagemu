@@ -29,8 +29,6 @@
 
       button {
           color: inherit;
-          /* background: #306657; */
-          /* background: #20453A; */
           background: #2e6354;
           border: 1px;
           border-radius: 5px;
@@ -40,6 +38,27 @@
           outline: inherit;
           margin: 2px;
           box-shadow: 4px 4px 10px rgba(0,0,0,0.3);
+      }
+
+      .circle-button {
+          position: absolute;
+          font-size: 200%;
+          width: 10vh;
+          height: 10vh;
+          border-radius: 50%;
+          background-color: red;
+          border: none;
+          cursor: pointer;
+      }
+
+      .dpad-button {
+          position: absolute;
+          font-size: 200%;
+          width: 8vh;
+          height: 8vh;
+          background-color: darkgrey;
+          border: none;
+          cursor: pointer;
       }
 
       button:hover {
@@ -63,23 +82,22 @@
           display: block;
           margin: 0;
           padding: 0;
+          image-rendering: pixelated;
+          image-rendering: -moz-crisp-edges;
+          image-rendering: crisp-edges;
       }
 
       #logo {
+          font-size: calc(var(--gb-scale) * 6px);
 	  font-family: "Courier New", monospace;
 	  font-weight: bold;
-	  font-size: 3vh;
-	  font-size: 3svh;
 	  color: #8abd4c;
 	  text-align: center;
-	  margin-top: .75vh;
-	  margin-top: .75svh;
       }
 
       #under-logo {
+          font-size: calc(var(--gb-scale) * 3px);
           padding-top: 5px;
-          font-size: 1.5vh;
-          font-size: 1.5svh;
           vertical-align: middle;
           white-space: nowrap;
           text-align: center;
@@ -87,38 +105,6 @@
 	  font-weight: bold;
 	  color: #8abd4c;
 	  text-align: center;
-      }
-
-      @media (min-aspect-ratio: 10 / 9) {
-          #canvas {
-              height: 80vh;
-              height: 80svh;
-              width: auto;
-          }
-          #logo {
-	      font-size: 3vh;
-	      font-size: 3svh;
-          }
-          #under-logo {
-	      font-size: 1.75vh;
-	      font-size: 1.75svh;
-          }
-      }
-
-      @media (max-aspect-ratio: 10 / 9) {
-          #canvas {
-              height: 80vh;
-              height: 80svh;
-              width: auto;
-          }
-          #logo {
-	      font-size: 3vh;
-	      font-size: 3svh;
-          }
-          #under-logo {
-	      font-size: 1.75vh;
-	      font-size: 1.75svh;
-          }
       }
 
       #status {
@@ -137,14 +123,12 @@
           border-radius: 5px;
           box-sizing: border-box;
           width: 100%;
-          height: 40%;
+          aspect-ratio: 160 / 144;
           border: 0;
           padding: 5px;
           background-color: black;
           color: white;
           font-family: 'Lucida Console', Monaco, monospace;
-          outline: none;
-          scrollbar-width: none;
           resize: none;
       }
 
@@ -175,6 +159,13 @@
       </div>
     </div>
 
+    <!-- <button style="top:70%; left:85%; transform: translate(-50%,-50%);" id="button_a" class="circle-button">A</button> -->
+    <!-- <button style="top:80%; left:65%; transform: translate(-50%,-50%);" id="button_b" class="circle-button">B</button> -->
+    <!-- <button style="top:70%; left:15vh; transform: translate(-50%,-50%);" id="button_up" class="dpad-button">↑</button> -->
+    <!-- <button style="top:86%; left:15vh; transform: translate(-50%,-50%);" id="button_down" class="dpad-button">↓</button> -->
+    <!-- <button style="top:78%; left:23vh; transform: translate(-50%,-50%);" id="button_right" class="dpad-button">→</button> -->
+    <!-- <button style="top:78%; left:7vh; transform: translate(-50%,-50%);" id="button_left" class="dpad-button">←</button> -->
+
     <script type='text/javascript'>
       function triggerRomUpload() {
           document.getElementById("romFileInput").click();
@@ -184,8 +175,11 @@
           document.getElementById("saveFileInput").click();
       }
 
-      document.getElementById("saveFileInput").addEventListener("change", async (e) => {
-          const file = e.target.files[0];
+      document.getElementById("saveFileInput").addEventListener("change", uploadFile);
+      document.getElementById("romFileInput").addEventListener("change", uploadFile);
+
+      async function uploadFile(event) {
+          const file = event.target.files[0];
           if (!file) return;
 
           try {
@@ -204,33 +198,11 @@
               console.error(err);
               alert("Failed to load file.");
           }
-      });
-
-      document.getElementById("romFileInput").addEventListener("change", async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-
-          try {
-              const buffer = await file.arrayBuffer();
-              const data = new Uint8Array(buffer);
-
-              // FS.mkdir("/tmp");
-              const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-              const path = "/tmp/" + safeName;
-
-              // Write file into virtual FS
-              FS.writeFile(path, data);
-
-              Module.ccall("web_load_file", null, ["string"], [path]);
-          } catch (err) {
-              console.error(err);
-              alert("Failed to load file.");
-          }
-      });
+      }
 
       function downloadSRAM() {
-          const ptr      = Module._web_get_sram_pointer();
-          const size     = Module._web_get_sram_size();
+          const ptr          = Module._web_get_sram_pointer();
+          const size         = Module._web_get_sram_size();
           const filename_ptr = Module._web_get_sram_file_name();
           const filename     = Module.UTF8ToString(filename_ptr);
 
@@ -261,6 +233,20 @@
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
       }
+
+      function resizeCanvas() {
+          const scale = Math.floor(Math.min(
+              (window.innerWidth - 30)  / 160, // 30px for the border
+              (0.9 * window.innerHeight - 50) / 144 // 50px for the border + padding
+          ));
+          canvas.style.width  = (160 * scale) + 'px';
+          canvas.style.height = (144 * scale) + 'px';
+
+          document.documentElement.style.setProperty('--gb-scale', scale);
+      }
+
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
 
       var button = document.getElementById('terminal-button');
       button.onclick = function() {
