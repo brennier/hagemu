@@ -68,7 +68,7 @@ void cart_set_info(struct HagemuCart *cart) {
 	if (cart->info.type == MBC2)
 		cart->ram_size = 0x200;
 	else
-		ram_size_table[ram_size_byte];;
+		cart->ram_size = ram_size_table[ram_size_byte];;
 }
 
 bool cart_sram_available() {
@@ -131,7 +131,7 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 	printf("Cartridge type is MBC%d\n", cart.info.type);
 	printf("ROM size is %zu KiB\n",  cart.rom_size / 1024);
 	if (cart.ram_size < 1024)
-		printf("RAM size is 256 bytes\n", cart.ram_size);
+		printf("RAM size is %zu bytes\n", cart.ram_size);
 	else
 		printf("RAM size is %zu KiB\n", cart.ram_size / 1024);
 
