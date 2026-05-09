@@ -89,6 +89,7 @@
 
       #logo {
           font-size: calc(var(--gb-scale) * 6px);
+          padding: 5px;
 	  font-family: "Courier New", monospace;
 	  font-weight: bold;
 	  color: #8abd4c;
@@ -97,7 +98,6 @@
 
       #under-logo {
           font-size: calc(var(--gb-scale) * 3px);
-          padding-top: 5px;
           vertical-align: middle;
           white-space: nowrap;
           text-align: center;
@@ -256,6 +256,7 @@
           }
           else {
               div.style.display = 'block';
+              div.scrollTop = textarea.scrollHeight;
           }
       };
 
