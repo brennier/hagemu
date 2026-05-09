@@ -258,8 +258,8 @@ void hagemu_handle_events(struct HagemuApp *app) {
 // of frames queued in the SDL_AudioStream.
 int calculate_sample_rate(struct HagemuApp *app) {
 	int queued_bytes = SDL_GetAudioStreamQueued(app->audio_stream);
-	if (queued_bytes == 0)
-		printf("[DEBUG] Audio buffer is empty\n");
+	/* if (queued_bytes == 0) */
+		/* printf("[DEBUG] Audio buffer is empty\n"); */
 	int queued_frames = queued_bytes / (2 * sizeof(float));
 	float error = (AUDIO_TARGET_FRAMES - (hagemu_audio_available() + queued_frames)) / (float)AUDIO_TARGET_FRAMES;
 	error *= 0.05f;
@@ -278,7 +278,7 @@ double get_smooth_delta_time(struct HagemuApp *app) {
 	// If dt is too high, the thread was probably frozen and reawakened.
 	// Cap it at a reasonable rate and assume it'll return to normal.
 	if (delta_time > 5.0 / 60.0) {
-		printf("[DEBUG] High delta time: %.3f secs\n", delta_time);
+		/* printf("[DEBUG] High delta time: %.3f secs\n", delta_time); */
 		delta_time = 5.0 / 60.0;
 	}
 	app->smooth_delta_time *= 0.95;
@@ -309,7 +309,7 @@ void main_loop(void* arg) {
 	int frames = hagemu_audio_read(app->audio_buffer, frames_available);
 	// Lower the volume (later this will be adjustable)
 	for (int i = 0; i < 2 * frames; i++)
-		app->audio_buffer[i] /= 8.0;
+		app->audio_buffer[i] /= 4.0;
 	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, 2 * sizeof(float) * frames);
 }
 
