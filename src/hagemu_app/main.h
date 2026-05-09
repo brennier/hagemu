@@ -2,7 +2,6 @@
 #define HAGEMU_MAIN_H
 
 #define BASE_AUDIO_SAMPLE_RATE 48000
-#define AUDIO_BUFFER_SIZE 2048
 #define AUDIO_TARGET_FRAMES 4096
 
 #include <SDL3/SDL.h>
@@ -22,7 +21,7 @@ struct HagemuApp {
 	SDL_AudioStream *audio_stream;
 	SDL_Gamepad *gamepad;
 	SDL_Event event;
-	float audio_buffer[AUDIO_BUFFER_SIZE];
+	float audio_buffer[2 * AUDIO_TARGET_FRAMES];
 	Uint64 old_time;
 	double cycle_accumulator;
 	double smooth_delta_time;

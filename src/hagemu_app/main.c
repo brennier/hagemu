@@ -14,7 +14,7 @@
 #endif
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
-#define SCALE_FACTOR 4
+#define SCALE_FACTOR 6
 #define WINDOW_WIDTH 160 * SCALE_FACTOR
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
@@ -304,8 +304,8 @@ void main_loop(void* arg) {
 	int sample_rate = calculate_sample_rate(app);
 	hagemu_set_audio_sample_rate(sample_rate);
 	int frames_available = hagemu_audio_available();
-	if (frames_available > AUDIO_BUFFER_SIZE / 2)
-		frames_available = AUDIO_BUFFER_SIZE / 2;
+	if (frames_available > AUDIO_TARGET_FRAMES)
+		frames_available = AUDIO_TARGET_FRAMES;
 	int frames = hagemu_audio_read(app->audio_buffer, frames_available);
 	// Lower the volume (later this will be adjustable)
 	for (int i = 0; i < 2 * frames; i++)
