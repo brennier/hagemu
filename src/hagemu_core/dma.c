@@ -8,10 +8,11 @@
 
 struct HagemuDMA {
 	bool     active;
+	uint8_t  pending_cycles;
 	uint16_t source;
 	uint8_t  index;
-	uint8_t  cycle;
-	uint8_t  last_data;
+	uint8_t  last_reg_write;
+	uint8_t  last_transferred;
 } dma = { 0 };
 
 void dma_reset() {
@@ -19,31 +20,29 @@ void dma_reset() {
 }
 
 void dma_start(uint8_t value) {
-	if (value > 0xDF) {
-		fprintf(stderr, "Illegal DMA Request!");
-		exit(EXIT_FAILURE);
-	}
-	dma.active = true;
-	dma.source = value << 8;
-	dma.index  = 0;
+	dma.last_reg_write = value;
+	if (value >= 0xFE)
+		fprintf(stderr, "[WARNING] DMA Request starting from %04X is unstable!\n", value << 8);
+	dma.pending_cycles = 2;
 }
 
-void dma_tick_once() {
-	if (!dma.active) return;
-	dma.cycle++;
-
-	if (dma.cycle % 4 == 0) {
-		dma.last_data = mmu_read_nonblocking(dma.source + dma.index);
-		ppu_oam_write(dma.index, dma.last_data);
+void dma_tick() {
+	if (dma.active) {
+		dma.last_transferred = mmu_read_nonblocking(dma.source + dma.index);
+		ppu_oam_write(dma.index, dma.last_transferred);
 		dma.index++;
 		if (dma.index == 160)
 			dma.active = false;
 	}
-}
 
-void dma_tick(int t_cycles) {
-	for (int i = 0; i < t_cycles; i++)
-		dma_tick_once();
+	if (dma.pending_cycles > 0) {
+		dma.pending_cycles--;
+		if (dma.pending_cycles == 0) {
+			dma.active = true;
+			dma.source = dma.last_reg_write << 8;
+			dma.index  = 0;
+		}
+	}
 }
 
 bool dma_is_active() {
@@ -51,5 +50,5 @@ bool dma_is_active() {
 }
 
 uint8_t dma_read() {
-	return dma.last_data;
+	return dma.last_reg_write;
 }

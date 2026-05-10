@@ -121,6 +121,7 @@ The following games have been tested:
   - [x] Writes to unused IO registers are ignored and reads return 0xFF
   - [x] Implement the STOP instruction (untested)
   - [x] Make a cool logo
+  - [x] OAM DMA transfers pass all of Mooneye's tests
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Make the audio registers readable
   - [ ] Clear all APU registers when disabled

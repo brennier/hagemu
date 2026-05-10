@@ -34,7 +34,7 @@ void system_tick(struct HagemuCPU *cpu) {
 	int t_cycles = 4;
 	ppu_tick(t_cycles);
 	apu_tick(t_cycles);
-	dma_tick(t_cycles);
+	dma_tick();
 	timer_tick(t_cycles);
 	cpu->cycles_passed += t_cycles;
 }
