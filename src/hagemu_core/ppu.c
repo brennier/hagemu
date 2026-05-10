@@ -275,8 +275,8 @@ void ppu_draw_window(uint16_t *colors) {
 struct Sprite {
 	uint8_t oam_address; // This is used for sorting
 	// This is the same order as in memory
-	int8_t  y_position;
-	int8_t  x_position;
+	int     y_position;
+	int     x_position;
 	uint8_t tile_index;
 	bool    background_has_priority;
 	bool    y_flip;
