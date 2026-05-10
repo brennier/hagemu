@@ -100,14 +100,13 @@ static inline void set_f(struct HagemuCPU *cpu, uint8_t f_value) {
 }
 
 static inline uint8_t fetch_byte(struct HagemuCPU *cpu, uint16_t address) {
-	uint8_t value = mmu_read(address);
 	system_tick(cpu);
-	return value;
+	return mmu_read(address);
 }
 
 static inline void write_byte(struct HagemuCPU *cpu,uint16_t address, uint8_t value) {
-	mmu_write(address, value);
 	system_tick(cpu);
+	mmu_write(address, value);
 }
 
 static inline uint8_t fetch_immediate8(struct HagemuCPU *cpu) {
@@ -555,13 +554,13 @@ static inline void op_load16(struct HagemuCPU *cpu, enum Reg16 dest, enum Reg16 
 }
 
 static inline void op_inc16(struct HagemuCPU *cpu, enum Reg16 reg) {
-	set_reg16(cpu, reg, get_reg16(cpu, reg) + 1);
 	system_tick(cpu);
+	set_reg16(cpu, reg, get_reg16(cpu, reg) + 1);
 }
 
 static inline void op_dec16(struct HagemuCPU *cpu, enum Reg16 reg) {
-	set_reg16(cpu, reg, get_reg16(cpu, reg) - 1);
 	system_tick(cpu);
+	set_reg16(cpu, reg, get_reg16(cpu, reg) - 1);
 }
 
 static inline void op_rlca(struct HagemuCPU *cpu) {
@@ -587,10 +586,10 @@ static inline void op_rra(struct HagemuCPU *cpu) {
 static inline void op_store_sp(struct HagemuCPU *cpu) {
 	uint16_t address = get_reg16(cpu, IMMEDIATE16);
 	uint16_t value   = get_reg16(cpu, REG_SP);
+	system_tick(cpu);
 	mmu_write(address, value & 0x00FF);
 	system_tick(cpu);
 	mmu_write(address + 1, (value & 0xFF00) >> 8);
-	system_tick(cpu);
 }
 
 static inline void op_stop(struct HagemuCPU *cpu) {
@@ -628,8 +627,8 @@ static inline void op_pop(struct HagemuCPU *cpu, enum Reg16 reg) {
 }
 
 static inline void op_ret(struct HagemuCPU *cpu) {
-	cpu->pc = pop_stack(cpu);
 	system_tick(cpu);
+	cpu->pc = pop_stack(cpu);
 }
 
 static inline void op_ret_cond(struct HagemuCPU *cpu, bool condition) {
