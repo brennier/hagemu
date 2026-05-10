@@ -121,8 +121,15 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	size_t sram_size;
 	uint8_t *sram_data = hagemu_file_load(filename, &sram_size);
 	bool result = hagemu_set_sram(sram_data, sram_size);
-	if (result)
+	if (result) {
 		hagemu_reset(app->gb);
+		app->state = HAGEMU_GAME_RUNNING;
+		app->smooth_sample_rate_adjust = 1.0;
+		app->smooth_delta_time  = 1.0 / 60.0;
+		app->old_time = SDL_GetPerformanceCounter();
+		SDL_ClearAudioStream(app->audio_stream);
+		memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
+	}
 	free(sram_data);
 	return true;
 }
@@ -141,8 +148,12 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 	app->rom_filename = malloc(strlen(filename) + 1);
 	strcpy(app->rom_filename, filename);
 
-	app->old_time = SDL_GetPerformanceCounter();
 	app->state = HAGEMU_GAME_RUNNING;
+	app->smooth_sample_rate_adjust = 1.0;
+	app->smooth_delta_time  = 1.0 / 60.0;
+	app->old_time = SDL_GetPerformanceCounter();
+	SDL_ClearAudioStream(app->audio_stream);
+	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
 
 	if (!hagemu_sram_available())
 		return true;
