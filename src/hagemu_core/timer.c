@@ -17,6 +17,32 @@ struct HagemuTimer {
 	bool     enabled;
 } timer = { 0 };
 
+void maybe_increment(uint16_t old_time, uint16_t new_time) {
+	// Return early if timer control is off
+	if (!timer.enabled)
+		return;
+
+	uint16_t bit = 1;
+	switch (timer.clock_select) {
+        case 0x00: bit <<= 9; break;
+        case 0x01: bit <<= 3; break;
+        case 0x02: bit <<= 5; break;
+        case 0x03: bit <<= 7; break;
+	default:
+		fprintf(stderr, "[ERROR] Illegal timer clock_select value %02X\n", timer.clock_select);
+		exit(EXIT_FAILURE);
+	}
+
+	if ((old_time & bit) != 0 && (new_time & bit) == 0) {
+		if (timer.counter == 0xFF) {
+			timer.counter = timer.modulo;
+			interrupt_raise(TIMER_INTERRUPT);
+		} else {
+			timer.counter++;
+		}
+	}
+}
+
 uint8_t timer_register_read(uint16_t address) {
 	switch (address) {
 	case TIMER_DIVIDER: return timer.time >> 8;
@@ -31,9 +57,16 @@ uint8_t timer_register_read(uint16_t address) {
 
 void timer_register_write(uint16_t address, uint8_t value) {
 	switch(address) {
-	case TIMER_DIVIDER: timer.time = 0;        return;
-	case TIMER_COUNTER: timer.counter = value; return;
-	case TIMER_MODULO:  timer.modulo = value;  return;
+	case TIMER_DIVIDER:
+		maybe_increment(timer.time, 0);
+		timer.time = 0;
+		return;
+	case TIMER_COUNTER:
+		timer.counter = value;
+		return;
+	case TIMER_MODULO:
+		timer.modulo = value;
+		return;
 	case TIMER_CONTROL:
 		timer.enabled      = value & (1 << 2);
 		timer.clock_select = value & 0x03;
@@ -46,31 +79,7 @@ void timer_register_write(uint16_t address, uint8_t value) {
 
 void timer_tick_once() {
 	timer.time++;
-
-	// Return early if timer control is off
-	if (!timer.enabled)
-		return;
-
-	unsigned increment_factor;
-	switch (timer.clock_select) {
-        case 0x00: increment_factor = 1024; break;
-        case 0x01: increment_factor = 16;   break;
-        case 0x02: increment_factor = 64;   break;
-        case 0x03: increment_factor = 256;  break;
-	default:
-		fprintf(stderr, "[ERROR] Illegal timer clock_select value %02X\n", timer.clock_select);
-		exit(EXIT_FAILURE);
-	}
-
-	if (timer.time % increment_factor != 0)
-		return;
-
-	if (timer.counter == 0xFF) {
-		timer.counter = timer.modulo;
-		interrupt_raise(TIMER_INTERRUPT);
-	} else {
-		timer.counter++;
-	}
+	maybe_increment(timer.time-1, timer.time);
 }
 
 void timer_tick(int t_cycles) {
