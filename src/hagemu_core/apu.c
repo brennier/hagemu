@@ -159,7 +159,6 @@ void tick_length_timer(struct Channel *channel, unsigned length_max) {
 
 	channel->length_current++;
 	if (channel->length_current == length_max) {
-		channel->length_current = channel->length_initial;
 		channel->enabled = false;
 	}
 }
@@ -251,8 +250,8 @@ void apu_tick_once() {
 		tick_noise_channel(&channel4);
 	}
 
-	// The frame frequencer ticks at 4096 Hz
-	if (apu_ticks > APU_TICK_RATE / 1024) {
+	// The frame frequencer ticks at 512 Hz
+	if (apu_ticks > APU_TICK_RATE / 512) {
 		apu_ticks = 0;
 		apu_clock_step++;
 		apu_clock_step %= 8;
@@ -526,8 +525,9 @@ void apu_register_write(uint16_t address, uint8_t value) {
 			channel1.envelope_current = 0;
 			channel1.sweep_current = 0;
 			channel1.volume_current = channel1.volume_initial;
-			channel1.length_current = channel1.length_initial;
 			channel1.duty_wave_index = 0;
+			if (channel1.length_current == 64)
+				channel1.length_current = 0;
 		}
 		channel1.length_enabled = get_bits(value, 6, 6);
 		channel1.period_value &= ~(0xFF00);
@@ -562,9 +562,10 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		if (get_bits(value, 7, 7)) {
 			channel2.enabled = true;
 			channel2.volume_current = channel2.volume_initial;
-			channel2.length_current = channel2.length_initial;
 			channel2.duty_wave_index = 0;
 			channel2.envelope_current = 0;
+			if (channel2.length_current == 64)
+				channel2.length_current = 0;
 		}
 		channel2.length_enabled = get_bits(value, 6, 6);
 		channel2.period_value &= ~(0xFF00);
@@ -594,8 +595,9 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		// Channel is triggered
 		if (get_bits(value, 7, 7)) {
 			channel3.enabled = true;
-			channel3.length_current = channel3.length_initial;
 			channel3.wave_index = 0;
+			if (channel3.length_current == 256)
+				channel3.length_current = 0;
 		}
 		channel3.length_enabled = get_bits(value, 6, 6);
 		channel3.period_value &= ~(0xFF00);
@@ -633,9 +635,10 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		if (get_bits(value, 7, 7)) {
 			channel4.enabled = true;
 			channel4.volume_current = channel4.volume_initial;
-			channel4.length_current = channel4.length_initial;
 			channel4.envelope_current = 0;
 			channel4.lfsr = 0;
+			if (channel4.length_current == 64)
+				channel4.length_current = 0;
 		}
 		channel4.length_enabled = get_bits(value, 6, 6);
 		return;
