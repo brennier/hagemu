@@ -7,6 +7,9 @@
 #define AUDIO_QUEUE_FRAME_SIZE 8192
 #define INITIAL_TARGET_SAMPLE_RATE 48000
 
+#define APU_REGISTER_START  0xFF10
+#define APU_REGISTER_LENGTH 0x0030
+
 int TARGET_SAMPLE_RATE = INITIAL_TARGET_SAMPLE_RATE;
 double DECIMATION_FACTOR = ((double)APU_TICK_RATE / (double)INITIAL_TARGET_SAMPLE_RATE);
 double decimation_counter = 0.0;
@@ -128,6 +131,15 @@ struct Channel {
 	unsigned lfsr_clock_shift;
 	unsigned lfsr_clock_divider;
 } channel1 = { 0 }, channel2 = { 0 }, channel3 = { 0 }, channel4 = { 0 };
+
+struct HagemuAPU {
+	struct Channel ch1;
+	struct Channel ch2;
+	struct Channel ch3;
+	struct Channel ch4;
+	uint8_t raw_regs[APU_REGISTER_LENGTH];
+	uint8_t wave_data[32];
+} apu = { 0 };
 
 void apu_reset() {
 	memset(&channel1, 0, sizeof(struct Channel));
@@ -428,6 +440,7 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 	return (value >> bit_start) & ((1 << (bit_end - bit_start + 1)) - 1);
 }
 
+
 // Channel 1 Registers
 #define SOUND_NR10 0xFF10
 #define SOUND_NR11 0xFF11
@@ -436,6 +449,7 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 #define SOUND_NR14 0xFF14
 
 // Channel 2 Registers
+#define SOUND_NR20 0xFF15
 #define SOUND_NR21 0xFF16
 #define SOUND_NR22 0xFF17
 #define SOUND_NR23 0xFF18
@@ -449,6 +463,7 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 #define SOUND_NR34 0xFF1E
 
 // Channel 4 Registers
+#define SOUND_NR40 0xFF1F
 #define SOUND_NR41 0xFF20
 #define SOUND_NR42 0xFF21
 #define SOUND_NR43 0xFF22
@@ -460,6 +475,7 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 #define SOUND_NR52 0xFF26
 
 void apu_register_write(uint16_t address, uint8_t value) {
+	apu.raw_regs[address - APU_REGISTER_START] = value;
 	switch (address) {
 
 	// CHANNEL 1
@@ -612,14 +628,10 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		channel4.length_enabled = get_bits(value, 6, 6);
 		return;
 
-	// Channel 3 wave data
-	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
-	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
-	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
-	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		channel3.wave_data[2 * (address - 0xFF30)] = get_bits(value, 4, 7);
-		channel3.wave_data[2 * (address - 0xFF30) + 1] = get_bits(value, 0, 3);
-	return;
+	case SOUND_NR50:
+		master_controls.volume_right = get_bits(value, 0, 2);
+		master_controls.volume_left  = get_bits(value, 4, 6);
+		return;
 
 	case SOUND_NR51:
 		master_controls.channel1_right = (value >> 0) & 0x01;
@@ -636,9 +648,13 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		master_controls.apu_enabled = get_bits(value, 7, 7);
 		return;
 
-	case SOUND_NR50:
-		master_controls.volume_right = get_bits(value, 0, 2);
-		master_controls.volume_left  = get_bits(value, 4, 6);
+		// Channel 3 wave data
+	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
+	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
+	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
+	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
+		channel3.wave_data[2 * (address - 0xFF30)] = get_bits(value, 4, 7);
+		channel3.wave_data[2 * (address - 0xFF30) + 1] = get_bits(value, 0, 3);
 		return;
 
 	default:
@@ -646,31 +662,62 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
+uint8_t apu_register_read_nr52() {
+	uint8_t value = 0;
+	value |= (channel1.dac_enabled && channel1.enabled) << 0;
+	value |= (channel2.dac_enabled && channel2.enabled) << 1;
+	value |= (channel3.dac_enabled && channel3.enabled) << 2;
+	value |= (channel4.dac_enabled && channel4.enabled) << 3;
+	value |= 0x70;
+	value |= master_controls.apu_enabled << 7;
+	return value;
+}
+
 uint8_t apu_register_read(uint16_t address) {
+	uint8_t bit_mask = 0x00;
 	switch (address) {
 
-	case SOUND_NR50:
-		return (master_controls.volume_left << 4) | master_controls.volume_right;
+	case SOUND_NR10: bit_mask = 0x80; break;
+	case SOUND_NR11: bit_mask = 0x3F; break;
+	case SOUND_NR12: bit_mask = 0x00; break;
+	case SOUND_NR13: bit_mask = 0xFF; break;
+	case SOUND_NR14: bit_mask = 0xBF; break;
 
-	case SOUND_NR52: {
-		/* printf("READ NR52\n"); */
-		uint8_t value = 0;
-		value |= (channel1.dac_enabled && channel1.enabled) << 0;
-		value |= (channel2.dac_enabled && channel2.enabled) << 1;
-		value |= (channel3.dac_enabled && channel3.enabled) << 2;
-		value |= (channel4.dac_enabled && channel4.enabled) << 3;
-		value |= 0x70;
-		value |= master_controls.apu_enabled << 7;
-		return value;
+	case SOUND_NR20: bit_mask = 0xFF; break;
+	case SOUND_NR21: bit_mask = 0x3F; break;
+	case SOUND_NR22: bit_mask = 0x00; break;
+	case SOUND_NR23: bit_mask = 0xFF; break;
+	case SOUND_NR24: bit_mask = 0xBF; break;
+
+	case SOUND_NR30: bit_mask = 0x7F; break;
+	case SOUND_NR31: bit_mask = 0xFF; break;
+	case SOUND_NR32: bit_mask = 0x9F; break;
+	case SOUND_NR33: bit_mask = 0xFF; break;
+	case SOUND_NR34: bit_mask = 0xBF; break;
+
+	case SOUND_NR40: bit_mask = 0xFF; break;
+	case SOUND_NR41: bit_mask = 0xFF; break;
+	case SOUND_NR42: bit_mask = 0x00; break;
+	case SOUND_NR43: bit_mask = 0x00; break;
+	case SOUND_NR44: bit_mask = 0xBF; break;
+
+	case SOUND_NR50: bit_mask = 0x00; break;
+	case SOUND_NR51: bit_mask = 0x00; break;
+
+	// This is an exception. It should actual update with the state of the APU.
+	case SOUND_NR52: return apu_register_read_nr52();
+
+	// Channel 3 wave data
+	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
+	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
+	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
+	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
+		bit_mask = 0x00;
+		break;
+
+	default:
+		bit_mask = 0xFF;
 	}
 
-	case SOUND_NR10: case SOUND_NR11: case SOUND_NR12: case SOUND_NR13:
-	case SOUND_NR14: case SOUND_NR21: case SOUND_NR22: case SOUND_NR23:
-	case SOUND_NR24: case SOUND_NR30: case SOUND_NR31: case SOUND_NR32:
-	case SOUND_NR33: case SOUND_NR34: case SOUND_NR41: case SOUND_NR42:
-	case SOUND_NR43: case SOUND_NR44: case SOUND_NR51:
-		return 0xFF; // Unimplemented
-	}
-
-	return 0xFF;
+	return apu.raw_regs[address - APU_REGISTER_START] | bit_mask;
 }
