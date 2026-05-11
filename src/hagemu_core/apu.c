@@ -132,6 +132,10 @@ struct Channel {
 	unsigned lfsr_clock_divider;
 } channel1 = { 0 }, channel2 = { 0 }, channel3 = { 0 }, channel4 = { 0 };
 
+void apu_channel_reset(struct Channel *channel) {
+	memset(channel, 0, sizeof(struct Channel));
+}
+
 struct HagemuAPU {
 	struct Channel ch1;
 	struct Channel ch2;
@@ -480,6 +484,9 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 #define SOUND_NR52 0xFF26
 
 void apu_register_write(uint16_t address, uint8_t value) {
+	if (master_controls.apu_enabled == false && address != SOUND_NR52)
+		return;
+
 	apu.raw_regs[address - APU_REGISTER_START] = value;
 	switch (address) {
 
@@ -651,8 +658,13 @@ void apu_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR52:
 		master_controls.apu_enabled = get_bits(value, 7, 7);
-		if (!master_controls.apu_enabled)
+		if (!master_controls.apu_enabled) {
 			memset(apu.raw_regs, 0, APU_REGISTER_LENGTH);
+			apu_channel_reset(&channel1);
+			apu_channel_reset(&channel2);
+			apu_channel_reset(&channel3);
+			apu_channel_reset(&channel4);
+		}
 		return;
 
 		// Channel 3 wave data
