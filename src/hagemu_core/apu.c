@@ -9,6 +9,7 @@
 
 #define APU_REGISTER_START  0xFF10
 #define APU_REGISTER_LENGTH 0x0030
+#define APU_WAVE_DATA_START 0xFF30
 
 int TARGET_SAMPLE_RATE = INITIAL_TARGET_SAMPLE_RATE;
 double DECIMATION_FACTOR = ((double)APU_TICK_RATE / (double)INITIAL_TARGET_SAMPLE_RATE);
@@ -123,7 +124,6 @@ struct Channel {
 	// Channel 3 only
 	unsigned volume_level;
 	unsigned wave_index;
-	uint8_t  wave_data[32];
 
 	// Channel 4 only
 	uint16_t lfsr;
@@ -137,8 +137,8 @@ struct HagemuAPU {
 	struct Channel ch2;
 	struct Channel ch3;
 	struct Channel ch4;
+	uint8_t wave_data[16];
 	uint8_t raw_regs[APU_REGISTER_LENGTH];
-	uint8_t wave_data[32];
 } apu = { 0 };
 
 void apu_reset() {
@@ -354,7 +354,12 @@ uint8_t channel_output_wave(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
-	uint8_t data = channel->wave_data[channel->wave_index];
+	uint8_t data = apu.wave_data[channel->wave_index / 2];
+	if (channel->wave_index % 2 == 0)
+		data >>= 4;
+	else
+		data &= 0x0F;
+
 	if (channel->volume_level)
 		return data >> (channel->volume_level - 1);
 	else
@@ -646,6 +651,8 @@ void apu_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR52:
 		master_controls.apu_enabled = get_bits(value, 7, 7);
+		if (!master_controls.apu_enabled)
+			memset(apu.raw_regs, 0, APU_REGISTER_LENGTH);
 		return;
 
 		// Channel 3 wave data
@@ -653,8 +660,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		channel3.wave_data[2 * (address - 0xFF30)] = get_bits(value, 4, 7);
-		channel3.wave_data[2 * (address - 0xFF30) + 1] = get_bits(value, 0, 3);
+		apu.wave_data[address - APU_WAVE_DATA_START] = value;
 		return;
 
 	default:
@@ -712,11 +718,10 @@ uint8_t apu_register_read(uint16_t address) {
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		bit_mask = 0x00;
-		break;
+		return apu.wave_data[address - APU_WAVE_DATA_START];
 
 	default:
-		bit_mask = 0xFF;
+		return 0xFF;
 	}
 
 	return apu.raw_regs[address - APU_REGISTER_START] | bit_mask;
