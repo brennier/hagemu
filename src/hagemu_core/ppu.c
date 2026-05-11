@@ -50,7 +50,6 @@ enum PPUMode {
 	VBLANK     = 1, // also referred to as MODE 1
 	OAM_SCAN   = 2, // also referred to as MODE 2
 	PIXEL_DRAW = 3, // also referred to as MODE 3
-	DISABLED,
 };
 
 struct Sprite {
@@ -177,10 +176,6 @@ void ppu_tick_once() {
 		if (ppu.interrupt_select_vblank)
 			interrupt_raise(LCD_INTERRUPT);
 		interrupt_raise(VBLANK_INTERRUPT);
-		break;
-
-	case DISABLED:
-		// Do nothing
 		break;
 	}
 }
@@ -406,7 +401,7 @@ uint8_t ppu_get_lcd_status() {
 	// Clear the lowest three bits
 	ppu.lcd_status_raw &= 0xF8;
 	// bits 0 and 1 are the PPU mode
-	if (ppu.mode != DISABLED)
+	if (ppu.enabled)
 		ppu.lcd_status_raw |= ppu.mode;
 	ppu.lcd_status_raw |= (ppu.current_line == ppu.line_compare) << 2;
 	return ppu.lcd_status_raw;
@@ -467,25 +462,25 @@ void ppu_register_write(uint16_t address, uint8_t value) {
 }
 
 uint8_t ppu_vram_read(uint16_t address) {
-	if (ppu.mode == PIXEL_DRAW)
+	if (ppu.enabled && ppu.mode == PIXEL_DRAW)
 		return 0xFF;
 	return ppu.vram[address];
 }
 
 void ppu_vram_write(uint16_t address, uint8_t value) {
-	if (ppu.mode == PIXEL_DRAW)
+	if (ppu.enabled && ppu.mode == PIXEL_DRAW)
 		return;
 	ppu.vram[address] = value;
 }
 
 uint8_t ppu_oam_read(uint16_t address) {
-	if (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN)
+	if (ppu.enabled && (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN))
 		return 0xFF;
 	return ((uint8_t *)ppu.sprites)[address];
 }
 
 void ppu_oam_write(uint16_t address, uint8_t value) {
-	if (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN)
+	if (ppu.enabled && (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN))
 		return;
 	((uint8_t *)ppu.sprites)[address] = value;
 }
