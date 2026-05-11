@@ -8,7 +8,7 @@
 
 #define PIXEL_DRAW_LENGTH 200
 #define SPRITE_LIMIT 10
-#define OAM_SIZE 0xA0 // 160 bytes
+#define OAM_SPRITE_COUNT 40 // The number of sprites in OAM
 #define DATA_BLOCK_0_START 0x8000
 #define DATA_BLOCK_1_START 0x8800
 #define DATA_BLOCK_2_START 0x9000
@@ -53,6 +53,14 @@ enum PPUMode {
 	DISABLED,
 };
 
+struct Sprite {
+	// This is the same order as in memory
+	uint8_t y_position;
+	uint8_t x_position;
+	uint8_t tile_index;
+	uint8_t attributes;
+};
+
 struct HagemuPPU {
 	enum PPUMode mode;
 	unsigned frames_completed;
@@ -60,7 +68,8 @@ struct HagemuPPU {
 
 	uint32_t screen_buffer[2][144][160];
 	uint8_t vram[0x2000];  // 8 kilobytes
-	uint8_t oam[OAM_SIZE]; // 160 bytes
+	// This correponds exactly to the 160 bytes of OAM RAM
+	struct Sprite sprites[OAM_SPRITE_COUNT];
 
 	// Used during scanline processing
 	uint8_t current_window_line;
@@ -272,37 +281,12 @@ void ppu_draw_window(uint16_t *colors) {
 		ppu.current_window_line++;
 }
 
-struct Sprite {
-	uint8_t oam_address; // This is used for sorting
-	// This is the same order as in memory
-	int     y_position;
-	int     x_position;
-	uint8_t tile_index;
-	bool    background_has_priority;
-	bool    y_flip;
-	bool    x_flip;
-	bool    palette_select;
-};
-
-void read_sprite(uint8_t oam_address, struct Sprite *out) {
-	out->oam_address = oam_address;
-	out->y_position  = ppu.oam[oam_address + 0] - 16;
-	out->x_position  = ppu.oam[oam_address + 1] - 8;
-	out->tile_index  = ppu.oam[oam_address + 2];
-
-	uint8_t attributes = ppu.oam[oam_address + 3];
-	out->background_has_priority = (attributes >> 7) & 0x01;
-	out->y_flip = (attributes >> 6) & 0x01;
-	out->x_flip = (attributes >> 5) & 0x01;
-	out->palette_select = (attributes >> 4) & 0x01;
-}
-
 bool sprite_is_visible(struct Sprite *sprite) {
-	if (ppu.current_line < sprite->y_position)
+	if (ppu.current_line < (int)sprite->y_position - 16)
 		return false;
-	else if (ppu.current_line < sprite->y_position + 8)
+	else if (ppu.current_line < (int)sprite->y_position - 8)
 		return true;
-	else if (ppu.use_tall_sprites && ppu.current_line < sprite->y_position + 16)
+	else if (ppu.use_tall_sprites && ppu.current_line < (int)sprite->y_position)
 		return true;
 	else
 		return false;
@@ -314,19 +298,19 @@ int sprite_compare_dmg(const void *data1, const void *data2) {
     int x_compare = sprite2->x_position - sprite1->x_position;
     if (x_compare != 0)
 	    return x_compare;
-    int address_compare = sprite2->oam_address - sprite1->oam_address;
-    return address_compare;
+    // This is pointer subtraction. Since they're in the same array,
+    // this is valid C and sorts based on their position in OAM.
+    return sprite2 - sprite1;
 }
 
 unsigned read_sprites(struct Sprite *sprites) {
 	unsigned sprite_count = 0;
-	for (int address = 0; address < OAM_SIZE; address += 4) {
+	for (int i = 0; i < OAM_SPRITE_COUNT; i++) {
 		if (sprite_count >= SPRITE_LIMIT)
 			break;
-		struct Sprite sprite;
-		read_sprite(address, &sprite);
-		if (sprite_is_visible(&sprite)) {
-			sprites[sprite_count] = sprite;
+		struct Sprite *sprite = &ppu.sprites[i];
+		if (sprite_is_visible(sprite)) {
+			sprites[sprite_count] = *sprite;
 			sprite_count++;
 		}
 	}
@@ -334,10 +318,15 @@ unsigned read_sprites(struct Sprite *sprites) {
 }
 
 void draw_sprite(uint16_t *colors, struct Sprite *sprite) {
-	int sprite_row = ppu.current_line - sprite->y_position;
-	if (sprite->y_flip && ppu.use_tall_sprites)
+	bool background_has_priority = (sprite->attributes >> 7) & 0x01;
+	bool y_flip = (sprite->attributes >> 6) & 0x01;
+	bool x_flip = (sprite->attributes >> 5) & 0x01;
+	bool palette_select = (sprite->attributes >> 4) & 0x01;
+
+	int sprite_row = ppu.current_line - (int)sprite->y_position + 16;
+	if (y_flip && ppu.use_tall_sprites)
 		sprite_row = 15 - sprite_row;
-	else if (sprite->y_flip)
+	else if (y_flip)
 		sprite_row = 7 - sprite_row;
 
 	if (ppu.use_tall_sprites && sprite_row < 8)
@@ -348,15 +337,15 @@ void draw_sprite(uint16_t *colors, struct Sprite *sprite) {
 	}
 
 	uint16_t tile_start = get_tile_address(sprite->tile_index, true);
-	uint8_t sprite_palette = sprite->palette_select ? ppu.obj1_palette : ppu.obj0_palette;
+	uint8_t sprite_palette = palette_select ? ppu.obj1_palette : ppu.obj0_palette;
 	for (int i = 0; i < 8; i++) {
-		int col = sprite->x_position + i;
-		uint8_t sprite_col = sprite->x_flip ? 7 - i : i;
+		int col = (int)sprite->x_position + i - 8;
+		uint8_t sprite_col = x_flip ? 7 - i : i;
 		uint8_t color = get_color_from_tile(tile_start, sprite_row, sprite_col);
 
 		if (col < 0 || col >= 160)
 			continue;
-		else if (sprite->background_has_priority && (colors[col] >> 15))
+		else if (background_has_priority && (colors[col] >> 15))
 			continue;
 		else if (color == 0)
 			continue;
@@ -511,11 +500,11 @@ void ppu_vram_write(uint16_t address, uint8_t value) {
 uint8_t ppu_oam_read(uint16_t address) {
 	if (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN)
 		return 0xFF;
-	return ppu.oam[address];
+	return ((uint8_t *)ppu.sprites)[address];
 }
 
 void ppu_oam_write(uint16_t address, uint8_t value) {
 	if (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN)
 		return;
-	ppu.oam[address] = value;
+	((uint8_t *)ppu.sprites)[address] = value;
 }
