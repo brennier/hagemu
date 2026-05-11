@@ -90,6 +90,7 @@ struct HagemuPPU {
 	bool window_triggered;
 
 	// These correspond to the bits of the LCD_CONTROL register
+	uint8_t lcd_control_raw;
 	bool bg_enabled;           // bit 0
 	bool objects_enabled;      // bit 1
 	bool use_tall_sprites;     // bit 2
@@ -100,6 +101,7 @@ struct HagemuPPU {
 	bool enabled;              // bit 7
 
 	// These correspond to the bits of the LCD_STATUS register
+	uint8_t lcd_status_raw;
 	bool interrupt_select_hblank;   // bit 3
 	bool interrupt_select_vblank;   // bit 4
 	bool interrupt_select_oam_scan; // bit 5
@@ -372,6 +374,7 @@ const uint32_t* ppu_get_frame() {
 /*** Below is code for reading and writing to registers ***/
 
 void ppu_set_lcd_control(uint8_t value) {
+	ppu.lcd_control_raw = value;
 	bool old_ppu_state = ppu.enabled;
 
 	ppu.bg_enabled           = value & (1u << 0);
@@ -390,20 +393,8 @@ void ppu_set_lcd_control(uint8_t value) {
 	ppu.current_cycle = 0;
 }
 
-uint8_t ppu_get_lcd_control() {
-	uint8_t value = 0;
-	value |= (ppu.bg_enabled           << 0);
-	value |= (ppu.objects_enabled      << 1);
-	value |= (ppu.use_tall_sprites     << 2);
-	value |= (ppu.bg_tile_map_area     << 3);
-	value |= (ppu.bg_tile_data_area    << 4);
-	value |= (ppu.window_enabled       << 5);
-	value |= (ppu.window_tile_map_area << 6);
-	value |= (ppu.enabled              << 7);
-	return value;
-}
-
 void ppu_set_lcd_status(uint8_t value) {
+	ppu.lcd_status_raw = value;
 	// bits 0, 1, 2, and 7 are read-only and thus ignored
 	ppu.interrupt_select_hblank   = value & (1u << 3);
 	ppu.interrupt_select_vblank   = value & (1u << 4);
@@ -412,23 +403,13 @@ void ppu_set_lcd_status(uint8_t value) {
 }
 
 uint8_t ppu_get_lcd_status() {
-	uint8_t result = 0;
+	// Clear the lowest three bits
+	ppu.lcd_status_raw &= 0xF8;
 	// bits 0 and 1 are the PPU mode
 	if (ppu.mode != DISABLED)
-		result |= ppu.mode << 0;
-	bool bit2 = (ppu.current_line == ppu.line_compare);
-	bool bit3 = ppu.interrupt_select_hblank;
-	bool bit4 = ppu.interrupt_select_vblank;
-	bool bit5 = ppu.interrupt_select_oam_scan;
-	bool bit6 = ppu.interrupt_select_LYC;
-	bool bit7 = 1;
-	result |= bit2 << 2;
-	result |= bit3 << 3;
-	result |= bit4 << 4;
-	result |= bit5 << 5;
-	result |= bit6 << 6;
-	result |= bit7 << 7;
-	return result;
+		ppu.lcd_status_raw |= ppu.mode;
+	ppu.lcd_status_raw |= (ppu.current_line == ppu.line_compare) << 2;
+	return ppu.lcd_status_raw;
 }
 
 #define REG_LCD_CONTROL   0xFF40
@@ -445,7 +426,7 @@ uint8_t ppu_get_lcd_status() {
 
 uint8_t ppu_register_read(uint16_t address) {
 	switch (address) {
-	case REG_LCD_CONTROL:  return ppu_get_lcd_control();
+	case REG_LCD_CONTROL:  return ppu.lcd_control_raw;
 	case REG_LCD_STATUS:   return ppu_get_lcd_status();
 	case REG_BG_SCROLL_Y:  return ppu.bg_scroll_y;
 	case REG_BG_SCROLL_X:  return ppu.bg_scroll_x;
