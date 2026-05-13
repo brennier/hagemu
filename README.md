@@ -85,6 +85,19 @@ The following games have been tested:
     - [x] Envelope
     - [x] Reset trigger
     - [x] Length timer
+  - [x] Pass Blargg's CPU test roms
+    - [x] 01 registers
+    - [x] 02 length counter
+    - [ ] 03 channel trigger
+    - [ ] 04 sweep
+    - [ ] 05 sweep (detailed)
+    - [ ] 06 overflow on trigger
+    - [ ] 07 Length sweep period sync
+    - [ ] 08 Length counter during power
+    - [ ] 09 Wave read while on
+    - [ ] 10 Wave trigger while on
+    - [ ] 11 registers after power
+    - [ ] 12 wave write while on
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
   - [x] Basic support for saving and loading .sav files
   - [x] Separate MBC code into its own file
@@ -122,9 +135,9 @@ The following games have been tested:
   - [x] Implement the STOP instruction (untested)
   - [x] Make a cool logo
   - [x] OAM DMA transfers pass all of Mooneye's tests
+  - [x] Clear all APU registers when disabled
+  - [x] Make the audio registers readable
   - [ ] Make the color palette settable instead of internal to the ppu
-  - [ ] Make the audio registers readable
-  - [ ] Clear all APU registers when disabled
   - [ ] Add support for the VIN sound channel
   - [ ] Rewrite PPU to be more modular
   - [ ] Add option to blend frames

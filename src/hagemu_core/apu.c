@@ -132,18 +132,20 @@ struct Channel {
 	unsigned lfsr_clock_divider;
 } channel1 = { 0 }, channel2 = { 0 }, channel3 = { 0 }, channel4 = { 0 };
 
-void apu_channel_reset(struct Channel *channel) {
-	memset(channel, 0, sizeof(struct Channel));
-}
-
 struct HagemuAPU {
 	struct Channel ch1;
 	struct Channel ch2;
 	struct Channel ch3;
 	struct Channel ch4;
+	unsigned ticks;
+	unsigned frame_sequencer_clock_step;
 	uint8_t wave_data[16];
 	uint8_t raw_regs[APU_REGISTER_LENGTH];
 } apu = { 0 };
+
+void apu_channel_reset(struct Channel *channel) {
+	memset(channel, 0, sizeof(struct Channel));
+}
 
 void apu_reset() {
 	memset(&channel1, 0, sizeof(struct Channel));
@@ -238,12 +240,10 @@ void tick_noise_channel(struct Channel *channel) {
 }
 
 void apu_tick_once() {
-	static unsigned apu_ticks;
-	static unsigned apu_clock_step;
-	apu_ticks++;
+	apu.ticks++;
 
 	// The channels only tick at 2Mhz
-	if (apu_ticks % 2) {
+	if (apu.ticks % 2) {
 		tick_pulse_channel(&channel1);
 		tick_pulse_channel(&channel2);
 		tick_wave_channel(&channel3);
@@ -251,12 +251,16 @@ void apu_tick_once() {
 	}
 
 	// The frame frequencer ticks at 512 Hz
-	if (apu_ticks > APU_TICK_RATE / 512) {
-		apu_ticks = 0;
-		apu_clock_step++;
-		apu_clock_step %= 8;
+	if (apu.ticks == (APU_TICK_RATE / 512)) {
+		apu.ticks = 0;
+		apu.frame_sequencer_clock_step++;
+		apu.frame_sequencer_clock_step %= 8;
 
-		switch (apu_clock_step) {
+		switch (apu.frame_sequencer_clock_step) {
+
+		case 2: case 6:
+			tick_sweep(&channel1);
+			// FALL THROUGH ON PURPOSE
 
 		case 0: case 4:
 			tick_length_timer(&channel1, 64);
@@ -266,14 +270,6 @@ void apu_tick_once() {
 			break;
 
 		case 1: case 3: case 5:
-			break;
-
-		case 2: case 6:
-			tick_length_timer(&channel1, 64);
-			tick_length_timer(&channel2, 64);
-			tick_length_timer(&channel3, 256);
-			tick_length_timer(&channel4, 64);
-			tick_sweep(&channel1);
 			break;
 
 		case 7:
@@ -521,16 +517,28 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR14:
 		// Channel is triggered
 		if (get_bits(value, 7, 7)) {
+			if (channel1.length_current == 64)
+				channel1.length_current = 0;
+			if (channel1.length_enabled && apu.frame_sequencer_clock_step % 2 == 0 && channel1.length_current != 64) {
+				channel1.length_current++;
+				/* if (channel1.length_current == 64) */
+					/* channel1.enabled = false; */
+			}
 			channel1.envelope_current = 0;
 			channel1.sweep_current = 0;
 			channel1.volume_current = channel1.volume_initial;
 			channel1.duty_wave_index = 0;
-			if (channel1.length_current == 64)
-				channel1.length_current = 0;
 			if (channel1.dac_enabled)
 				channel1.enabled = true;
 		}
+
+		bool old_enabled = channel1.length_enabled;
 		channel1.length_enabled = get_bits(value, 6, 6);
+		if (old_enabled == 0 && channel1.length_enabled && apu.frame_sequencer_clock_step % 2 == 0 && channel1.length_current != 64) {
+			channel1.length_current++;
+			if (channel1.length_current == 64)
+				channel1.enabled = false;
+		}
 		channel1.period_value &= ~(0xFF00);
 		channel1.period_value |= get_bits(value, 0, 2) << 8;
 		return;
