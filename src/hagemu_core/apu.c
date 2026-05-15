@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#define APU_TICK_RATE (1 << 22)
+#define APU_TICK_RATE (1 << 20)
 #define AUDIO_QUEUE_FRAME_SIZE 8192
 #define INITIAL_TARGET_SAMPLE_RATE 48000
 
@@ -143,16 +143,16 @@ struct HagemuAPU {
 	uint8_t raw_regs[APU_REGISTER_LENGTH];
 } apu = { 0 };
 
-void apu_channel_reset(struct Channel *channel) {
-	memset(channel, 0, sizeof(struct Channel));
-}
-
 void apu_reset(void) {
 	memset(&channel1, 0, sizeof(struct Channel));
 	memset(&channel2, 0, sizeof(struct Channel));
 	memset(&channel3, 0, sizeof(struct Channel));
 	memset(&channel4, 0, sizeof(struct Channel));
 	queue_clear(&audio_fifo);
+}
+
+void apu_channel_reset(struct Channel *channel) {
+	memset(channel, 0, sizeof(struct Channel));
 }
 
 void tick_length_timer(struct Channel *channel, unsigned length_max) {
@@ -239,16 +239,19 @@ void tick_noise_channel(struct Channel *channel) {
 	}
 }
 
-void apu_tick_once(void) {
+void apu_tick(void) {
 	apu.ticks++;
 
-	// The channels only tick at 2Mhz
-	if (apu.ticks % 2) {
-		tick_pulse_channel(&channel1);
-		tick_pulse_channel(&channel2);
-		tick_wave_channel(&channel3);
-		tick_noise_channel(&channel4);
-	}
+	// The channels should tick twice per M-cycle
+	tick_pulse_channel(&channel1);
+	tick_pulse_channel(&channel2);
+	tick_wave_channel(&channel3);
+	tick_noise_channel(&channel4);
+
+	tick_pulse_channel(&channel1);
+	tick_pulse_channel(&channel2);
+	tick_wave_channel(&channel3);
+	tick_noise_channel(&channel4);
 
 	// The frame frequencer ticks at 512 Hz
 	if (apu.ticks == (APU_TICK_RATE / 512)) {
@@ -311,11 +314,6 @@ void apu_tick_once(void) {
 			decimation_counter -= DECIMATION_FACTOR;
 		}
 	}
-}
-
-void apu_tick(unsigned t_cycles) {
-	for (int i = 0; i < t_cycles; i++)
-		apu_tick_once();
 }
 
 struct {

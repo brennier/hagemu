@@ -2,7 +2,7 @@
 #define APU_H
 #include <stdint.h>
 
-void apu_tick(unsigned t_cycles);
+void apu_tick(void);
 void apu_reset(void);
 
 void apu_register_write(uint16_t address, uint8_t value);

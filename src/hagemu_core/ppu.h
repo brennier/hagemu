@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-void ppu_tick(int t_cycles);
+void ppu_tick(void);
 const uint32_t* ppu_get_frame(void);
 int ppu_get_current_line(void);
 unsigned ppu_get_frame_count(void);

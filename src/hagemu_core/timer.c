@@ -77,12 +77,9 @@ void timer_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-void timer_tick_once(void) {
-	timer.time++;
-	maybe_increment(timer.time-1, timer.time);
-}
-
-void timer_tick(int t_cycles) {
-	for (int i = 0; i < t_cycles; i++)
-		timer_tick_once();
+void timer_tick(void) {
+	for (int i = 0; i < 4; i++) {
+		timer.time++;
+		maybe_increment(timer.time-1, timer.time);
+	}
 }

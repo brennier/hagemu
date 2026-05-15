@@ -126,13 +126,13 @@ unsigned ppu_get_frame_count(void) {
 	return ppu.frames_completed;
 }
 
-void ppu_tick_once(void) {
+void ppu_tick(void) {
 	if (!ppu.enabled)
 		return;
-	ppu.current_cycle++;
+	ppu.current_cycle += 4;
 
-	if (ppu.current_cycle == 70224)
-		ppu.current_cycle = 0;
+	if (ppu.current_cycle >= 70224)
+		ppu.current_cycle -= 70224;
 
 	int scanline_line  = ppu.current_cycle / 456;
 	int scanline_cycle = ppu.current_cycle % 456;
@@ -181,11 +181,6 @@ void ppu_tick_once(void) {
 		interrupt_raise(VBLANK_INTERRUPT);
 		break;
 	}
-}
-
-void ppu_tick(int t_cycles) {
-	for (int i = 0; i < t_cycles; i++)
-		ppu_tick_once();
 }
 
 RGB555 apply_color(uint8_t palette, uint8_t index) {

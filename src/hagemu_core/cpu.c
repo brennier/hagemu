@@ -31,12 +31,11 @@ struct HagemuCPU {
 #include "apu.h"
 #include "dma.h"
 void system_tick(struct HagemuCPU *cpu) {
-	int t_cycles = 4;
-	ppu_tick(t_cycles);
-	apu_tick(t_cycles);
+	ppu_tick();
+	apu_tick();
 	dma_tick();
-	timer_tick(t_cycles);
-	cpu->cycles_passed += t_cycles;
+	timer_tick();
+	cpu->cycles_passed += 4;
 }
 
 struct HagemuCPU *cpu_create(void) {
