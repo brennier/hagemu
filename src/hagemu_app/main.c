@@ -95,9 +95,7 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 	return true;
 }
 
-void hagemu_app_cleanup(struct HagemuApp *app) {
-	printf("Cleaning up!\n");
-
+void hagemu_save_sram_file(struct HagemuApp *app) {
 	if (hagemu_sram_available()) {
 		size_t sram_size;
 		const uint8_t *sram = hagemu_get_sram(&sram_size);
@@ -105,6 +103,12 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 		hagemu_file_save(sram_name, sram, sram_size);
 		free(sram_name);
 	}
+}
+
+void hagemu_app_cleanup(struct HagemuApp *app) {
+	printf("Cleaning up!\n");
+
+	hagemu_save_sram_file(app);
 
 	text_cleanup();
 	free(app->rom_filename);
@@ -325,9 +329,6 @@ void main_loop(void* arg) {
 }
 
 int main(int argc, char *argv[]) {
-	// Does nothing unless using emscripten
-	web_setup_filesystem();
-
 	struct HagemuApp app = { 0 };
 	hagemu_app_setup(&app);
 

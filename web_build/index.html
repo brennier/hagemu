@@ -167,6 +167,29 @@
     <!-- <button style="top:78%; left:7vh; transform: translate(-50%,-50%);" id="button_left" class="dpad-button">←</button> -->
 
     <script type='text/javascript'>
+      function web_setup_filesystem() {
+	  FS.mkdir('/savedata');
+	  FS.mount(IDBFS, {}, '/savedata');
+	  FS.syncfs(true, function (err) {
+	      if (err) {
+		  console.log("Error loading the offline database");
+	      } else {
+		  console.log("Successfully loaded the offline database");
+	      }
+	  });
+      }
+
+      window.addEventListener("beforeunload", function (event) {
+          Module._web_save_sram_file();
+	  FS.syncfs(false, function (err) {
+	      if (err) {
+		  console.log("Error writing to the offline database");
+	      } else {
+		  console.log("Successfully wrote to the offline database");
+	      }
+	  });
+      });
+
       function triggerRomUpload() {
           document.getElementById("romFileInput").click();
       }
@@ -276,13 +299,11 @@
       }, false);
 
       var Module = {
+          onRuntimeInitialized: function() {
+              web_setup_filesystem();
+          },
           print(...args) {
               console.log(...args);
-              // These replacements are necessary if you render to raw HTML
-              //text = text.replace(/&/g, "&amp;");
-              //text = text.replace(/</g, "&lt;");
-              //text = text.replace(/>/g, "&gt;");
-              //text = text.replace('\n', '<br>', 'g');
               if (outputElement) {
                   var text = args.join(' ');
                   outputElement.value += text + "\n";
