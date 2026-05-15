@@ -302,9 +302,9 @@ void main_loop(void* arg) {
 	hagemu_handle_events(app);
 
 	double smooth_delta_time = get_smooth_delta_time(app);
-	app->cycle_accumulator += smooth_delta_time * GB_CLOCK_FREQUENCY;
-	while (app->cycle_accumulator > 0)
-		app->cycle_accumulator -= hagemu_next_instruction(app->gb);
+	int cycles = smooth_delta_time * GB_CLOCK_FREQUENCY;
+	while (cycles > 0)
+		cycles -= hagemu_next_instruction(app->gb);
 
 	// Even if there's not a new frame, updating the texture every loop
 	// iteration makes the workload smoother and more consistent

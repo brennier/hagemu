@@ -23,7 +23,6 @@ struct HagemuApp {
 	SDL_Event event;
 	float audio_buffer[2 * AUDIO_TARGET_FRAMES];
 	Uint64 old_time;
-	double cycle_accumulator;
 	double smooth_delta_time;
 	double smooth_sample_rate_adjust;
 	enum AppState state;
