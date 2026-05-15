@@ -9,40 +9,37 @@
 #define PIXEL_DRAW_LENGTH 200
 #define SPRITE_LIMIT 10
 #define OAM_SPRITE_COUNT 40 // The number of sprites in OAM
-#define DATA_BLOCK_0_START 0x8000
-#define DATA_BLOCK_1_START 0x8800
-#define DATA_BLOCK_2_START 0x9000
+
+typedef uint16_t RGB555;
+typedef uint32_t ARGB8888;
 
 void ppu_draw_scanline(void);
-void ppu_draw_sprites(uint16_t *colors);
-void ppu_draw_background(uint16_t *colors);
-void ppu_draw_window(uint16_t *colors);
+void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero);
+void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero);
+void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero);
 
-// BW color palette from lightest to darkest
-/* const uint32_t ppu_default_colors[4] = { 0xFFFFFFFF, 0xADADADFF, 0x525252FF, 0x000000FF }; */
+/* // BW color palette from lightest to darkest */
+/* static const RGB555 ppu_default_colors[4] = { */
+/*     0x7FFF, // White        (0 11111 11111 11111) */
+/*     0x56B5, // Light grey   (0 10101 10101 10101) */
+/*     0x294A, // Dark grey    (0 01010 01010 01010) */
+/*     0x0000, // Black        (0 00000 00000 00000) */
+/* }; */
 
 // Green color palette from lightest to darkest
-/* const uint32_t ppu_default_colors[4] = { 0xFF8CBD4A, 0xFF42846B, 0xFF316352, 0xFF214A42 }; */
-const uint16_t ppu_default_colors[4] = { 0x46E9, 0x220D, 0x198A, 0x1128 };
+static const RGB555 ppu_default_colors[4] = {
+	// From lightest green to darkest green
+	0x46E9, 0x220D, 0x198A, 0x1128
+};
 
-uint16_t convert_to_16bit_color(uint32_t color) {
-	uint8_t r = (color >> 16) & 0xFF;
-	uint8_t g = (color >> 8)  & 0xFF;
-	uint8_t b = (color >> 0)  & 0xFF;
-	r >>= 3;
-	g >>= 3;
-	b >>= 3;
-	return (r << 10) | (g << 5) | b;
-}
-
-uint32_t convert_to_32bit_color(uint16_t color) {
-	uint8_t r = (color >> 10) & 0x1F;
-	uint8_t g = (color >> 5)  & 0x1F;
-	uint8_t b = (color >> 0)  & 0x1F;
-	r = (r << 3) | (r >> 2);
-	g = (g << 3) | (g >> 2);
-	b = (b << 3) | (b >> 2);
-	return (0xFF << 24) | (r << 16) | (g << 8) | b;
+// This function is used a lot, so I optimized it a bit
+static inline ARGB8888 convert_color(RGB555 c) {
+	uint32_t result =
+		((c << 9) & 0x00F80000) |
+		((c << 6) & 0x0000F800) |
+		((c << 3) & 0x000000F8);
+	result |= (result >> 5) & 0x00070707;
+	return result | 0xFF000000;
 }
 
 enum PPUMode {
@@ -60,15 +57,21 @@ struct Sprite {
 	uint8_t attributes;
 };
 
+struct Tile {
+	uint8_t data[8][2];
+};
+
 struct HagemuPPU {
 	enum PPUMode mode;
 	unsigned frames_completed;
 	unsigned current_cycle;
 
-	uint32_t screen_buffer[2][144][160];
+	ARGB8888 screen_buffer[2][144][160];
+
 	// This corresponds exactly to the 8 kilobytes of VRAM
-	uint8_t tile_data[384][16]; // 384 tiles of 16 bytes each
-	uint8_t tile_map[2][32][32];
+	struct Tile tile_data[384];  // 384 tiles of 16 bytes each
+	uint8_t tile_map[2][32][32]; // Two 32x32 maps of 1 byte indices
+
 	// This correponds exactly to the 160 bytes of OAM RAM
 	struct Sprite sprites[OAM_SPRITE_COUNT];
 
@@ -116,10 +119,7 @@ void ppu_reset(void) {
 // This is kind of hacky and needs to be fixed later
 uint8_t ppu_read_direct(uint16_t address) {
 	uint8_t *vram = (uint8_t *)ppu.tile_data;
-	if (address >= 0x8000 && address < 0xA000)
-		return vram[address - 0x8000];
-	fprintf(stderr, "[ERROR] Invalid raw VRAM read at %04X\n", address);
-	exit(EXIT_FAILURE);
+	return vram[address - 0x8000];
 }
 
 unsigned ppu_get_frame_count(void) {
@@ -188,55 +188,47 @@ void ppu_tick(int t_cycles) {
 		ppu_tick_once();
 }
 
-struct Pixel {
-	uint8_t palette;
-	uint8_t index;
-};
-
-uint16_t apply_color(uint8_t palette, uint8_t index) {
+RGB555 apply_color(uint8_t palette, uint8_t index) {
 	uint8_t default_color_index = (palette >> 2 * index) & 0x03;
 	return ppu_default_colors[default_color_index];
 }
 
 void ppu_draw_scanline(void) {
-	uint16_t colors[160];
+	RGB555 scanline[160];
+	bool   bg_nonzero[160] = { 0 };
+
 	for (int i = 0; i < 160; i++)
-		colors[i] = ppu_default_colors[0];
+		scanline[i] = ppu_default_colors[0];
 
 	if (ppu.win_scroll_y == ppu.current_line)
 		ppu.window_triggered = true;
 
 	if (ppu.bg_enabled)
-		ppu_draw_background(colors);
+		ppu_draw_background(scanline, bg_nonzero);
 
 	if (ppu.bg_enabled && ppu.window_enabled && ppu.window_triggered)
-		ppu_draw_window(colors);
+		ppu_draw_window(scanline, bg_nonzero);
 
 	if (ppu.objects_enabled)
-		ppu_draw_sprites(colors);
+		ppu_draw_sprites(scanline, bg_nonzero);
 
 	for (int i = 0; i < 160; i++) {
-		uint32_t color32 = convert_to_32bit_color(colors[i]);
+		scanline[i] &= 0x7FFF;
+		ARGB8888 color32 = convert_color(scanline[i]);
 		ppu.screen_buffer[ppu.buffer_index][ppu.current_line][i] = color32;
 	}
 }
 
-uint8_t get_tile_index(uint16_t map_area_start, unsigned row, unsigned col) {
-	return ppu_read_direct(map_area_start + 32 * row + col);
+static inline struct Tile tile_get(uint8_t tile_index, bool unsigned_addressing_mode) {
+	if (unsigned_addressing_mode)
+	        return ppu.tile_data[tile_index];
+	int8_t signed_index = (int8_t)tile_index;
+	return ppu.tile_data[256+signed_index];
 }
 
-uint16_t get_tile_address(uint8_t tile_index, bool object_address_mode) {
-	if (tile_index >= 128)
-		return DATA_BLOCK_1_START + 16 * (tile_index - 128);
-	else if (object_address_mode)
-		return DATA_BLOCK_0_START + 16 * tile_index;
-	else
-		return DATA_BLOCK_2_START + 16 * tile_index;
-}
-
-void decode_tile_row(const uint8_t *tile_start, int row, uint8_t out[8]) {
-	uint8_t lower_bits = tile_start[2*row];
-	uint8_t upper_bits = tile_start[2*row+1];
+static inline void tile_decode_row(struct Tile tile, int row, uint8_t out[8]) {
+	uint8_t lower_bits = tile.data[row][0];
+	uint8_t upper_bits = tile.data[row][1];
 	for (int i = 7; i >= 0; i--) {
 		out[i] = ((upper_bits & 0x01) << 1) | (lower_bits & 0x01);
 		upper_bits >>= 1;
@@ -244,50 +236,48 @@ void decode_tile_row(const uint8_t *tile_start, int row, uint8_t out[8]) {
 	}
 }
 
-uint8_t get_color_from_tile(uint16_t tile_address, unsigned row, unsigned col) {
-	uint8_t bit_plane0 = ppu_read_direct(tile_address + 2 * row);
-	uint8_t bit_plane1 = ppu_read_direct(tile_address + 2 * row + 1);
-	bit_plane0 >>= 7 - col;
-	bit_plane1 >>= 7 - col;
-	bit_plane0 &= 0x01;
-	bit_plane1 &= 0x01;
+void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
+	int bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
+	int bg_col = (ppu.bg_scroll_x) % 256;
 
-	return (bit_plane1 << 1) | bit_plane0;
-}
-
-uint8_t get_color_from_map(uint8_t tile_index, unsigned row, unsigned col) {
-	uint16_t tile_start = get_tile_address(tile_index, ppu.bg_tile_data_area);
-	return get_color_from_tile(tile_start, row % 8, col % 8);
-}
-
-void ppu_draw_background(uint16_t *colors) {
-	uint8_t bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
+	uint8_t color_indices[256];
+	for (int i = 0; i < 32; i++) {
+		uint8_t tile_index = ppu.tile_map[ppu.bg_tile_map][bg_row / 8][i];
+		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area);
+		tile_decode_row(tile, bg_row % 8, color_indices + i * 8);
+	}
 
 	for (int i = 0; i < 160; i++) {
-		uint8_t bg_col  = (ppu.bg_scroll_x + i) % 256;
-		uint8_t tile_index = ppu.tile_map[ppu.bg_tile_map][bg_row / 8][bg_col / 8];
-		uint8_t index = get_color_from_map(tile_index, bg_row, bg_col);
-		colors[i] = apply_color(ppu.bg_palette, index);
-		if (index) colors[i] |= (1 << 15);
+		scanline[i] = apply_color(ppu.bg_palette, color_indices[bg_col]);
+		bg_nonzero[i] = (color_indices[bg_col] != 0);
+		bg_col++;
+		if (bg_col == 256)
+			bg_col = 0;
 	}
 }
 
-void ppu_draw_window(uint16_t *colors) {
-	uint8_t window_row = ppu.current_window_line;
-	int window_col_start = ppu.win_scroll_x - 7;
-
-	for (int i = window_col_start; i < 160; i++) {
-		if (i < 0) continue;
-		uint8_t window_col = (i - window_col_start) % 256;
-		uint8_t tile_index = ppu.tile_map[ppu.window_tile_map][window_row / 8][window_col / 8];
-		uint8_t index = get_color_from_map(tile_index, window_row, window_col);
-		colors[i] = apply_color(ppu.bg_palette, index);
-		if (index) colors[i] |= (1 << 15);
-	}
+void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero) {
+	int win_row = ppu.current_window_line;
+	int win_col = ppu.win_scroll_x - 7;
 
 	// If the window was actually displayed at all, increment the window counter
-	if (window_col_start < 160)
+	if (win_col < 160)
 		ppu.current_window_line++;
+
+	uint8_t color_indices[256];
+	for (int i = 0; i < 32; i++) {
+		uint8_t tile_index = ppu.tile_map[ppu.window_tile_map][win_row / 8][i];
+		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area);
+		tile_decode_row(tile, win_row % 8, color_indices + i * 8);
+	}
+
+	for (int i = 0; i < 160; i++) {
+		scanline[i] = apply_color(ppu.bg_palette, color_indices[win_col]);
+		bg_nonzero[i] = (color_indices[win_col] != 0);
+		win_col++;
+		if (win_col == 256)
+			win_col = 0;
+	}
 }
 
 bool sprite_is_visible(struct Sprite *sprite) {
@@ -326,51 +316,53 @@ unsigned read_sprites(struct Sprite *sprites) {
 	return sprite_count;
 }
 
-void draw_sprite(uint16_t *colors, struct Sprite *sprite) {
-	bool background_has_priority = (sprite->attributes >> 7) & 0x01;
-	bool y_flip = (sprite->attributes >> 6) & 0x01;
-	bool x_flip = (sprite->attributes >> 5) & 0x01;
-	bool palette_select = (sprite->attributes >> 4) & 0x01;
+static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct Sprite sprite) {
+	bool background_has_priority = (sprite.attributes >> 7) & 0x01;
+	bool y_flip = (sprite.attributes >> 6) & 0x01;
+	bool x_flip = (sprite.attributes >> 5) & 0x01;
+	bool palette_select = (sprite.attributes >> 4) & 0x01;
+	uint8_t tile_index = sprite.tile_index;
 
-	int sprite_row = ppu.current_line - (int)sprite->y_position + 16;
+	int sprite_row = ppu.current_line - (int)sprite.y_position + 16;
 	if (y_flip && ppu.use_tall_sprites)
 		sprite_row = 15 - sprite_row;
 	else if (y_flip)
 		sprite_row = 7 - sprite_row;
 
 	if (ppu.use_tall_sprites && sprite_row < 8)
-		sprite->tile_index &= ~(0x01);
+		tile_index &= ~(0x01);
 	else if (ppu.use_tall_sprites && sprite_row < 16) {
-		sprite->tile_index |= 0x01;
+		tile_index |= 0x01;
 		sprite_row -= 8;
 	}
 
-	uint16_t tile_start = get_tile_address(sprite->tile_index, true);
+	uint8_t colors[8];
+	struct Tile tile = tile_get(tile_index, true);
+	tile_decode_row(tile, sprite_row, colors);
 	uint8_t sprite_palette = palette_select ? ppu.obj1_palette : ppu.obj0_palette;
 	for (int i = 0; i < 8; i++) {
-		int col = (int)sprite->x_position + i - 8;
+		int col = (int)sprite.x_position + i - 8;
 		uint8_t sprite_col = x_flip ? 7 - i : i;
-		uint8_t color = get_color_from_tile(tile_start, sprite_row, sprite_col);
 
 		if (col < 0 || col >= 160)
 			continue;
-		else if (background_has_priority && (colors[col] >> 15))
+		else if (background_has_priority && bg_nonzero[col])
 			continue;
-		else if (color == 0)
+		else if (colors[sprite_col] == 0)
 			continue;
 
-		colors[col] = apply_color(sprite_palette, color);
+		scanline[col] = apply_color(sprite_palette, colors[sprite_col]);
 	}
 }
 
-void ppu_draw_sprites(uint16_t *colors) {
+void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero) {
 	struct Sprite sprites[SPRITE_LIMIT];
 	unsigned sprite_count = read_sprites(sprites);
 
 	qsort(sprites, sprite_count, sizeof(struct Sprite), sprite_compare_dmg);
 
 	for (int i = 0; i < sprite_count; i++) {
-		draw_sprite(colors, &sprites[i]);
+		draw_sprite(scanline, bg_nonzero, sprites[i]);
 	}
 }
 

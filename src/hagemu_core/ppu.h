@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// current_cycle is the number of cycles since the frame has started
 void ppu_tick(int t_cycles);
 const uint32_t* ppu_get_frame(void);
 int ppu_get_current_line(void);
