@@ -272,7 +272,7 @@ int calculate_sample_rate(struct HagemuApp *app) {
 	/* if (queued_bytes == 0) */
 		/* printf("[DEBUG] Audio buffer is empty\n"); */
 	int queued_frames = queued_bytes / (2 * sizeof(float));
-	float error = (AUDIO_TARGET_FRAMES - (hagemu_audio_available() + queued_frames)) / (float)AUDIO_TARGET_FRAMES;
+	float error = (AUDIO_TARGET_FRAMES - queued_frames) / (double)AUDIO_TARGET_FRAMES;
 	error *= 0.05f;
 	if (error < -0.005f) error = -0.005f;
 	if (error >  0.005f) error =  0.005f;
