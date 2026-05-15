@@ -1,71 +1,48 @@
+TARGET = hagemu
 CFLAGS = -O3 -std=c99 -Wall -pedantic
-SOURCES = $(wildcard src/hagemu_core/*.c)
-OBJECTS = $(patsubst src/hagemu_core/%.c,build/%.o,$(SOURCES))
+LFLAGS = $(shell pkg-config --libs sdl3)
 INCLUDES = -I src/hagemu_core -I src/hagemu_app $(shell pkg-config --cflags sdl3)
 
-# Use different linker libraries and output names depending on the OS
-ifeq ($(OS),Windows_NT)
-	LFLAGS = -lhagemu -lSDL3 -lopengl32 -lgdi32 -lwinmm
-# Maybe add -mwindows later
-	OUTPUT = hagemu.exe
-else
-	LFLAGS = -lhagemu $(shell pkg-config --libs sdl3)
-	OUTPUT = hagemu
-endif
+SOURCE_DIR = src
+BUILD_DIR  = build
+SOURCES = $(shell find $(SOURCE_DIR) -name "*.c" | grep -v "$(SOURCE_DIR)/emsdk/")
+OBJECTS = $(patsubst $(SOURCE_DIR)/%.c, $(BUILD_DIR)/%.o, $(SOURCES))
 
-${OUTPUT}: build/libhagemu.a build/main.o build/text.o build/file.o build/web.o
+$(TARGET): $(OBJECTS)
 	@printf %s "Linking together the final executable..."
-	@${CC} $^ -o $@ -L build ${LFLAGS} >/dev/null
+	@$(CC) $(CFLAGS) $(LFLAGS) $^ -o $@ >/dev/null
 	@echo sucessful!
-	@echo ${OUTPUT} was sucessfully created!
+	@echo $(TARGET) was sucessfully created!
 
-build/libhagemu.a: ${OBJECTS}
-	@mkdir -p build
-	@printf %s "Linking together the emulator core..."
-	@ar rcs $@ $^
-	@ranlib $@
-	@echo sucessful!
-
-build/%.o: src/hagemu_core/%.c
-	@mkdir -p build
-	@printf %s "Compiling $(notdir $<) into object code..."
-	@${CC} ${CFLAGS} -c $< -o $@ ${INCLUDES}
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
+	@mkdir -p $(@D)
+	@printf %s "Compiling $< into object code..."
+	@$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 	@echo sucessfull!
 
-build/main.o: src/hagemu_app/main.c
-	@mkdir -p build
-	@printf %s "Compiling $(notdir $<) into object code..."
-	@${CC} ${CFLAGS} -c $< -o $@ ${INCLUDES}
-	@echo sucessfull!
-
-build/text.o: src/hagemu_app/text.c
-	@mkdir -p build
-	@printf %s "Compiling $(notdir $<) into object code..."
-	@${CC} ${CFLAGS} -c $< -o $@ ${INCLUDES}
-	@echo sucessfull!
-
-build/file.o: src/hagemu_app/file.c
-	@mkdir -p build
-	@printf %s "Compiling $(notdir $<) into object code..."
-	@${CC} ${CFLAGS} -c $< -o $@ ${INCLUDES}
-	@echo sucessfull!
-
-build/web.o: src/hagemu_app/web.c
-	@mkdir -p build
-	@printf %s "Compiling $(notdir $<) into object code..."
-	@${CC} ${CFLAGS} -c $< -o $@ ${INCLUDES}
-	@echo sucessfull!
-
-web:
-	@mkdir -p web_build
-	@sh src/emsdk/emsdk install latest
-	@sh src/emsdk/emsdk activate latest
-	@source src/emsdk/emsdk_env.sh && emcc -O3 -flto -lidbfs.js src/hagemu_core/*.c src/hagemu_app/*.c -o web_build/hagemu.js ${INCLUDES} -I src/emsdk/upstream/emscripten/cache/sysroot/include/ -s USE_SDL=3 -s ASYNCIFY -s EXPORTED_RUNTIME_METHODS='["HEAPU8","UTF8ToString","ccall","cwrap"]'
-	@cd web_build && python -m http.server 8000
+.PHONY: clean test
 
 clean:
 	@echo Cleaning up build files and executables...
-	@rm -rf build ${OUTPUT}
+	@rm -rf $(BUILD_DIR) $(TARGET)
 
-test: ${OUTPUT}
-	./${OUTPUT} roms/test.gb
+test: $(TARGET)
+	./$(TARGET) roms/test.gb
+
+#####--- WebAssembly Build ---#####
+# Recursively calls this makefile with different arguments
+
+WEB_BUILD_DIR = $(BUILD_DIR)/web
+WEB_TARGET    = web_build/hagemu.js
+EMFLAGS       = -sUSE_SDL=3 -flto -lidbfs.js -sASYNCIFY \
+                -sEXPORTED_RUNTIME_METHODS='["HEAPU8","UTF8ToString","ccall","cwrap"]'
+
+web:
+	@sh src/emsdk/emsdk install latest
+	@sh src/emsdk/emsdk activate latest
+	$(MAKE) \
+		CC="source src/emsdk/emsdk_env.sh && emcc" \
+		TARGET=$(WEB_TARGET) \
+		BUILD_DIR=$(WEB_BUILD_DIR) \
+		LFLAGS="$(LFLAGS) $(EMFLAGS)"
+	@cd web_build && python -m http.server 8000
