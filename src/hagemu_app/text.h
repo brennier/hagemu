@@ -2,7 +2,7 @@
 #define TEXT_H
 
 bool text_init(SDL_Renderer *renderer);
-void text_cleanup();
+void text_cleanup(void);
 
 void text_draw(SDL_Renderer *renderer, char* text, int x, int y, int font_size);
 float text_pixel_length(char* text, int font_size);

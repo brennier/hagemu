@@ -39,7 +39,7 @@ void system_tick(struct HagemuCPU *cpu) {
 	cpu->cycles_passed += t_cycles;
 }
 
-struct HagemuCPU *cpu_create() {
+struct HagemuCPU *cpu_create(void) {
 	struct HagemuCPU *cpu = malloc(sizeof(struct HagemuCPU));
 	memset(cpu, 0, sizeof(struct HagemuCPU));
 	return cpu;

@@ -22,7 +22,7 @@ bool boot_rom_enabled = true;
 uint8_t serial_data    = 0;
 uint8_t serial_control = 0;
 
-void mmu_reset() {
+void mmu_reset(void) {
 	memset(wram, 0, sizeof(wram));
 	memset(hram, 0, sizeof(hram));
 	boot_rom_enabled = true;

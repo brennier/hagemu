@@ -125,7 +125,7 @@ bool text_init(SDL_Renderer *renderer) {
 	return true;
 }
 
-void text_cleanup() {
+void text_cleanup(void) {
 	SDL_DestroyTexture(font_texture);
 }
 

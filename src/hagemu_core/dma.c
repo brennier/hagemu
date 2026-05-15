@@ -15,7 +15,7 @@ struct HagemuDMA {
 	uint8_t  last_transferred;
 } dma = { 0 };
 
-void dma_reset() {
+void dma_reset(void) {
 	memset(&dma, 0, sizeof(struct HagemuDMA));
 }
 
@@ -26,7 +26,7 @@ void dma_start(uint8_t value) {
 	dma.pending_cycles = 2;
 }
 
-void dma_tick() {
+void dma_tick(void) {
 	if (dma.active) {
 		dma.last_transferred = mmu_read_nonblocking(dma.source + dma.index);
 		ppu_oam_write(dma.index, dma.last_transferred);
@@ -45,10 +45,10 @@ void dma_tick() {
 	}
 }
 
-bool dma_is_active() {
+bool dma_is_active(void) {
 	return dma.active;
 }
 
-uint8_t dma_read() {
+uint8_t dma_read(void) {
 	return dma.last_reg_write;
 }

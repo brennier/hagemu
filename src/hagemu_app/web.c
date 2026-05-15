@@ -10,7 +10,7 @@
 struct HagemuApp *hagemu_app = NULL;
 const char *sram_filename = NULL;
 
-void EMSCRIPTEN_KEEPALIVE web_sync_filesystem() {
+void EMSCRIPTEN_KEEPALIVE web_sync_filesystem(void) {
 	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available()) {
 		size_t sram_size;
 		const uint8_t *sram = hagemu_get_sram(&sram_size);
@@ -31,7 +31,7 @@ void EMSCRIPTEN_KEEPALIVE web_sync_filesystem() {
 	);
 }
 
-void web_setup_filesystem() {
+void web_setup_filesystem(void) {
 	EM_ASM(
 		FS.mkdir('/savedata');
 		FS.mount(IDBFS, {}, '/savedata');
@@ -54,7 +54,7 @@ void web_save_pointer_for_javascript(struct HagemuApp *app) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-const uint8_t* web_get_sram_pointer() {
+const uint8_t* web_get_sram_pointer(void) {
 	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available()) {
 		size_t out_size;
 		return hagemu_get_sram(&out_size);
@@ -63,7 +63,7 @@ const uint8_t* web_get_sram_pointer() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-size_t web_get_sram_size() {
+size_t web_get_sram_size(void) {
 	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available()) {
 		size_t out_size;
 		hagemu_get_sram(&out_size);
@@ -73,7 +73,7 @@ size_t web_get_sram_size() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-const char *web_get_sram_file_name() {
+const char *web_get_sram_file_name(void) {
 	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available()) {
 		sram_filename = hagemu_file_sram_name(hagemu_app->rom_filename);
 		const char *basename = strrchr(sram_filename, '/');
@@ -92,6 +92,6 @@ void web_load_file(const char *filename) {
 }
 
 #else
-void web_setup_filesystem() {}
+void web_setup_filesystem(void) {}
 void web_save_pointer_for_javascript(struct HagemuApp *app) {}
 #endif

@@ -3,7 +3,7 @@
 
 struct HagemuCPU;
 
-struct HagemuCPU *cpu_create();
+struct HagemuCPU *cpu_create(void);
 void cpu_destory(struct HagemuCPU *cpu);
 void cpu_reset(struct HagemuCPU *cpu);
 int cpu_do_next_instruction(struct HagemuCPU *cpu);

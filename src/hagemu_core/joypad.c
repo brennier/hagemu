@@ -38,7 +38,7 @@ void joypad_set_byte(uint8_t byte) {
 	joypad.select_buttons = !((byte >> 5) & 0x01);
 }
 
-uint8_t joypad_get_byte() {
+uint8_t joypad_get_byte(void) {
 	uint8_t joypad_byte = 0x00;
 
 	joypad_byte |= (joypad.select_dpad)    << 5;

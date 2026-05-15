@@ -12,14 +12,14 @@ enum HagemuInterruptFlag {
 	JOYPAD_INTERRUPT,
 };
 
-void interrupt_reset();
+void interrupt_reset(void);
 void interrupt_raise(enum HagemuInterruptFlag flag);
 void interrupt_clear(enum HagemuInterruptFlag flag);
-uint8_t interrupt_register_read();
+uint8_t interrupt_register_read(void);
 void interrupt_register_write(uint8_t value);
-bool interrupt_pending();
-enum HagemuInterruptFlag interrupt_get_next();
-uint8_t interrupt_enable_register_read();
+bool interrupt_pending(void);
+enum HagemuInterruptFlag interrupt_get_next(void);
+uint8_t interrupt_enable_register_read(void);
 void interrupt_enable_register_write(uint8_t value);
 
 #endif

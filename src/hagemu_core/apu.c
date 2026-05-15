@@ -32,7 +32,7 @@ struct AudioQueue {
 
 typedef struct AudioQueue AudioQueue;
 
-AudioFrame apu_generate_frame();
+AudioFrame apu_generate_frame(void);
 AudioFrame highpass_filter(AudioFrame frame);
 AudioFrame lowpass_filter(AudioFrame frame);
 
@@ -50,7 +50,7 @@ unsigned queue_size(AudioQueue *queue) {
 	return queue->size;
 }
 
-unsigned apu_audio_available() {
+unsigned apu_audio_available(void) {
 	return queue_size(&audio_fifo);
 }
 
@@ -147,7 +147,7 @@ void apu_channel_reset(struct Channel *channel) {
 	memset(channel, 0, sizeof(struct Channel));
 }
 
-void apu_reset() {
+void apu_reset(void) {
 	memset(&channel1, 0, sizeof(struct Channel));
 	memset(&channel2, 0, sizeof(struct Channel));
 	memset(&channel3, 0, sizeof(struct Channel));
@@ -239,7 +239,7 @@ void tick_noise_channel(struct Channel *channel) {
 	}
 }
 
-void apu_tick_once() {
+void apu_tick_once(void) {
 	apu.ticks++;
 
 	// The channels only tick at 2Mhz
@@ -375,7 +375,7 @@ uint8_t channel_output_noise(struct Channel *channel) {
 		return 0;
 }
 
-AudioFrame apu_generate_frame() {
+AudioFrame apu_generate_frame(void) {
 	AudioFrame frame = { 0 };
 	if (!master_controls.apu_enabled)
 		return frame;
@@ -698,7 +698,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-uint8_t apu_register_read_nr52() {
+uint8_t apu_register_read_nr52(void) {
 	/* printf("CHANNEL3 LENGTH: %d\n", channel3.length_current); */
 	uint8_t value = 0;
 	value |= channel1.enabled << 0;

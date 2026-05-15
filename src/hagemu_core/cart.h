@@ -43,7 +43,7 @@ uint8_t cart_ram_read(uint16_t address);
 uint8_t cart_rom_read(uint16_t address);
 
 const uint8_t *cart_get_sram(size_t *out_size);
-bool cart_sram_available();
-void cart_sram_reset();
+bool cart_sram_available(void);
+void cart_sram_reset(void);
 
 #endif // HAGEMU_CART_H

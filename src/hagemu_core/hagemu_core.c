@@ -13,7 +13,7 @@ struct HagemuGB {
 	struct HagemuCPU *cpu;
 };
 
-struct HagemuGB* hagemu_create() {
+struct HagemuGB* hagemu_create(void) {
 	struct HagemuGB *gb = malloc(sizeof(struct HagemuGB));
 	gb->cpu = cpu_create();
 	return gb;
@@ -54,7 +54,7 @@ void hagemu_set_button(struct HagemuGB *gb, HagemuButton button, bool is_down) {
 	if (is_down) cpu_resume_if_stopped(gb->cpu);
 }
 
-const uint32_t *hagemu_get_framebuffer() {
+const uint32_t *hagemu_get_framebuffer(void) {
 	return ppu_get_frame();
 }
 
@@ -63,7 +63,7 @@ unsigned hagemu_audio_read(float *buffer, unsigned max_frames) {
  	return count;
 }
 
-unsigned hagemu_audio_available() {
+unsigned hagemu_audio_available(void) {
 	return apu_audio_available();
 }
 
@@ -71,7 +71,7 @@ bool hagemu_set_sram(const uint8_t *data, size_t size) {
 	return cart_set_sram(data, size);
 }
 
-bool hagemu_sram_available() {
+bool hagemu_sram_available(void) {
 	return cart_sram_available();
 }
 
@@ -79,7 +79,7 @@ const uint8_t *hagemu_get_sram(size_t *out_size) {
 	return cart_get_sram(out_size);
 }
 
-unsigned hagemu_get_frame_count() {
+unsigned hagemu_get_frame_count(void) {
 	return ppu_get_frame_count();
 }
 

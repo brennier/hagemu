@@ -71,7 +71,7 @@ void cart_set_info(struct HagemuCart *cart) {
 		cart->ram_size = ram_size_table[ram_size_byte];;
 }
 
-bool cart_sram_available() {
+bool cart_sram_available(void) {
 	return cart.ram;
 }
 
@@ -151,7 +151,7 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 	memset(cart.ram, 0xFF, cart.ram_size);
 }
 
-void cart_sram_reset() {
+void cart_sram_reset(void) {
 	if (!cart.ram) return;
 	memset(cart.ram, 0xFF, cart.ram_size);
 }

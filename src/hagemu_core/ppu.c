@@ -13,7 +13,7 @@
 #define DATA_BLOCK_1_START 0x8800
 #define DATA_BLOCK_2_START 0x9000
 
-void ppu_draw_scanline();
+void ppu_draw_scanline(void);
 void ppu_draw_sprites(uint16_t *colors);
 void ppu_draw_background(uint16_t *colors);
 void ppu_draw_window(uint16_t *colors);
@@ -109,7 +109,7 @@ struct HagemuPPU {
 	bool interrupt_select_LYC;      // bit 6
 } ppu = { 0 };
 
-void ppu_reset() {
+void ppu_reset(void) {
 	memset(&ppu, 0, sizeof(struct HagemuPPU));
 }
 
@@ -122,11 +122,11 @@ uint8_t ppu_read_direct(uint16_t address) {
 	exit(EXIT_FAILURE);
 }
 
-unsigned ppu_get_frame_count() {
+unsigned ppu_get_frame_count(void) {
 	return ppu.frames_completed;
 }
 
-void ppu_tick_once() {
+void ppu_tick_once(void) {
 	if (!ppu.enabled)
 		return;
 	ppu.current_cycle++;
@@ -198,7 +198,7 @@ uint16_t apply_color(uint8_t palette, uint8_t index) {
 	return ppu_default_colors[default_color_index];
 }
 
-void ppu_draw_scanline() {
+void ppu_draw_scanline(void) {
 	uint16_t colors[160];
 	for (int i = 0; i < 160; i++)
 		colors[i] = ppu_default_colors[0];
@@ -374,7 +374,7 @@ void ppu_draw_sprites(uint16_t *colors) {
 	}
 }
 
-const uint32_t* ppu_get_frame() {
+const uint32_t* ppu_get_frame(void) {
 	return (const uint32_t*)ppu.screen_buffer[!ppu.buffer_index];
 }
 
@@ -409,7 +409,7 @@ void ppu_set_lcd_status(uint8_t value) {
 	ppu.interrupt_select_LYC      = value & (1u << 6);
 }
 
-uint8_t ppu_get_lcd_status() {
+uint8_t ppu_get_lcd_status(void) {
 	// Clear the lowest three bits
 	ppu.lcd_status_raw &= 0xF8;
 	// bits 0 and 1 are the PPU mode

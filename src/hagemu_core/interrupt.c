@@ -13,7 +13,7 @@ struct HagemuInterrupts {
 	uint8_t enabled_register;
 } interrupt = { 0 };
 
-void interrupt_reset() {
+void interrupt_reset(void) {
 	memset(&interrupt, 0, sizeof(struct HagemuInterrupts));
 }
 
@@ -37,7 +37,7 @@ void interrupt_clear(enum HagemuInterruptFlag flag) {
 	}
 }
 
-uint8_t interrupt_register_read() {
+uint8_t interrupt_register_read(void) {
 	uint8_t value = 0xE0;
 	value |= (interrupt.vblank << 0);
 	value |= (interrupt.lcd    << 1);
@@ -55,7 +55,7 @@ void interrupt_register_write(uint8_t value) {
 	interrupt.joypad = value & (1 << 4);
 }
 
-uint8_t interrupt_enable_register_read() {
+uint8_t interrupt_enable_register_read(void) {
 	return interrupt.enabled_register;
 }
 
@@ -63,12 +63,12 @@ void interrupt_enable_register_write(uint8_t value) {
 	interrupt.enabled_register = value;
 }
 
-bool interrupt_pending() {
+bool interrupt_pending(void) {
 	// Only check the lower 5 bits
 	return interrupt_register_read() & interrupt.enabled_register & 0x1F;
 }
 
-enum HagemuInterruptFlag interrupt_get_next() {
+enum HagemuInterruptFlag interrupt_get_next(void) {
 	uint8_t interrupts = interrupt_register_read() & interrupt.enabled_register;
 	if (interrupts & 0x01)
 		return VBLANK_INTERRUPT;
