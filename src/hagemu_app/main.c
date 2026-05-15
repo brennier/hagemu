@@ -7,10 +7,10 @@
 #include "hagemu_core.h"
 #include "text.h"
 #include "file.h"
-#include "web.h" // Does nothing unless compiled with emscripten
 
 #ifdef __EMSCRIPTEN__
 #include "emscripten.h"
+#include "web.h" // Used to talk to javascript
 #endif
 
 #define WINDOW_TITLE "Hagemu Gameboy Emulator"
@@ -332,8 +332,9 @@ int main(int argc, char *argv[]) {
 	struct HagemuApp app = { 0 };
 	hagemu_app_setup(&app);
 
-	// Does nothing unless using emscripten
+#ifdef __EMSCRIPTEN__
 	web_save_pointer_for_javascript(&app);
+#endif
 
 	printf("Application started successfully\n");
 	printf("Waiting for a rom file\n");

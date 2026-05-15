@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include "file.h"
 
-// EMSCRIPTEN functions
 #ifdef __EMSCRIPTEN__
 
 #include "emscripten.h"
@@ -58,7 +57,4 @@ void web_load_file(const char *filename) {
 	hagemu_handle_drop_event(hagemu_app, filename);
 }
 
-#else
-void web_setup_filesystem(void) {}
-void web_save_pointer_for_javascript(struct HagemuApp *app) {}
-#endif
+#endif // __EMSCRIPTEN__
