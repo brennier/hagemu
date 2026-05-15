@@ -14,9 +14,9 @@
 #define DATA_BLOCK_2_START 0x9000
 
 void ppu_draw_scanline();
-void ppu_draw_sprites();
-void ppu_draw_background();
-void ppu_draw_window();
+void ppu_draw_sprites(uint16_t *colors);
+void ppu_draw_background(uint16_t *colors);
+void ppu_draw_window(uint16_t *colors);
 
 // BW color palette from lightest to darkest
 /* const uint32_t ppu_default_colors[4] = { 0xFFFFFFFF, 0xADADADFF, 0x525252FF, 0x000000FF }; */
@@ -66,7 +66,9 @@ struct HagemuPPU {
 	unsigned current_cycle;
 
 	uint32_t screen_buffer[2][144][160];
-	uint8_t vram[0x2000];  // 8 kilobytes
+	// This corresponds exactly to the 8 kilobytes of VRAM
+	uint8_t tile_data[384][16]; // 384 tiles of 16 bytes each
+	uint8_t tile_map[2][32][32];
 	// This correponds exactly to the 160 bytes of OAM RAM
 	struct Sprite sprites[OAM_SPRITE_COUNT];
 
@@ -93,10 +95,10 @@ struct HagemuPPU {
 	bool bg_enabled;           // bit 0
 	bool objects_enabled;      // bit 1
 	bool use_tall_sprites;     // bit 2
-	bool bg_tile_map_area;     // bit 3
+	bool bg_tile_map;          // bit 3
 	bool bg_tile_data_area;    // bit 4
 	bool window_enabled;       // bit 5
-	bool window_tile_map_area; // bit 6
+	bool window_tile_map;      // bit 6
 	bool enabled;              // bit 7
 
 	// These correspond to the bits of the LCD_STATUS register
@@ -113,8 +115,9 @@ void ppu_reset() {
 
 // This is kind of hacky and needs to be fixed later
 uint8_t ppu_read_direct(uint16_t address) {
+	uint8_t *vram = (uint8_t *)ppu.tile_data;
 	if (address >= 0x8000 && address < 0xA000)
-		return ppu.vram[address - 0x8000];
+		return vram[address - 0x8000];
 	fprintf(stderr, "[ERROR] Invalid raw VRAM read at %04X\n", address);
 	exit(EXIT_FAILURE);
 }
@@ -231,6 +234,16 @@ uint16_t get_tile_address(uint8_t tile_index, bool object_address_mode) {
 		return DATA_BLOCK_2_START + 16 * tile_index;
 }
 
+void decode_tile_row(const uint8_t *tile_start, int row, uint8_t out[8]) {
+	uint8_t lower_bits = tile_start[2*row];
+	uint8_t upper_bits = tile_start[2*row+1];
+	for (int i = 7; i >= 0; i--) {
+		out[i] = ((upper_bits & 0x01) << 1) | (lower_bits & 0x01);
+		upper_bits >>= 1;
+		lower_bits >>= 1;
+	}
+}
+
 uint8_t get_color_from_tile(uint16_t tile_address, unsigned row, unsigned col) {
 	uint8_t bit_plane0 = ppu_read_direct(tile_address + 2 * row);
 	uint8_t bit_plane1 = ppu_read_direct(tile_address + 2 * row + 1);
@@ -242,33 +255,32 @@ uint8_t get_color_from_tile(uint16_t tile_address, unsigned row, unsigned col) {
 	return (bit_plane1 << 1) | bit_plane0;
 }
 
-uint8_t get_color_from_map(uint16_t map_area_start, unsigned row, unsigned col) {
-	uint8_t tile_index = get_tile_index(map_area_start, row / 8, col / 8);
+uint8_t get_color_from_map(uint8_t tile_index, unsigned row, unsigned col) {
 	uint16_t tile_start = get_tile_address(tile_index, ppu.bg_tile_data_area);
 	return get_color_from_tile(tile_start, row % 8, col % 8);
 }
 
 void ppu_draw_background(uint16_t *colors) {
-	uint16_t tile_map_start = ppu.bg_tile_map_area ? 0x9C00 : 0x9800;
 	uint8_t bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
 
 	for (int i = 0; i < 160; i++) {
 		uint8_t bg_col  = (ppu.bg_scroll_x + i) % 256;
-		uint8_t index   = get_color_from_map(tile_map_start, bg_row, bg_col);
+		uint8_t tile_index = ppu.tile_map[ppu.bg_tile_map][bg_row / 8][bg_col / 8];
+		uint8_t index = get_color_from_map(tile_index, bg_row, bg_col);
 		colors[i] = apply_color(ppu.bg_palette, index);
 		if (index) colors[i] |= (1 << 15);
 	}
 }
 
 void ppu_draw_window(uint16_t *colors) {
-	uint16_t tile_map_start = ppu.window_tile_map_area ? 0x9C00 : 0x9800;
 	uint8_t window_row = ppu.current_window_line;
 	int window_col_start = ppu.win_scroll_x - 7;
 
 	for (int i = window_col_start; i < 160; i++) {
 		if (i < 0) continue;
 		uint8_t window_col = (i - window_col_start) % 256;
-		uint8_t index = get_color_from_map(tile_map_start, window_row, window_col);
+		uint8_t tile_index = ppu.tile_map[ppu.window_tile_map][window_row / 8][window_col / 8];
+		uint8_t index = get_color_from_map(tile_index, window_row, window_col);
 		colors[i] = apply_color(ppu.bg_palette, index);
 		if (index) colors[i] |= (1 << 15);
 	}
@@ -372,14 +384,14 @@ void ppu_set_lcd_control(uint8_t value) {
 	ppu.lcd_control_raw = value;
 	bool old_ppu_state = ppu.enabled;
 
-	ppu.bg_enabled           = value & (1u << 0);
-	ppu.objects_enabled      = value & (1u << 1);
-	ppu.use_tall_sprites     = value & (1u << 2);
-	ppu.bg_tile_map_area     = value & (1u << 3);
-	ppu.bg_tile_data_area    = value & (1u << 4);
-	ppu.window_enabled       = value & (1u << 5);
-	ppu.window_tile_map_area = value & (1u << 6);
-	ppu.enabled              = value & (1u << 7);
+	ppu.bg_enabled        = value & (1u << 0);
+	ppu.objects_enabled   = value & (1u << 1);
+	ppu.use_tall_sprites  = value & (1u << 2);
+	ppu.bg_tile_map       = value & (1u << 3);
+	ppu.bg_tile_data_area = value & (1u << 4);
+	ppu.window_enabled    = value & (1u << 5);
+	ppu.window_tile_map   = value & (1u << 6);
+	ppu.enabled           = value & (1u << 7);
 
 	if (old_ppu_state == ppu.enabled)
 		return;
@@ -464,13 +476,15 @@ void ppu_register_write(uint16_t address, uint8_t value) {
 uint8_t ppu_vram_read(uint16_t address) {
 	if (ppu.enabled && ppu.mode == PIXEL_DRAW)
 		return 0xFF;
-	return ppu.vram[address];
+	uint8_t *vram = (uint8_t *)ppu.tile_data;
+	return vram[address];
 }
 
 void ppu_vram_write(uint16_t address, uint8_t value) {
 	if (ppu.enabled && ppu.mode == PIXEL_DRAW)
 		return;
-	ppu.vram[address] = value;
+	uint8_t *vram = (uint8_t *)ppu.tile_data;
+	vram[address] = value;
 }
 
 uint8_t ppu_oam_read(uint16_t address) {
