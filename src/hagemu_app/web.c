@@ -4,7 +4,7 @@
 
 #ifdef __EMSCRIPTEN__
 
-#include "emscripten.h"
+#include <emscripten.h>
 
 struct HagemuApp *hagemu_app = NULL;
 const char *sram_filename = NULL;

@@ -9,7 +9,7 @@
 #include "file.h"
 
 #ifdef __EMSCRIPTEN__
-#include "emscripten.h"
+#include <emscripten.h>
 #include "web.h" // Used to talk to javascript
 #endif
 
