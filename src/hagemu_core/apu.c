@@ -12,8 +12,8 @@
 #define APU_WAVE_DATA_START 0xFF30
 
 int TARGET_SAMPLE_RATE = INITIAL_TARGET_SAMPLE_RATE;
-double DECIMATION_FACTOR = ((double)APU_TICK_RATE / (double)INITIAL_TARGET_SAMPLE_RATE);
-double decimation_counter = 0.0;
+float DECIMATION_FACTOR = ((float)APU_TICK_RATE / (float)INITIAL_TARGET_SAMPLE_RATE);
+float decimation_counter = 0.0;
 
 typedef struct {
 	float left;
@@ -38,7 +38,7 @@ AudioFrame lowpass_filter(AudioFrame frame);
 
 void apu_set_audio_sample_rate(unsigned new_sample_rate) {
 	TARGET_SAMPLE_RATE = new_sample_rate;
-	DECIMATION_FACTOR = ((double)APU_TICK_RATE / (double)new_sample_rate);
+	DECIMATION_FACTOR = ((float)APU_TICK_RATE / (float)new_sample_rate);
 }
 
 void queue_clear(AudioQueue *queue) {
@@ -367,35 +367,36 @@ uint8_t channel_output_noise(struct Channel *channel) {
 }
 
 AudioFrame apu_generate_frame(void) {
-	AudioFrame frame = { 0 };
 	if (!master_controls.apu_enabled)
-		return frame;
+		return (AudioFrame){ 0 };
+
+	int left = 0, right = 0;
 
 	// Each channel outputs an integer in [0, 15]
-	float ch1 = channel_output_pulse(&channel1);
-	float ch2 = channel_output_pulse(&channel2);
-	float ch3 = channel_output_wave(&channel3);
-	float ch4 = channel_output_noise(&channel4);
+	int ch1 = channel_output_pulse(&channel1);
+	int ch2 = channel_output_pulse(&channel2);
+	int ch3 = channel_output_wave(&channel3);
+	int ch4 = channel_output_noise(&channel4);
 
-	// Normalize each channel to [-1,1]
-	ch1 = (ch1 - 7.5) / 7.5;
-	ch2 = (ch2 - 7.5) / 7.5;
-	ch3 = (ch3 - 7.5) / 7.5;
-	ch4 = (ch4 - 7.5) / 7.5;
+	left += master_controls.channel1_left * ch1;
+	left += master_controls.channel2_left * ch2;
+	left += master_controls.channel3_left * ch3;
+	left += master_controls.channel4_left * ch4;
 
-	frame.left += master_controls.channel1_left * ch1;
-	frame.left += master_controls.channel2_left * ch2;
-	frame.left += master_controls.channel3_left * ch3;
-	frame.left += master_controls.channel4_left * ch4;
-	frame.left /= 4.0;
-	frame.left *= (master_controls.volume_left + 1) / 8.0;
+	right += master_controls.channel1_right * ch1;
+	right += master_controls.channel2_right * ch2;
+	right += master_controls.channel3_right * ch3;
+	right += master_controls.channel4_right * ch4;
 
-	frame.right += master_controls.channel1_right * ch1;
-	frame.right += master_controls.channel2_right * ch2;
-	frame.right += master_controls.channel3_right * ch3;
-	frame.right += master_controls.channel4_right * ch4;
-	frame.right /= 4.0;
-	frame.right *= (master_controls.volume_right + 1) / 8.0;
+	left  *= (master_controls.volume_left  + 1);
+	right *= (master_controls.volume_right + 1);
+
+	// Each side is between [0, 480], so we normalize
+	// the output to between [-1.0, 1.0]
+	AudioFrame frame = {
+		.left =  (left  - 240) / 240.0,
+		.right = (right - 240) / 240.0
+	};
 
 	return frame;
 }
