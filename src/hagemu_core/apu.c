@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#define APU_TICK_RATE (1 << 20)
+#define APU_TICK_RATE (1 << 21)
 #define AUDIO_QUEUE_FRAME_SIZE 8192
 #define INITIAL_TARGET_SAMPLE_RATE 48000
 
@@ -239,14 +239,9 @@ void tick_noise_channel(struct Channel *channel) {
 	}
 }
 
-void apu_tick(void) {
+// The APU ticks twice per M-cycle (approximation 2MHz)
+void apu_tick_once(void) {
 	apu.ticks++;
-
-	// The channels should tick twice per M-cycle
-	tick_pulse_channel(&channel1);
-	tick_pulse_channel(&channel2);
-	tick_wave_channel(&channel3);
-	tick_noise_channel(&channel4);
 
 	tick_pulse_channel(&channel1);
 	tick_pulse_channel(&channel2);
@@ -284,36 +279,34 @@ void apu_tick(void) {
 	}
 
 	AudioFrame current_frame = apu_generate_frame();
-	static double accumulate_left = 0;
-	static double accumulate_right = 0;
-	double remaining = 1.0;
+	static AudioFrame accumulate = { 0 };
+	decimation_counter += 1.0;
 
-	while (remaining > 0) {
-		double space = DECIMATION_FACTOR - decimation_counter;
-		double step = remaining < space ? remaining : space;
-
-		accumulate_left  += current_frame.left  * step;
-		accumulate_right += current_frame.right * step;
-
-		decimation_counter += step;
-		remaining -= step;
-
-		if (decimation_counter >= DECIMATION_FACTOR) {
-			AudioFrame output;
-			output.left  = accumulate_left  / DECIMATION_FACTOR;
-			output.right = accumulate_right / DECIMATION_FACTOR;
-			output = lowpass_filter(output);
-			output = highpass_filter(output);
-			if (output.left < -1.0) output.left = -1.0;
-			else if (output.left > 1.0) output.left = 1.0;
-			if (output.right < -1.0) output.right = -1.0;
-			else if (output.right > 1.0) output.right = 1.0;
-			queue_push(&audio_fifo, output);
-			accumulate_left  = 0;
-			accumulate_right = 0;
-			decimation_counter -= DECIMATION_FACTOR;
-		}
+	if (decimation_counter < DECIMATION_FACTOR) {
+		accumulate.left  += current_frame.left;
+		accumulate.right += current_frame.right;
+		return;
 	}
+
+	float leftover = decimation_counter - DECIMATION_FACTOR;
+	float step = 1.0 - leftover;
+	accumulate.left  += current_frame.left  * step;
+	accumulate.right += current_frame.right * step;
+
+	AudioFrame output;
+	output.left  = accumulate.left  / DECIMATION_FACTOR;
+	output.right = accumulate.right / DECIMATION_FACTOR;
+	output = lowpass_filter(output);
+	output = highpass_filter(output);
+	queue_push(&audio_fifo, output);
+	accumulate.left  = current_frame.left  * leftover;
+	accumulate.right = current_frame.right * leftover;
+	decimation_counter = leftover;
+}
+
+void apu_tick(void) {
+	apu_tick_once();
+	apu_tick_once();
 }
 
 struct {
