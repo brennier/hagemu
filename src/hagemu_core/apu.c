@@ -20,6 +20,11 @@ typedef struct {
 	float right;
 } AudioFrame;
 
+typedef struct {
+	int left;
+	int right;
+} IntegerAudioFrame;
+
 struct {
 	uint8_t volume_left;
 	uint8_t volume_right;
@@ -46,9 +51,9 @@ struct AudioQueue {
 
 typedef struct AudioQueue AudioQueue;
 
-AudioFrame apu_generate_frame(void);
+IntegerAudioFrame apu_generate_frame(void);
 AudioFrame highpass_filter(AudioFrame frame);
-AudioFrame lowpass_filter(AudioFrame frame);
+IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame);
 
 void apu_set_audio_sample_rate(unsigned new_sample_rate) {
 	TARGET_SAMPLE_RATE = new_sample_rate;
@@ -294,8 +299,8 @@ void apu_tick_once(void) {
 		}
 	}
 
-	AudioFrame current_frame = apu_generate_frame();
-	static AudioFrame accumulate = { 0 };
+	IntegerAudioFrame current_frame = apu_generate_frame();
+	static IntegerAudioFrame accumulate = { 0 };
 	decimation_counter += 1.0;
 
 	if (decimation_counter < DECIMATION_FACTOR) {
@@ -308,17 +313,18 @@ void apu_tick_once(void) {
 	float step = 1.0 - leftover;
 	accumulate.left  += current_frame.left  * step;
 	accumulate.right += current_frame.right * step;
-	accumulate.left  /= DECIMATION_FACTOR;
-	accumulate.right /= DECIMATION_FACTOR;
-
 	accumulate.left  *= (master_controls.volume_left  + 1);
 	accumulate.right *= (master_controls.volume_right + 1);
-	accumulate.left   = (accumulate.left  - 240) / 240.0;
-	accumulate.right  = (accumulate.right - 240) / 240.0;
-
 	accumulate = lowpass_filter(accumulate);
-	accumulate = highpass_filter(accumulate);
-	queue_push(&audio_fifo, accumulate);
+
+	AudioFrame output;
+	output.left  = accumulate.left  / DECIMATION_FACTOR;
+	output.right = accumulate.right / DECIMATION_FACTOR;
+	output.left   = (output.left  - 240) / 240.0;
+	output.right  = (output.right - 240) / 240.0;
+
+	output = highpass_filter(output);
+	queue_push(&audio_fifo, output);
 
 	decimation_counter = leftover;
 	accumulate.left  = current_frame.left  * leftover;
@@ -373,8 +379,8 @@ uint8_t channel_output_noise(struct Channel *channel) {
 		return 0;
 }
 
-AudioFrame apu_generate_frame(void) {
-	AudioFrame frame = { 0 };
+IntegerAudioFrame apu_generate_frame(void) {
+	IntegerAudioFrame frame = { 0 };
 	if (!master_controls.apu_enabled)
 		return frame;
 
@@ -398,20 +404,27 @@ AudioFrame apu_generate_frame(void) {
 }
 
 // Alpha should be 1 - exp(-2 * pi * cutoff_freqency / sample_rate)
-AudioFrame lowpass_filter(AudioFrame frame) {
-	static AudioFrame prev_frame;
-	/* const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff */
-	const float alpha = 0.649f; // 48kHz sample rate, 8kHz cutoff
+/* const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff */
+/* const float alpha = 0.649f; // 48kHz sample rate, 8kHz cutoff */
+IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
+	static IntegerAudioFrame prev_frame;
+	IntegerAudioFrame frame_diff;
+	frame_diff.left  = frame.left  - prev_frame.left;
+	frame_diff.right = frame.right - prev_frame.right;
 
-	prev_frame.left  += alpha * (frame.left  - prev_frame.left);
-	prev_frame.right += alpha * (frame.right - prev_frame.right);
+	// This multiplies frame_diff by 0.6875
+	frame_diff.left -= (frame_diff.left >> 2) + (frame_diff.left >> 4);
+	frame_diff.right -= (frame_diff.right >> 2) + (frame_diff.right >> 4);
+
+	prev_frame.left  += frame_diff.left;
+	prev_frame.right += frame_diff.right;
 	return prev_frame;
 }
 
 // Emulates the DC Blocking of the gameboy
 AudioFrame highpass_filter(AudioFrame frame) {
 	static AudioFrame prev_input, prev_output;
-	const float R = 0.995f;
+	const float R = 0.996f;
 	AudioFrame output_frame = {
 		.left  = frame.left  - prev_input.left  + R * prev_output.left,
 		.right = frame.right - prev_input.right + R * prev_output.right,
