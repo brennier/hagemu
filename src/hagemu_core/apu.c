@@ -20,6 +20,20 @@ typedef struct {
 	float right;
 } AudioFrame;
 
+struct {
+	uint8_t volume_left;
+	uint8_t volume_right;
+	bool apu_enabled;
+	bool channel1_right;
+	bool channel1_left;
+	bool channel2_right;
+	bool channel2_left;
+	bool channel3_right;
+	bool channel3_left;
+	bool channel4_right;
+	bool channel4_left;
+} master_controls = { 0 };
+
 struct AudioQueue {
 	AudioFrame frames[AUDIO_QUEUE_FRAME_SIZE];
 	unsigned start;
@@ -294,36 +308,27 @@ void apu_tick_once(void) {
 	float step = 1.0 - leftover;
 	accumulate.left  += current_frame.left  * step;
 	accumulate.right += current_frame.right * step;
+	accumulate.left  /= DECIMATION_FACTOR;
+	accumulate.right /= DECIMATION_FACTOR;
 
-	AudioFrame output;
-	output.left  = accumulate.left  / DECIMATION_FACTOR;
-	output.right = accumulate.right / DECIMATION_FACTOR;
-	output = lowpass_filter(output);
-	output = highpass_filter(output);
-	queue_push(&audio_fifo, output);
+	accumulate.left  *= (master_controls.volume_left  + 1);
+	accumulate.right *= (master_controls.volume_right + 1);
+	accumulate.left   = (accumulate.left  - 240) / 240.0;
+	accumulate.right  = (accumulate.right - 240) / 240.0;
+
+	accumulate = lowpass_filter(accumulate);
+	accumulate = highpass_filter(accumulate);
+	queue_push(&audio_fifo, accumulate);
+
+	decimation_counter = leftover;
 	accumulate.left  = current_frame.left  * leftover;
 	accumulate.right = current_frame.right * leftover;
-	decimation_counter = leftover;
 }
 
 void apu_tick(void) {
 	apu_tick_once();
 	apu_tick_once();
 }
-
-struct {
-	uint8_t volume_left;
-	uint8_t volume_right;
-	bool apu_enabled;
-	bool channel1_right;
-	bool channel1_left;
-	bool channel2_right;
-	bool channel2_left;
-	bool channel3_right;
-	bool channel3_left;
-	bool channel4_right;
-	bool channel4_left;
-} master_controls = { 0 };
 
 uint8_t channel_output_pulse(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
@@ -369,10 +374,9 @@ uint8_t channel_output_noise(struct Channel *channel) {
 }
 
 AudioFrame apu_generate_frame(void) {
+	AudioFrame frame = { 0 };
 	if (!master_controls.apu_enabled)
-		return (AudioFrame){ 0 };
-
-	int left = 0, right = 0;
+		return frame;
 
 	// Each channel outputs an integer in [0, 15]
 	int ch1 = channel_output_pulse(&channel1);
@@ -380,25 +384,15 @@ AudioFrame apu_generate_frame(void) {
 	int ch3 = channel_output_wave(&channel3);
 	int ch4 = channel_output_noise(&channel4);
 
-	left += master_controls.channel1_left * ch1;
-	left += master_controls.channel2_left * ch2;
-	left += master_controls.channel3_left * ch3;
-	left += master_controls.channel4_left * ch4;
+	frame.left = master_controls.channel1_left * ch1
+		+ master_controls.channel2_left * ch2
+		+ master_controls.channel3_left * ch3
+		+ master_controls.channel4_left * ch4;
 
-	right += master_controls.channel1_right * ch1;
-	right += master_controls.channel2_right * ch2;
-	right += master_controls.channel3_right * ch3;
-	right += master_controls.channel4_right * ch4;
-
-	left  *= (master_controls.volume_left  + 1);
-	right *= (master_controls.volume_right + 1);
-
-	// Each side is between [0, 480], so we normalize
-	// the output to between [-1.0, 1.0]
-	AudioFrame frame = {
-		.left =  (left  - 240) / 240.0,
-		.right = (right - 240) / 240.0
-	};
+	frame.right = master_controls.channel1_right * ch1
+		+ master_controls.channel2_right * ch2
+		+ master_controls.channel3_right * ch3
+		+ master_controls.channel4_right * ch4;
 
 	return frame;
 }
@@ -406,7 +400,8 @@ AudioFrame apu_generate_frame(void) {
 // Alpha should be 1 - exp(-2 * pi * cutoff_freqency / sample_rate)
 AudioFrame lowpass_filter(AudioFrame frame) {
 	static AudioFrame prev_frame;
-	const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff
+	/* const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff */
+	const float alpha = 0.649f; // 48kHz sample rate, 8kHz cutoff
 
 	prev_frame.left  += alpha * (frame.left  - prev_frame.left);
 	prev_frame.right += alpha * (frame.right - prev_frame.right);
