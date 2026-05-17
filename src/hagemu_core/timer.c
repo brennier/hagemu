@@ -10,36 +10,39 @@
 
 struct HagemuTimer {
 	uint16_t time; // measured in t-cycles
+	uint16_t clock_select;
+	uint8_t  timer_control_raw;
 	uint8_t  divider;
 	uint8_t  modulo;
 	uint8_t  counter;
-	uint8_t  clock_select;
 	bool     enabled;
 } timer = { 0 };
+
+void set_clock_select(uint8_t select) {
+	timer.clock_select = 1;
+	switch (select) {
+        case 0x00: timer.clock_select <<= 9; break;
+        case 0x01: timer.clock_select <<= 3; break;
+        case 0x02: timer.clock_select <<= 5; break;
+        case 0x03: timer.clock_select <<= 7; break;
+	}
+}
 
 void maybe_increment(uint16_t old_time, uint16_t new_time) {
 	// Return early if timer control is off
 	if (!timer.enabled)
 		return;
 
-	uint16_t bit = 1;
-	switch (timer.clock_select) {
-        case 0x00: bit <<= 9; break;
-        case 0x01: bit <<= 3; break;
-        case 0x02: bit <<= 5; break;
-        case 0x03: bit <<= 7; break;
-	default:
-		fprintf(stderr, "[ERROR] Illegal timer clock_select value %02X\n", timer.clock_select);
-		exit(EXIT_FAILURE);
-	}
+	if ((old_time & timer.clock_select) == 0)
+		return;
+	if ((new_time & timer.clock_select) != 0)
+		return;
 
-	if ((old_time & bit) != 0 && (new_time & bit) == 0) {
-		if (timer.counter == 0xFF) {
-			timer.counter = timer.modulo;
-			interrupt_raise(TIMER_INTERRUPT);
-		} else {
-			timer.counter++;
-		}
+	if (timer.counter == 0xFF) {
+		timer.counter = timer.modulo;
+		interrupt_raise(TIMER_INTERRUPT);
+	} else {
+		timer.counter++;
 	}
 }
 
@@ -48,7 +51,7 @@ uint8_t timer_register_read(uint16_t address) {
 	case TIMER_DIVIDER: return timer.time >> 8;
 	case TIMER_COUNTER: return timer.counter;
 	case TIMER_MODULO:  return timer.modulo;
-	case TIMER_CONTROL: return 0xF8 | (timer.enabled << 2) | timer.clock_select;
+	case TIMER_CONTROL: return timer.timer_control_raw | 0xF8;
 	default:
 		fprintf(stderr, "[ERROR] Read from illegal timer address %04X\n", address);
 		exit(EXIT_FAILURE);
@@ -68,8 +71,9 @@ void timer_register_write(uint16_t address, uint8_t value) {
 		timer.modulo = value;
 		return;
 	case TIMER_CONTROL:
-		timer.enabled      = value & (1 << 2);
-		timer.clock_select = value & 0x03;
+		timer.timer_control_raw = value;
+		timer.enabled = value & (1 << 2);
+		set_clock_select(value & 0x03);
 		return;
 	default:
 		fprintf(stderr, "[ERROR] Write to illegal timer address %04X\n", address);
@@ -78,8 +82,6 @@ void timer_register_write(uint16_t address, uint8_t value) {
 }
 
 void timer_tick(void) {
-	for (int i = 0; i < 4; i++) {
-		timer.time++;
-		maybe_increment(timer.time-1, timer.time);
-	}
+	maybe_increment(timer.time, timer.time + 4);
+	timer.time += 4;
 }
