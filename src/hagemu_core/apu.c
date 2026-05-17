@@ -108,7 +108,7 @@ struct Channel {
 	unsigned volume_current;
 	unsigned envelope_current;
 	unsigned envelope_pace;
-	unsigned envelope_direction;
+	bool envelope_direction;
 
 	// Channels 1 and 2
 	unsigned duty_wave_type;
@@ -116,7 +116,7 @@ struct Channel {
 
 	// Channel 1 only
 	unsigned sweep_current;
-	unsigned sweep_direction;
+	bool sweep_direction;
 	unsigned sweep_step;
 	unsigned sweep_pace;
 
@@ -202,8 +202,9 @@ void tick_envelope(struct Channel *channel) {
 
 void tick_pulse_channel(struct Channel *channel) {
 	channel->ticks++;
-	if (channel->ticks > 2 * (2048 - channel->period_value)) {
-		channel->ticks = 0;
+	uint32_t period = 2 * (2048 - channel->period_value);
+	if (channel->ticks >= period ) {
+		channel->ticks -= period;
 		channel->duty_wave_index++;
 		channel->duty_wave_index %= 8;
 	}
@@ -211,8 +212,9 @@ void tick_pulse_channel(struct Channel *channel) {
 
 void tick_wave_channel(struct Channel *channel) {
 	channel->ticks++;
-	if (channel->ticks > 2048 - channel->period_value) {
-		channel->ticks = 0;
+	uint32_t period = 2048 - channel->period_value;
+	if (channel->ticks >= period) {
+		channel->ticks -= period;
 		channel->wave_index++;
 		channel->wave_index %= 32;
 	}
@@ -220,8 +222,9 @@ void tick_wave_channel(struct Channel *channel) {
 
 void tick_noise_channel(struct Channel *channel) {
 	channel->ticks++;
-	if (channel->ticks > channel->period_value) {
-		channel->ticks = 0;
+	uint32_t period = channel->period_value;
+	if (channel->ticks > period) {
+		channel->ticks -= period;
 		bool next_bit = channel->lfsr & 0x01;
 		channel->lfsr >>= 1;
 
