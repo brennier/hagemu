@@ -25,7 +25,7 @@ typedef struct {
 	int right;
 } IntegerAudioFrame;
 
-struct {
+struct MasterControls {
 	uint8_t volume_left;
 	uint8_t volume_right;
 	bool apu_enabled;
@@ -52,7 +52,7 @@ struct AudioQueue {
 typedef struct AudioQueue AudioQueue;
 
 IntegerAudioFrame apu_generate_frame(void);
-AudioFrame highpass_filter(AudioFrame frame);
+IntegerAudioFrame highpass_filter(IntegerAudioFrame frame);
 IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame);
 
 void apu_set_audio_sample_rate(unsigned new_sample_rate) {
@@ -316,14 +316,12 @@ void apu_tick_once(void) {
 	accumulate.left  *= (master_controls.volume_left  + 1);
 	accumulate.right *= (master_controls.volume_right + 1);
 	accumulate = lowpass_filter(accumulate);
+	accumulate = highpass_filter(accumulate);
 
+	// Normalize to [-1.0, 1.0]
 	AudioFrame output;
-	output.left  = accumulate.left  / DECIMATION_FACTOR;
-	output.right = accumulate.right / DECIMATION_FACTOR;
-	output.left   = (output.left  - 240) / 240.0;
-	output.right  = (output.right - 240) / 240.0;
-
-	output = highpass_filter(output);
+	output.left  = accumulate.left  / (240.0 * DECIMATION_FACTOR);
+	output.right = accumulate.right / (240.0 * DECIMATION_FACTOR);
 	queue_push(&audio_fifo, output);
 
 	decimation_counter = leftover;
@@ -380,8 +378,9 @@ uint8_t channel_output_noise(struct Channel *channel) {
 }
 
 IntegerAudioFrame apu_generate_frame(void) {
+	struct MasterControls mc = master_controls;
 	IntegerAudioFrame frame = { 0 };
-	if (!master_controls.apu_enabled)
+	if (!mc.apu_enabled)
 		return frame;
 
 	// Each channel outputs an integer in [0, 15]
@@ -390,15 +389,19 @@ IntegerAudioFrame apu_generate_frame(void) {
 	int ch3 = channel_output_wave(&channel3);
 	int ch4 = channel_output_noise(&channel4);
 
-	frame.left = master_controls.channel1_left * ch1
-		+ master_controls.channel2_left * ch2
-		+ master_controls.channel3_left * ch3
-		+ master_controls.channel4_left * ch4;
+	frame.left = mc.channel1_left * ch1
+		+ mc.channel2_left * ch2
+		+ mc.channel3_left * ch3
+		+ mc.channel4_left * ch4;
 
-	frame.right = master_controls.channel1_right * ch1
-		+ master_controls.channel2_right * ch2
-		+ master_controls.channel3_right * ch3
-		+ master_controls.channel4_right * ch4;
+	frame.right = mc.channel1_right * ch1
+		+ mc.channel2_right * ch2
+		+ mc.channel3_right * ch3
+		+ mc.channel4_right * ch4;
+
+	// Normalize to [-30, 30]
+	frame.left  -= 30;
+	frame.right -= 30;
 
 	return frame;
 }
@@ -407,7 +410,7 @@ IntegerAudioFrame apu_generate_frame(void) {
 /* const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff */
 /* const float alpha = 0.649f; // 48kHz sample rate, 8kHz cutoff */
 IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
-	static IntegerAudioFrame prev_frame;
+	static IntegerAudioFrame prev_frame = { 0 };
 	IntegerAudioFrame frame_diff;
 	frame_diff.left  = frame.left  - prev_frame.left;
 	frame_diff.right = frame.right - prev_frame.right;
@@ -422,12 +425,16 @@ IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 }
 
 // Emulates the DC Blocking of the gameboy
-AudioFrame highpass_filter(AudioFrame frame) {
-	static AudioFrame prev_input, prev_output;
-	const float R = 0.996f;
-	AudioFrame output_frame = {
-		.left  = frame.left  - prev_input.left  + R * prev_output.left,
-		.right = frame.right - prev_input.right + R * prev_output.right,
+/* const float R = 0.996f; */
+IntegerAudioFrame highpass_filter(IntegerAudioFrame frame) {
+	static IntegerAudioFrame prev_input  = { 0 };
+	static IntegerAudioFrame prev_output = { 0 };
+	// Multiply by 0.99609375
+	prev_output.left  -= (prev_output.left  >> 8);
+	prev_output.right -= (prev_output.right >> 8);
+	IntegerAudioFrame output_frame = {
+		.left  = frame.left  - prev_input.left  + prev_output.left,
+		.right = frame.right - prev_input.right + prev_output.right,
 	};
 	prev_input = frame;
 	prev_output = output_frame;
