@@ -25,20 +25,6 @@ typedef struct {
 	int right;
 } IntegerAudioFrame;
 
-struct MasterControls {
-	uint8_t volume_left;
-	uint8_t volume_right;
-	bool apu_enabled;
-	bool channel1_right;
-	bool channel1_left;
-	bool channel2_right;
-	bool channel2_left;
-	bool channel3_right;
-	bool channel3_left;
-	bool channel4_right;
-	bool channel4_left;
-} master_controls = { 0 };
-
 struct AudioQueue {
 	AudioFrame frames[AUDIO_QUEUE_FRAME_SIZE];
 	unsigned start;
@@ -111,6 +97,13 @@ void queue_drain(AudioQueue *queue, float* output, unsigned count) {
 	queue->start %= queue->capacity;
 }
 
+unsigned apu_read_audio(float *output, unsigned max_frames) {
+	if (max_frames > apu_audio_available())
+		max_frames = apu_audio_available();
+	queue_drain(&audio_fifo, output, max_frames);
+	return max_frames;
+}
+
 struct Channel {
 	// All channels
 	bool enabled;
@@ -148,7 +141,7 @@ struct Channel {
 	bool     lfsr_width;
 	unsigned lfsr_clock_shift;
 	unsigned lfsr_clock_divider;
-} channel1 = { 0 }, channel2 = { 0 }, channel3 = { 0 }, channel4 = { 0 };
+};
 
 struct HagemuAPU {
 	struct Channel ch1;
@@ -159,13 +152,24 @@ struct HagemuAPU {
 	unsigned frame_sequencer_clock_step;
 	uint8_t wave_data[16];
 	uint8_t raw_regs[APU_REGISTER_LENGTH];
+	uint8_t volume_left;
+	uint8_t volume_right;
+	bool enabled;
+	bool ch1_output_right;
+	bool ch1_output_left;
+	bool ch2_output_right;
+	bool ch2_output_left;
+	bool ch3_output_right;
+	bool ch3_output_left;
+	bool ch4_output_right;
+	bool ch4_output_left;
 } apu = { 0 };
 
 void apu_reset(void) {
-	memset(&channel1, 0, sizeof(struct Channel));
-	memset(&channel2, 0, sizeof(struct Channel));
-	memset(&channel3, 0, sizeof(struct Channel));
-	memset(&channel4, 0, sizeof(struct Channel));
+	memset(&apu.ch1, 0, sizeof(struct Channel));
+	memset(&apu.ch2, 0, sizeof(struct Channel));
+	memset(&apu.ch3, 0, sizeof(struct Channel));
+	memset(&apu.ch4, 0, sizeof(struct Channel));
 	queue_clear(&audio_fifo);
 }
 
@@ -264,10 +268,10 @@ void tick_noise_channel(struct Channel *channel) {
 void apu_tick_once(void) {
 	apu.ticks++;
 
-	tick_pulse_channel(&channel1);
-	tick_pulse_channel(&channel2);
-	tick_wave_channel(&channel3);
-	tick_noise_channel(&channel4);
+	tick_pulse_channel(&apu.ch1);
+	tick_pulse_channel(&apu.ch2);
+	tick_wave_channel(&apu.ch3);
+	tick_noise_channel(&apu.ch4);
 
 	// The frame frequencer ticks at 512 Hz
 	if (apu.ticks == (APU_TICK_RATE / 512)) {
@@ -278,23 +282,23 @@ void apu_tick_once(void) {
 		switch (apu.frame_sequencer_clock_step) {
 
 		case 2: case 6:
-			tick_sweep(&channel1);
+			tick_sweep(&apu.ch1);
 			// FALL THROUGH ON PURPOSE
 
 		case 0: case 4:
-			tick_length_timer(&channel1);
-			tick_length_timer(&channel2);
-			tick_length_timer(&channel3);
-			tick_length_timer(&channel4);
+			tick_length_timer(&apu.ch1);
+			tick_length_timer(&apu.ch2);
+			tick_length_timer(&apu.ch3);
+			tick_length_timer(&apu.ch4);
 			break;
 
 		case 1: case 3: case 5:
 			break;
 
 		case 7:
-			tick_envelope(&channel1);
-			tick_envelope(&channel2);
-			tick_envelope(&channel4);
+			tick_envelope(&apu.ch1);
+			tick_envelope(&apu.ch2);
+			tick_envelope(&apu.ch4);
 			break;
 		}
 	}
@@ -313,8 +317,8 @@ void apu_tick_once(void) {
 	float step = 1.0 - leftover;
 	accumulate.left  += current_frame.left  * step;
 	accumulate.right += current_frame.right * step;
-	accumulate.left  *= (master_controls.volume_left  + 1);
-	accumulate.right *= (master_controls.volume_right + 1);
+	accumulate.left  *= (apu.volume_left  + 1);
+	accumulate.right *= (apu.volume_right + 1);
 	accumulate = lowpass_filter(accumulate);
 	accumulate = highpass_filter(accumulate);
 
@@ -378,26 +382,25 @@ uint8_t channel_output_noise(struct Channel *channel) {
 }
 
 IntegerAudioFrame apu_generate_frame(void) {
-	struct MasterControls mc = master_controls;
 	IntegerAudioFrame frame = { 0 };
-	if (!mc.apu_enabled)
+	if (!apu.enabled)
 		return frame;
 
 	// Each channel outputs an integer in [0, 15]
-	int ch1 = channel_output_pulse(&channel1);
-	int ch2 = channel_output_pulse(&channel2);
-	int ch3 = channel_output_wave(&channel3);
-	int ch4 = channel_output_noise(&channel4);
+	int ch1 = channel_output_pulse(&apu.ch1);
+	int ch2 = channel_output_pulse(&apu.ch2);
+	int ch3 = channel_output_wave(&apu.ch3);
+	int ch4 = channel_output_noise(&apu.ch4);
 
-	frame.left = mc.channel1_left * ch1
-		+ mc.channel2_left * ch2
-		+ mc.channel3_left * ch3
-		+ mc.channel4_left * ch4;
+	frame.left = apu.ch1_output_left * ch1
+		+ apu.ch2_output_left * ch2
+		+ apu.ch3_output_left * ch3
+		+ apu.ch4_output_left * ch4;
 
-	frame.right = mc.channel1_right * ch1
-		+ mc.channel2_right * ch2
-		+ mc.channel3_right * ch3
-		+ mc.channel4_right * ch4;
+	frame.right = apu.ch1_output_right * ch1
+		+ apu.ch2_output_right * ch2
+		+ apu.ch3_output_right * ch3
+		+ apu.ch4_output_right * ch4;
 
 	// Normalize to [-30, 30]
 	frame.left  -= 30;
@@ -416,7 +419,7 @@ IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 	frame_diff.right = frame.right - prev_frame.right;
 
 	// This multiplies frame_diff by 0.6875
-	frame_diff.left -= (frame_diff.left >> 2) + (frame_diff.left >> 4);
+	frame_diff.left  -= (frame_diff.left  >> 2) + (frame_diff.left  >> 4);
 	frame_diff.right -= (frame_diff.right >> 2) + (frame_diff.right >> 4);
 
 	prev_frame.left  += frame_diff.left;
@@ -436,16 +439,9 @@ IntegerAudioFrame highpass_filter(IntegerAudioFrame frame) {
 		.left  = frame.left  - prev_input.left  + prev_output.left,
 		.right = frame.right - prev_input.right + prev_output.right,
 	};
-	prev_input = frame;
+	prev_input  = frame;
 	prev_output = output_frame;
 	return output_frame;
-}
-
-unsigned apu_read_audio(float *output, unsigned max_frames) {
-	if (max_frames > apu_audio_available())
-		max_frames = apu_audio_available();
-	queue_drain(&audio_fifo, output, max_frames);
-	return max_frames;
 }
 
 // Use bit shifting and bitmasks to get the value of the
@@ -489,7 +485,7 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 #define SOUND_NR52 0xFF26
 
 void apu_register_write(uint16_t address, uint8_t value) {
-	if (master_controls.apu_enabled == false && address != SOUND_NR52)
+	if (apu.enabled == false && address != SOUND_NR52)
 		return;
 
 	apu.raw_regs[address - APU_REGISTER_START] = value;
@@ -497,194 +493,194 @@ void apu_register_write(uint16_t address, uint8_t value) {
 
 	// CHANNEL 1
 	case SOUND_NR10:
-		channel1.sweep_step = get_bits(value, 0, 2);
-		channel1.sweep_direction = get_bits(value, 3, 3);
-		channel1.sweep_pace = get_bits(value, 4, 6);
+		apu.ch1.sweep_step = get_bits(value, 0, 2);
+		apu.ch1.sweep_direction = get_bits(value, 3, 3);
+		apu.ch1.sweep_pace = get_bits(value, 4, 6);
 		return;
 
 	case SOUND_NR11:
-		channel1.length_current = 64 - get_bits(value, 0, 5);
-		channel1.duty_wave_type = get_bits(value, 6, 7);
+		apu.ch1.length_current = 64 - get_bits(value, 0, 5);
+		apu.ch1.duty_wave_type = get_bits(value, 6, 7);
 		return;
 
 	case SOUND_NR12:
-		channel1.envelope_pace = get_bits(value, 0, 2);
-		channel1.envelope_direction = get_bits(value, 3, 3);
-		channel1.volume_initial = get_bits(value, 4, 7);
-		channel1.volume_current = channel1.volume_initial;
-		if (channel1.volume_initial || channel1.envelope_direction)
-			channel1.dac_enabled = true;
+		apu.ch1.envelope_pace = get_bits(value, 0, 2);
+		apu.ch1.envelope_direction = get_bits(value, 3, 3);
+		apu.ch1.volume_initial = get_bits(value, 4, 7);
+		apu.ch1.volume_current = apu.ch1.volume_initial;
+		if (apu.ch1.volume_initial || apu.ch1.envelope_direction)
+			apu.ch1.dac_enabled = true;
 		else
-			channel1.dac_enabled = channel1.enabled = false;
+			apu.ch1.dac_enabled = apu.ch1.enabled = false;
 		return;
 
 	case SOUND_NR13:
-		channel1.period_value &= ~(0x00FF);
-		channel1.period_value |= value;
+		apu.ch1.period_value &= ~(0x00FF);
+		apu.ch1.period_value |= value;
 		return;
 
 	case SOUND_NR14:
 		// Channel is triggered
 		if (get_bits(value, 7, 7)) {
-			if (channel1.length_current == 0)
-				channel1.length_current = 64;
-			if (channel1.length_enabled && apu.frame_sequencer_clock_step % 2 == 0 && channel1.length_current != 0) {
-				channel1.length_current--;
+			if (apu.ch1.length_current == 0)
+				apu.ch1.length_current = 64;
+			if (apu.ch1.length_enabled && apu.frame_sequencer_clock_step % 2 == 0 && apu.ch1.length_current != 0) {
+				apu.ch1.length_current--;
 			}
-			channel1.envelope_current = 0;
-			channel1.sweep_current = 0;
-			channel1.volume_current = channel1.volume_initial;
-			channel1.duty_wave_index = 0;
-			if (channel1.dac_enabled && channel1.length_current != 0)
-				channel1.enabled = true;
+			apu.ch1.envelope_current = 0;
+			apu.ch1.sweep_current = 0;
+			apu.ch1.volume_current = apu.ch1.volume_initial;
+			apu.ch1.duty_wave_index = 0;
+			if (apu.ch1.dac_enabled && apu.ch1.length_current != 0)
+				apu.ch1.enabled = true;
 		}
 
-		bool old_enabled = channel1.length_enabled;
-		channel1.length_enabled = get_bits(value, 6, 6);
-		if (old_enabled == 0 && channel1.length_enabled && apu.frame_sequencer_clock_step % 2 == 0 && channel1.length_current != 0) {
-			channel1.length_current--;
-			if (channel1.length_current == 0)
-				channel1.enabled = false;
+		bool old_enabled = apu.ch1.length_enabled;
+		apu.ch1.length_enabled = get_bits(value, 6, 6);
+		if (old_enabled == 0 && apu.ch1.length_enabled && apu.frame_sequencer_clock_step % 2 == 0 && apu.ch1.length_current != 0) {
+			apu.ch1.length_current--;
+			if (apu.ch1.length_current == 0)
+				apu.ch1.enabled = false;
 		}
-		channel1.period_value &= ~(0xFF00);
-		channel1.period_value |= get_bits(value, 0, 2) << 8;
+		apu.ch1.period_value &= ~(0xFF00);
+		apu.ch1.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 	// CHANNEL 2
 	case SOUND_NR21:
-		channel2.length_current = 64 - get_bits(value, 0, 5);
-		channel2.duty_wave_type = get_bits(value, 6, 7);
+		apu.ch2.length_current = 64 - get_bits(value, 0, 5);
+		apu.ch2.duty_wave_type = get_bits(value, 6, 7);
 		return;
 
 	case SOUND_NR22:
-		channel2.envelope_pace = get_bits(value, 0, 2);
-		channel2.envelope_direction = get_bits(value, 3, 3);
-		channel2.volume_initial = get_bits(value, 4, 7);
-		channel2.volume_current = channel2.volume_initial;
-		if (channel2.volume_initial || channel2.envelope_direction)
-			channel2.dac_enabled = true;
+		apu.ch2.envelope_pace = get_bits(value, 0, 2);
+		apu.ch2.envelope_direction = get_bits(value, 3, 3);
+		apu.ch2.volume_initial = get_bits(value, 4, 7);
+		apu.ch2.volume_current = apu.ch2.volume_initial;
+		if (apu.ch2.volume_initial || apu.ch2.envelope_direction)
+			apu.ch2.dac_enabled = true;
 		else
-			channel2.dac_enabled = channel2.enabled = false;
+			apu.ch2.dac_enabled = apu.ch2.enabled = false;
 		return;
 
 	case SOUND_NR23:
-		channel2.period_value &= ~(0x00FF);
-		channel2.period_value |= value;
+		apu.ch2.period_value &= ~(0x00FF);
+		apu.ch2.period_value |= value;
 		return;
 
 	case SOUND_NR24:
 		// Channel is triggered
 		if (get_bits(value, 7, 7)) {
-			channel2.volume_current = channel2.volume_initial;
-			channel2.duty_wave_index = 0;
-			channel2.envelope_current = 0;
-			if (channel2.length_current == 0)
-				channel2.length_current = 64;
-			if (channel2.dac_enabled)
-				channel2.enabled = true;
+			apu.ch2.volume_current = apu.ch2.volume_initial;
+			apu.ch2.duty_wave_index = 0;
+			apu.ch2.envelope_current = 0;
+			if (apu.ch2.length_current == 0)
+				apu.ch2.length_current = 64;
+			if (apu.ch2.dac_enabled)
+				apu.ch2.enabled = true;
 		}
-		channel2.length_enabled = get_bits(value, 6, 6);
-		channel2.period_value &= ~(0xFF00);
-		channel2.period_value |= get_bits(value, 0, 2) << 8;
+		apu.ch2.length_enabled = get_bits(value, 6, 6);
+		apu.ch2.period_value &= ~(0xFF00);
+		apu.ch2.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 	case SOUND_NR30:
-		channel3.dac_enabled = get_bits(value, 7, 7);
-		if (!channel3.dac_enabled)
-			channel3.enabled = false;
+		apu.ch3.dac_enabled = get_bits(value, 7, 7);
+		if (!apu.ch3.dac_enabled)
+			apu.ch3.enabled = false;
 		return;
 
 	case SOUND_NR31:
-		channel3.length_current = 256 - value;
+		apu.ch3.length_current = 256 - value;
 		return;
 
 	case SOUND_NR32:
-		channel3.volume_level = get_bits(value, 5, 6);
+		apu.ch3.volume_level = get_bits(value, 5, 6);
 		return;
 
 	case SOUND_NR33:
-		channel3.period_value &= ~(0x00FF);
-		channel3.period_value |= value;
+		apu.ch3.period_value &= ~(0x00FF);
+		apu.ch3.period_value |= value;
 		return;
 
 	case SOUND_NR34:
 		// Channel is triggered
 		if (get_bits(value, 7, 7)) {
-			channel3.wave_index = 0;
-			if (channel3.length_current == 0)
-				channel3.length_current = 256;
-			if (channel3.dac_enabled)
-				channel3.enabled = true;
+			apu.ch3.wave_index = 0;
+			if (apu.ch3.length_current == 0)
+				apu.ch3.length_current = 256;
+			if (apu.ch3.dac_enabled)
+				apu.ch3.enabled = true;
 		}
-		channel3.length_enabled = get_bits(value, 6, 6);
-		channel3.period_value &= ~(0xFF00);
-		channel3.period_value |= get_bits(value, 0, 2) << 8;
+		apu.ch3.length_enabled = get_bits(value, 6, 6);
+		apu.ch3.period_value &= ~(0xFF00);
+		apu.ch3.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 	case SOUND_NR41:
-		channel4.length_current = 64 - get_bits(value, 0, 5);
+		apu.ch4.length_current = 64 - get_bits(value, 0, 5);
 		return;
 
 	case SOUND_NR42:
-		channel4.envelope_pace = get_bits(value, 0, 2);
-		channel4.envelope_direction = get_bits(value, 3, 3);
-		channel4.volume_initial = get_bits(value, 4, 7);
-		channel4.volume_current = channel4.volume_initial;
-		if (channel4.volume_initial || channel4.envelope_direction)
-			channel4.dac_enabled = true;
+		apu.ch4.envelope_pace = get_bits(value, 0, 2);
+		apu.ch4.envelope_direction = get_bits(value, 3, 3);
+		apu.ch4.volume_initial = get_bits(value, 4, 7);
+		apu.ch4.volume_current = apu.ch4.volume_initial;
+		if (apu.ch4.volume_initial || apu.ch4.envelope_direction)
+			apu.ch4.dac_enabled = true;
 		else
-			channel4.dac_enabled = channel4.enabled = false;
+			apu.ch4.dac_enabled = apu.ch4.enabled = false;
 		return;
 
 	case SOUND_NR43:
-		channel4.lfsr_clock_divider = get_bits(value, 0, 2);
-		channel4.lfsr_width = get_bits(value, 3, 3);
-		channel4.lfsr_clock_shift = get_bits(value, 4, 7);
-		if (!channel4.lfsr_clock_divider)
-			channel4.period_value = 4;
+		apu.ch4.lfsr_clock_divider = get_bits(value, 0, 2);
+		apu.ch4.lfsr_width = get_bits(value, 3, 3);
+		apu.ch4.lfsr_clock_shift = get_bits(value, 4, 7);
+		if (!apu.ch4.lfsr_clock_divider)
+			apu.ch4.period_value = 4;
 		else
-			channel4.period_value = 8 * channel4.lfsr_clock_divider;
-		channel4.period_value <<= channel4.lfsr_clock_shift;
+			apu.ch4.period_value = 8 * apu.ch4.lfsr_clock_divider;
+		apu.ch4.period_value <<= apu.ch4.lfsr_clock_shift;
 		return;
 
 	case SOUND_NR44:
 		// Channel is triggered
 		if (get_bits(value, 7, 7)) {
-			channel4.volume_current = channel4.volume_initial;
-			channel4.envelope_current = 0;
-			channel4.lfsr = 0;
-			if (channel4.length_current == 0)
-				channel4.length_current = 64;
-			if (channel4.dac_enabled)
-				channel4.enabled = true;
+			apu.ch4.volume_current = apu.ch4.volume_initial;
+			apu.ch4.envelope_current = 0;
+			apu.ch4.lfsr = 0;
+			if (apu.ch4.length_current == 0)
+				apu.ch4.length_current = 64;
+			if (apu.ch4.dac_enabled)
+				apu.ch4.enabled = true;
 		}
-		channel4.length_enabled = get_bits(value, 6, 6);
+		apu.ch4.length_enabled = get_bits(value, 6, 6);
 		return;
 
 	case SOUND_NR50:
-		master_controls.volume_right = get_bits(value, 0, 2);
-		master_controls.volume_left  = get_bits(value, 4, 6);
+		apu.volume_right = get_bits(value, 0, 2);
+		apu.volume_left  = get_bits(value, 4, 6);
 		return;
 
 	case SOUND_NR51:
-		master_controls.channel1_right = (value >> 0) & 0x01;
-		master_controls.channel2_right = (value >> 1) & 0x01;
-		master_controls.channel3_right = (value >> 2) & 0x01;
-		master_controls.channel4_right = (value >> 3) & 0x01;
-		master_controls.channel1_left  = (value >> 4) & 0x01;
-		master_controls.channel2_left  = (value >> 5) & 0x01;
-		master_controls.channel3_left  = (value >> 6) & 0x01;
-		master_controls.channel4_left  = (value >> 7) & 0x01;
+		apu.ch1_output_right = (value >> 0) & 0x01;
+		apu.ch2_output_right = (value >> 1) & 0x01;
+		apu.ch3_output_right = (value >> 2) & 0x01;
+		apu.ch4_output_right = (value >> 3) & 0x01;
+		apu.ch1_output_left  = (value >> 4) & 0x01;
+		apu.ch2_output_left  = (value >> 5) & 0x01;
+		apu.ch3_output_left  = (value >> 6) & 0x01;
+		apu.ch4_output_left  = (value >> 7) & 0x01;
 		return;
 
 	case SOUND_NR52:
-		master_controls.apu_enabled = get_bits(value, 7, 7);
-		if (!master_controls.apu_enabled) {
+		apu.enabled = get_bits(value, 7, 7);
+		if (!apu.enabled) {
 			memset(apu.raw_regs, 0, APU_REGISTER_LENGTH);
-			apu_channel_reset(&channel1);
-			apu_channel_reset(&channel2);
-			apu_channel_reset(&channel3);
-			apu_channel_reset(&channel4);
+			apu_channel_reset(&apu.ch1);
+			apu_channel_reset(&apu.ch2);
+			apu_channel_reset(&apu.ch3);
+			apu_channel_reset(&apu.ch4);
 		}
 		return;
 
@@ -704,12 +700,12 @@ void apu_register_write(uint16_t address, uint8_t value) {
 uint8_t apu_register_read_nr52(void) {
 	/* printf("CHANNEL3 LENGTH: %d\n", channel3.length_current); */
 	uint8_t value = 0;
-	value |= channel1.enabled << 0;
-	value |= channel2.enabled << 1;
-	value |= channel3.enabled << 2;
-	value |= channel4.enabled << 3;
+	value |= apu.ch1.enabled << 0;
+	value |= apu.ch2.enabled << 1;
+	value |= apu.ch3.enabled << 2;
+	value |= apu.ch4.enabled << 3;
 	value |= 0x70;
-	value |= master_controls.apu_enabled << 7;
+	value |= apu.enabled << 7;
 	return value;
 }
 
