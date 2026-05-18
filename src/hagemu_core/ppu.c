@@ -505,6 +505,10 @@ void ppu_vram_write(uint16_t address, uint8_t value) {
 	vram[address] = value;
 }
 
+void ppu_oam_write_nonblocking(uint16_t address, uint8_t value) {
+	((uint8_t *)ppu.sprites)[address] = value;
+}
+
 uint8_t ppu_oam_read(uint16_t address) {
 	if (ppu.enabled && (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN))
 		return 0xFF;

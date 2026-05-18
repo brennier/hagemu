@@ -16,5 +16,7 @@ uint8_t ppu_register_read(uint16_t address);
 void ppu_vram_write(uint16_t address, uint8_t value);
 void ppu_oam_write(uint16_t address, uint8_t value);
 void ppu_register_write(uint16_t address, uint8_t value);
+// This is for the DMA, which has priority over the PPU at all times
+void ppu_oam_write_nonblocking(uint16_t address, uint8_t value);
 
 #endif

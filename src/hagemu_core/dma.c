@@ -29,7 +29,7 @@ void dma_start(uint8_t value) {
 void dma_tick(void) {
 	if (dma.active) {
 		dma.last_transferred = mmu_read_nonblocking(dma.source + dma.index);
-		ppu_oam_write(dma.index, dma.last_transferred);
+		ppu_oam_write_nonblocking(dma.index, dma.last_transferred);
 		dma.index++;
 		if (dma.index == 160)
 			dma.active = false;
