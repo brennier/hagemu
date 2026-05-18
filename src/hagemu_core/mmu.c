@@ -16,28 +16,26 @@
 #define WORK_RAM_SIZE 0x2000 // 8 kilobytes
 #define HIGH_RAM_SIZE 0x80   // 128 bytes
 
-uint8_t wram[WORK_RAM_SIZE] = { 0 };
-uint8_t hram[HIGH_RAM_SIZE] = { 0 };
-bool boot_rom_enabled = true;
-uint8_t serial_data    = 0;
-uint8_t serial_control = 0;
+struct HagemuMMU {
+	bool boot_rom_ignore;
+	uint8_t wram[WORK_RAM_SIZE];
+	uint8_t hram[HIGH_RAM_SIZE];
+	uint8_t serial_data;
+	uint8_t serial_control;
+} mmu = { 0 };
 
 void mmu_reset(void) {
-	memset(wram, 0, sizeof(wram));
-	memset(hram, 0, sizeof(hram));
-	boot_rom_enabled = true;
-	serial_data     = 0;
-	serial_control  = 0;
+	memset(&mmu, 0, sizeof(struct HagemuMMU));
 }
 
 static uint8_t mmu_read_io(uint16_t address) {
 	switch (address) {
 	case 0xFF00: return joypad_get_byte();
-	case 0xFF01: return serial_data;    // not implemented
-	case 0xFF02: return serial_control; // not implemented
+	case 0xFF01: return mmu.serial_data;    // not implemented
+	case 0xFF02: return mmu.serial_control; // not implemented
 	case 0xFF0F: return interrupt_register_read();
 	case 0xFF46: return dma_read();
-	case 0xFF50: return boot_rom_enabled;
+	case 0xFF50: return mmu.boot_rom_ignore;
 	}
 
 	if (address >= 0xFF04 && address <= 0xFF07)
@@ -53,11 +51,11 @@ static uint8_t mmu_read_io(uint16_t address) {
 static void mmu_write_io(uint16_t address, uint8_t value) {
 	switch (address) {
 	case 0xFF00: joypad_set_byte(value);          return;
-	case 0xFF01: serial_data = value;             return; // not implemented
-	case 0xFF02: serial_control = value;          return; // not implemented
+	case 0xFF01: mmu.serial_data = value;         return; // not implemented
+	case 0xFF02: mmu.serial_control = value;      return; // not implemented
 	case 0xFF0F: interrupt_register_write(value); return;
 	case 0xFF46: dma_start(value);                return;
-	case 0xFF50: boot_rom_enabled = false;        return;
+	case 0xFF50: mmu.boot_rom_ignore = true;      return;
 	}
 
 	if (address >= 0xFF04 && address <= 0xFF07)
@@ -69,7 +67,7 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 }
 
 uint8_t mmu_read_nonblocking(uint16_t address) {
-	if (boot_rom_enabled && address < 0x100) {
+	if (!mmu.boot_rom_ignore && address < 0x100) {
 		return boot_read(address);
 	}
 
@@ -90,16 +88,16 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 
 	// Work RAM (8 KiB)
 	case 0xC000: case 0xD000:
-		return wram[address - 0xC000];
+		return mmu.wram[address - 0xC000];
 
 	// Top half of echo RAM (4 KiB)
 	case 0xE000:
-		return wram[address - 0xE000];
+		return mmu.wram[address - 0xE000];
 
 	case 0xF000:
 		// Bottom half of echo RAM (about 4 KiB)
 		if (address < 0xFE00)
-			return wram[address - 0xE000];
+			return mmu.wram[address - 0xE000];
 		// Object Attribute Memory
 		else if (address < 0xFEA0)
 			return ppu_oam_read(address - 0xFE00);
@@ -111,7 +109,7 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 			return mmu_read_io(address);
 		// high ram
 		else if (address < 0xFFFF)
-			return hram[address - 0xFF80];
+			return mmu.hram[address - 0xFF80];
 		// Interrupts enabled flag
 		else
 			return interrupt_enable_register_read();
@@ -142,18 +140,18 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 
 	// Work RAM (8 KiB)
 	case 0xC000: case 0xD000:
-		wram[address - 0xC000] = value;
+		mmu.wram[address - 0xC000] = value;
 		return;
 
 	// Top half of echo RAM (4 KiB)
 	case 0xE000:
-		wram[address - 0xE000] = value;
+		mmu.wram[address - 0xE000] = value;
 		return;
 
 	case 0xF000:
 		// Bottom half of echo RAM (about 4 KiB)
 		if (address < 0xFE00)
-			wram[address - 0xE000] = value;
+			mmu.wram[address - 0xE000] = value;
 		// Object Attribute Memory
 		else if (address < 0xFEA0)
 			ppu_oam_write(address - 0xFE00, value);
@@ -165,7 +163,7 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 			mmu_write_io(address, value);
 		// High ram
 		else if (address < 0xFFFF)
-			hram[address - 0xFF80] = value;
+			mmu.hram[address - 0xFF80] = value;
 		// Interrupts enabled flag
 		else
 			interrupt_enable_register_write(value);
