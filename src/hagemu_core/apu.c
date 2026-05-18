@@ -418,9 +418,11 @@ IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 	frame_diff.left  = frame.left  - prev_frame.left;
 	frame_diff.right = frame.right - prev_frame.right;
 
-	// This multiplies frame_diff by 0.6875
-	frame_diff.left  -= (frame_diff.left  >> 2) + (frame_diff.left  >> 4);
-	frame_diff.right -= (frame_diff.right >> 2) + (frame_diff.right >> 4);
+	// This effectively multiplies by 0.6485
+	frame_diff.left  *= 664;
+	frame_diff.right *= 664;
+	frame_diff.left  /= 1024;
+	frame_diff.right /= 1024;
 
 	prev_frame.left  += frame_diff.left;
 	prev_frame.right += frame_diff.right;
@@ -432,9 +434,12 @@ IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 IntegerAudioFrame highpass_filter(IntegerAudioFrame frame) {
 	static IntegerAudioFrame prev_input  = { 0 };
 	static IntegerAudioFrame prev_output = { 0 };
-	// Multiply by 0.99609375
-	prev_output.left  -= (prev_output.left  >> 8);
-	prev_output.right -= (prev_output.right >> 8);
+
+	// This effectively multiplies by 0.9961
+	prev_output.left   *= 1020;
+	prev_output.right  *= 1020;
+	prev_output.left   /= 1024;
+	prev_output.right  /= 1024;
 	IntegerAudioFrame output_frame = {
 		.left  = frame.left  - prev_input.left  + prev_output.left,
 		.right = frame.right - prev_input.right + prev_output.right,
