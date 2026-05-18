@@ -30,6 +30,44 @@ void mmu_reset(void) {
 	serial_control  = 0;
 }
 
+static uint8_t mmu_read_io(uint16_t address) {
+	switch (address) {
+	case 0xFF00: return joypad_get_byte();
+	case 0xFF01: return serial_data;    // not implemented
+	case 0xFF02: return serial_control; // not implemented
+	case 0xFF0F: return interrupt_register_read();
+	case 0xFF46: return dma_read();
+	case 0xFF50: return boot_rom_enabled;
+	}
+
+	if (address >= 0xFF04 && address <= 0xFF07)
+		return timer_register_read(address);
+	else if (address >= 0xFF40 && address <= 0xFF4B) // Note: FF46 is DMA
+		return ppu_register_read(address);
+	else if (address >= 0xFF10 && address <= 0xFF3F)
+		return apu_register_read(address);
+	else
+		return 0xFF;
+}
+
+static void mmu_write_io(uint16_t address, uint8_t value) {
+	switch (address) {
+	case 0xFF00: joypad_set_byte(value);          return;
+	case 0xFF01: serial_data = value;             return; // not implemented
+	case 0xFF02: serial_control = value;          return; // not implemented
+	case 0xFF0F: interrupt_register_write(value); return;
+	case 0xFF46: dma_start(value);                return;
+	case 0xFF50: boot_rom_enabled = false;        return;
+	}
+
+	if (address >= 0xFF04 && address <= 0xFF07)
+		timer_register_write(address, value);
+	else if (address >= 0xFF40 && address <= 0xFF4B) // Note: FF46 is DMA
+		ppu_register_write(address, value);
+	else if (address >= 0xFF10 && address <= 0xFF3F)
+		apu_register_write(address, value);
+}
+
 uint8_t mmu_read_nonblocking(uint16_t address) {
 	if (boot_rom_enabled && address < 0x100) {
 		return boot_read(address);
@@ -68,41 +106,15 @@ uint8_t mmu_read_nonblocking(uint16_t address) {
 		// Unusable forbidden memory
 		else if (address < 0xFF00)
 			return 0xFF;
-		// Send to Joypad
-		else if (address == 0xFF00)
-			return joypad_get_byte();
-		// Send to serial port (not implemented
-		else if (address == 0xFF01)
-			return serial_data;
-		else if (address == 0xFF02)
-			return serial_control;
-		// Send to Timer
-		else if (address >= 0xFF04 && address <= 0xFF07)
-			return timer_register_read(address);
-		// Interrupt flags
-		else if (address == 0xFF0F)
-			return interrupt_register_read();
-		// Send to APU
-		else if (address >= 0xFF10 && address <= 0xFF3F)
-			return apu_register_read(address);
-		// Send to DMA
-		else if (address == 0xFF46)
-			return dma_read();
-		// Send to the PPU (except for FF46 which is caught earlier)
-		else if (address >= 0xFF40 && address <= 0xFF4B)
-			return ppu_register_read(address);
-		// Disable the bootrom
-		else if (address == 0xFF50)
-			return boot_rom_enabled;
-		// Unmapped IO register
+		// IO connections
 		else if (address < 0xFF80)
-			return 0xFF;
-		// Interrupts enabled flag
-		else if (address == 0xFFFF)
-			return interrupt_enable_register_read();
-		// high ram + interupt enable
-		else
+			return mmu_read_io(address);
+		// high ram
+		else if (address < 0xFFFF)
 			return hram[address - 0xFF80];
+		// Interrupts enabled flag
+		else
+			return interrupt_enable_register_read();
 	}
 
 	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
@@ -148,41 +160,15 @@ void mmu_write_nonblocking(uint16_t address, uint8_t value) {
 		// Unusable forbidden memory
 		else if (address < 0xFF00)
 			return;
-		// Send to Joypad
-		else if (address == 0xFF00)
-			joypad_set_byte(value);
-		// Send to serial port (not implemented
-		else if (address == 0xFF01)
-			serial_data = value;
-		else if (address == 0xFF02)
-			serial_control = value;
-		// Send to Timer
-		else if (address >= 0xFF04 && address <= 0xFF07)
-			timer_register_write(address, value);
-		// Interrupt flags
-		else if (address == 0xFF0F)
-			interrupt_register_write(value);
-		// Send to APU
-		else if (address >= 0xFF10 && address <= 0xFF3F)
-			apu_register_write(address, value);
-		// Send to DMA
-		else if (address == 0xFF46)
-			dma_start(value);
-		// Send to PPU
-		else if (address >= 0xFF40 && address <= 0xFF4B)
-			ppu_register_write(address, value);
-		// Disable the bootrom
-		else if (address == 0xFF50)
-			boot_rom_enabled = false;
-		// Unmapped IO register
+		// IO connections
 		else if (address < 0xFF80)
-			return;
-		// Interrupts enabled flag
-		else if (address == 0xFFFF)
-			interrupt_enable_register_write(value);
-		// More IO registers and high ram
-		else
+			mmu_write_io(address, value);
+		// High ram
+		else if (address < 0xFFFF)
 			hram[address - 0xFF80] = value;
+		// Interrupts enabled flag
+		else
+			interrupt_enable_register_write(value);
 		return;
 	}
 
