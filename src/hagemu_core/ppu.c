@@ -129,10 +129,9 @@ unsigned ppu_get_frame_count(void) {
 void ppu_tick(void) {
 	if (!ppu.enabled)
 		return;
-	ppu.current_cycle += 4;
 
-	if (ppu.current_cycle >= 70224)
-		ppu.current_cycle -= 70224;
+	ppu.current_cycle += 4;
+	ppu.current_cycle %= 70224;
 
 	int scanline_line  = ppu.current_cycle / 456;
 	int scanline_cycle = ppu.current_cycle % 456;
@@ -234,44 +233,76 @@ static inline void tile_decode_row(struct Tile tile, int row, uint8_t out[8]) {
 void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 	int bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
 	int bg_col = (ppu.bg_scroll_x) % 256;
+	int tile_row   = bg_row / 8;
+	int pixel_row  = bg_row % 8;
+	int screen_col = 0;
 
-	uint8_t color_indices[256];
-	for (int i = 0; i < 32; i++) {
-		uint8_t tile_index = ppu.tile_map[ppu.bg_tile_map][bg_row / 8][i];
+	while (screen_col < 160) {
+		int tile_col  = bg_col / 8;
+		int pixel_col = bg_col % 8;
+
+		int pixels_to_draw = 8 - pixel_col;
+		if (screen_col + pixels_to_draw > 160)
+			pixels_to_draw = 160 - screen_col;
+
+		uint8_t tile_index = ppu.tile_map[ppu.bg_tile_map][tile_row][tile_col];
 		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area);
-		tile_decode_row(tile, bg_row % 8, color_indices + i * 8);
-	}
 
-	for (int i = 0; i < 160; i++) {
-		scanline[i] = apply_color(ppu.bg_palette, color_indices[bg_col]);
-		bg_nonzero[i] = (color_indices[bg_col] != 0);
-		bg_col++;
-		if (bg_col == 256)
-			bg_col = 0;
+		uint8_t color_indices[8];
+		tile_decode_row(tile, pixel_row, color_indices);
+
+		for (int p = 0; p < pixels_to_draw; p++) {
+			uint8_t color_index = color_indices[pixel_col + p];
+			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
+			bg_nonzero[screen_col] = (color_index != 0);
+			screen_col++;
+		}
+
+		bg_col = (bg_col + pixels_to_draw) % 256;
 	}
 }
 
 void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero) {
 	int win_row = ppu.current_window_line;
-	int win_col = ppu.win_scroll_x - 7;
+	int win_col = 0;
+	int screen_col = ppu.win_scroll_x - 7;
 
-	// If the window was actually displayed at all, increment the window counter
-	if (win_col < 160)
-		ppu.current_window_line++;
+	// If the window isn't visible, exit early
+	if (screen_col >= 160)
+		return;
 
-	uint8_t color_indices[256];
-	for (int i = 0; i < 32; i++) {
-		uint8_t tile_index = ppu.tile_map[ppu.window_tile_map][win_row / 8][i];
-		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area);
-		tile_decode_row(tile, win_row % 8, color_indices + i * 8);
+	ppu.current_window_line++;
+
+	if (screen_col < 0) {
+		win_col    = -screen_col;
+		screen_col = 0;
 	}
 
-	for (int i = 0; i < 160; i++) {
-		scanline[i] = apply_color(ppu.bg_palette, color_indices[win_col]);
-		bg_nonzero[i] = (color_indices[win_col] != 0);
-		win_col++;
-		if (win_col == 256)
-			win_col = 0;
+	int tile_row  = win_row / 8;
+	int pixel_row = win_row % 8;
+
+	while (screen_col < 160) {
+		int tile_col  = win_col / 8;
+		int pixel_col = win_col % 8;
+
+		int pixels_to_draw = 8 - pixel_col;
+		if (screen_col + pixels_to_draw > 160)
+			pixels_to_draw = 160 - screen_col;
+
+		uint8_t tile_index = ppu.tile_map[ppu.window_tile_map][tile_row][tile_col];
+		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area);
+
+		uint8_t color_indices[8];
+		tile_decode_row(tile, pixel_row, color_indices);
+
+		for (int p = 0; p < pixels_to_draw; p++) {
+			uint8_t color_index = color_indices[pixel_col + p];
+			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
+			bg_nonzero[screen_col] = (color_index != 0);
+			screen_col++;
+		}
+
+		win_col += pixels_to_draw;
 	}
 }
 
@@ -316,7 +347,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 	bool y_flip = (sprite.attributes >> 6) & 0x01;
 	bool x_flip = (sprite.attributes >> 5) & 0x01;
 	bool palette_select = (sprite.attributes >> 4) & 0x01;
-	uint8_t tile_index = sprite.tile_index;
+	uint8_t tile_index  = sprite.tile_index;
 
 	int sprite_row = ppu.current_line - (int)sprite.y_position + 16;
 	if (y_flip && ppu.use_tall_sprites)
@@ -331,9 +362,9 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 		sprite_row -= 8;
 	}
 
-	uint8_t colors[8];
+	uint8_t color_indices[8];
 	struct Tile tile = tile_get(tile_index, true);
-	tile_decode_row(tile, sprite_row, colors);
+	tile_decode_row(tile, sprite_row, color_indices);
 	uint8_t sprite_palette = palette_select ? ppu.obj1_palette : ppu.obj0_palette;
 	for (int i = 0; i < 8; i++) {
 		int col = (int)sprite.x_position + i - 8;
@@ -343,10 +374,10 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 			continue;
 		else if (background_has_priority && bg_nonzero[col])
 			continue;
-		else if (colors[sprite_col] == 0)
+		else if (color_indices[sprite_col] == 0)
 			continue;
 
-		scanline[col] = apply_color(sprite_palette, colors[sprite_col]);
+		scanline[col] = apply_color(sprite_palette, color_indices[sprite_col]);
 	}
 }
 
