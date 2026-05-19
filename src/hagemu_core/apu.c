@@ -489,6 +489,37 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 #define SOUND_NR51 0xFF25
 #define SOUND_NR52 0xFF26
 
+void channel_length_enable(struct Channel *ch, bool enabled) {
+	if (!enabled) {
+		ch->length_enabled = false;
+		return;
+	}
+
+	if (ch->length_enabled == 0 && apu.frame_sequencer_clock_step % 2 == 0 && ch->length_current != 0) {
+		ch->length_current--;
+		if (ch->length_current == 0)
+			ch->enabled = false;
+	}
+	ch->length_enabled = true;
+}
+
+void channel_trigger(struct Channel *ch, int length_max) {
+	if (ch->length_current == 0) {
+		ch->length_current = length_max;
+		// Extra clock: trigger reloads length, and if enabled + sequencer is
+		// in the "won't clock next" phase, clock it immediately
+		if (ch->length_enabled && apu.frame_sequencer_clock_step % 2 == 0) {
+			ch->length_current--;
+		}
+	}
+	ch->envelope_current = 0;
+	ch->sweep_current = 0;
+	ch->volume_current = ch->volume_initial;
+	ch->duty_wave_index = 0;
+	if (ch->dac_enabled && ch->length_current != 0)
+		ch->enabled = true;
+}
+
 void apu_register_write(uint16_t address, uint8_t value) {
 	if (apu.enabled == false && address != SOUND_NR52)
 		return;
@@ -525,33 +556,14 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR14:
-		// Channel is triggered
-		if (get_bits(value, 7, 7)) {
-			if (apu.ch1.length_current == 0)
-				apu.ch1.length_current = 64;
-			if (apu.ch1.length_enabled && apu.frame_sequencer_clock_step % 2 == 0 && apu.ch1.length_current != 0) {
-				apu.ch1.length_current--;
-			}
-			apu.ch1.envelope_current = 0;
-			apu.ch1.sweep_current = 0;
-			apu.ch1.volume_current = apu.ch1.volume_initial;
-			apu.ch1.duty_wave_index = 0;
-			if (apu.ch1.dac_enabled && apu.ch1.length_current != 0)
-				apu.ch1.enabled = true;
-		}
-
-		bool old_enabled = apu.ch1.length_enabled;
-		apu.ch1.length_enabled = get_bits(value, 6, 6);
-		if (old_enabled == 0 && apu.ch1.length_enabled && apu.frame_sequencer_clock_step % 2 == 0 && apu.ch1.length_current != 0) {
-			apu.ch1.length_current--;
-			if (apu.ch1.length_current == 0)
-				apu.ch1.enabled = false;
-		}
+		channel_length_enable(&apu.ch1, get_bits(value, 6, 6));
+		if (get_bits(value, 7, 7))
+			channel_trigger(&apu.ch1, 64);
 		apu.ch1.period_value &= ~(0xFF00);
 		apu.ch1.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
-	// CHANNEL 2
+		// CHANNEL 2
 	case SOUND_NR21:
 		apu.ch2.length_current = 64 - get_bits(value, 0, 5);
 		apu.ch2.duty_wave_type = get_bits(value, 6, 7);
@@ -574,17 +586,9 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR24:
-		// Channel is triggered
-		if (get_bits(value, 7, 7)) {
-			apu.ch2.volume_current = apu.ch2.volume_initial;
-			apu.ch2.duty_wave_index = 0;
-			apu.ch2.envelope_current = 0;
-			if (apu.ch2.length_current == 0)
-				apu.ch2.length_current = 64;
-			if (apu.ch2.dac_enabled)
-				apu.ch2.enabled = true;
-		}
-		apu.ch2.length_enabled = get_bits(value, 6, 6);
+		channel_length_enable(&apu.ch2, get_bits(value, 6, 6));
+		if (get_bits(value, 7, 7))
+			channel_trigger(&apu.ch2, 64);
 		apu.ch2.period_value &= ~(0xFF00);
 		apu.ch2.period_value |= get_bits(value, 0, 2) << 8;
 		return;
@@ -609,15 +613,11 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR34:
-		// Channel is triggered
+		channel_length_enable(&apu.ch3, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
+			channel_trigger(&apu.ch3, 256);
 			apu.ch3.wave_index = 0;
-			if (apu.ch3.length_current == 0)
-				apu.ch3.length_current = 256;
-			if (apu.ch3.dac_enabled)
-				apu.ch3.enabled = true;
 		}
-		apu.ch3.length_enabled = get_bits(value, 6, 6);
 		apu.ch3.period_value &= ~(0xFF00);
 		apu.ch3.period_value |= get_bits(value, 0, 2) << 8;
 		return;
@@ -649,17 +649,11 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR44:
-		// Channel is triggered
+		channel_length_enable(&apu.ch4, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
-			apu.ch4.volume_current = apu.ch4.volume_initial;
-			apu.ch4.envelope_current = 0;
+			channel_trigger(&apu.ch4, 64);
 			apu.ch4.lfsr = 0;
-			if (apu.ch4.length_current == 0)
-				apu.ch4.length_current = 64;
-			if (apu.ch4.dac_enabled)
-				apu.ch4.enabled = true;
 		}
-		apu.ch4.length_enabled = get_bits(value, 6, 6);
 		return;
 
 	case SOUND_NR50:

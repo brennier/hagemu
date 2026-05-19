@@ -85,10 +85,10 @@ The following games have been tested:
     - [x] Envelope
     - [x] Reset trigger
     - [x] Length timer
-  - [x] Pass Blargg's CPU test roms
+  - [x] Pass Blargg's dmg_sound test roms
     - [x] 01 registers
     - [x] 02 length counter
-    - [ ] 03 channel trigger
+    - [x] 03 channel trigger
     - [ ] 04 sweep
     - [ ] 05 sweep (detailed)
     - [ ] 06 overflow on trigger
