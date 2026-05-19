@@ -167,6 +167,41 @@
     <!-- <button style="top:78%; left:7vh; transform: translate(-50%,-50%);" id="button_left" class="dpad-button">←</button> -->
 
     <script type='text/javascript'>
+      async function downloadFileFromParam() {
+          // 1. Read the "url" query parameter
+          const proxyUrl = "https://fetch.barennier.workers.dev/";
+          const params = new URLSearchParams(window.location.search);
+          const targetUrl = params.get("url");
+
+          if (!targetUrl) {
+              return;
+          }
+
+          // 2. Fetch the remote file
+          const response = await fetch(`${proxyUrl}?url=${encodeURIComponent(targetUrl)}`);
+
+          if (!response.ok) {
+              throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
+          }
+
+          // 3. Read the response body as an ArrayBuffer, then wrap in Uint8Array
+          const buffer = await response.arrayBuffer();
+          const byteArray = new Uint8Array(buffer);
+
+          console.log(`Downloaded ${byteArray.length} bytes from: ${targetUrl}`);
+
+          FS.mkdir("/fetched");
+          const safeName = targetUrl.split("/").pop().replace(/[^a-zA-Z0-9._-]/g, "_");
+          const path = "/fetched/" + safeName;
+
+          // Write file into virtual FS
+          FS.writeFile(path, byteArray);
+
+          Module.ccall("web_load_file", null, ["string"], [path]);
+
+          return byteArray;
+      }
+
       function web_setup_filesystem() {
 	  FS.mkdir('/savedata');
 	  FS.mount(IDBFS, {}, '/savedata');
@@ -301,6 +336,9 @@
       var Module = {
           onRuntimeInitialized: function() {
               web_setup_filesystem();
+              downloadFileFromParam().catch(err => {
+                  console.error("downloadFileFromParam failed:", err);
+              });
           },
           print(...args) {
               console.log(...args);
