@@ -57,11 +57,11 @@ const size_t ram_size_table[] = {
 };
 
 void cart_set_info(struct HagemuCart *cart) {
-	uint8_t mbc_info_byte = cart->rom[CART_TYPE_LOCATION];
-	uint8_t rom_size_byte = cart->rom[CART_SIZE_LOCATION];
-	uint8_t ram_size_byte = cart->rom[RAM_SIZE_LOCATION];
+	uint8_t mbc_info_byte = cart->rom[0][CART_TYPE_LOCATION];
+	uint8_t rom_size_byte = cart->rom[0][CART_SIZE_LOCATION];
+	uint8_t ram_size_byte = cart->rom[0][RAM_SIZE_LOCATION];
 
-	memcpy(cart->title, &cart->rom[GAME_TITLE_LOCATION], 16);
+	memcpy(cart->title, &cart->rom[0][GAME_TITLE_LOCATION], 16);
 	cart->info     = cart_info_table[mbc_info_byte];
 	cart->rom_size = 32 * (1 << rom_size_byte) * 1024;
 	// The MBC2 mapper has a fixed RAM size of 256 bytes
@@ -98,7 +98,7 @@ const uint8_t *cart_get_sram(size_t *out_size) {
 		return NULL;
 	}
 	*out_size = cart.ram_size;
-	return cart.ram;
+	return (const uint8_t *)cart.ram;
 }
 
 void cart_set_rom(const uint8_t *data, size_t size) {
@@ -172,8 +172,12 @@ void cart_rom_write(uint16_t address, uint8_t value) {
 
 uint8_t cart_rom_read(uint16_t address) {
 	switch (cart.info.type) {
-
-	case NO_MBC: return cart.rom[address]; break;
+	case NO_MBC:
+		if (address < ROM_BANK_SIZE)
+			return cart.rom[0][address];
+		else
+			return cart.rom[1][address - ROM_BANK_SIZE];
+		break;
 	case MBC1:   return cart_rom_read_mbc1(&cart, address); break;
 	case MBC2:   return cart_rom_read_mbc2(&cart, address); break;
 	case MBC3:   return cart_rom_read_mbc3(&cart, address); break;
@@ -188,7 +192,7 @@ void cart_ram_write(uint16_t address, uint8_t value) {
 	if (!cart.ram) return;
 
 	switch (cart.info.type) {
-	case NO_MBC: cart.ram[address] = value; break;
+	case NO_MBC: cart.ram[0][address] = value; break;
 	case MBC1:   cart_ram_write_mbc1(&cart, address, value); break;
 	case MBC2:   cart_ram_write_mbc2(&cart, address, value); break;
 	case MBC3:   cart_ram_write_mbc3(&cart, address, value); break;
@@ -203,7 +207,7 @@ uint8_t cart_ram_read(uint16_t address) {
 	if (!cart.ram) return 0xFF;
 
 	switch (cart.info.type) {
-	case NO_MBC: return cart.ram[address]; break;
+	case NO_MBC: return cart.ram[0][address]; break;
 	case MBC1:   return cart_ram_read_mbc1(&cart, address); break;
 	case MBC2:   return cart_ram_read_mbc2(&cart, address); break;
 	case MBC3:   return cart_ram_read_mbc3(&cart, address); break;

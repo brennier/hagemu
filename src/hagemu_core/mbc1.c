@@ -2,9 +2,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define RAM_BANK_SIZE 0x2000
-#define ROM_BANK_SIZE 0x4000
-
 void cart_rom_write_mbc1(struct HagemuCart *cart, uint16_t address, uint8_t value) {
 	switch (address & 0xF000) {
 
@@ -33,43 +30,34 @@ void cart_rom_write_mbc1(struct HagemuCart *cart, uint16_t address, uint8_t valu
 }
 
 uint8_t cart_rom_read_mbc1(struct HagemuCart *cart, uint16_t address) {
-	uint32_t rom_address = address;
+	uint8_t rom_index = 0;
 	if (address < ROM_BANK_SIZE && cart->mbc_banking_mode) {
-		rom_address |= (cart->ram_index << 19);
-	} else if (address < ROM_BANK_SIZE) {
-		rom_address = address;
-	} else if (address < 2 * ROM_BANK_SIZE) {
-		rom_address -= ROM_BANK_SIZE;
-		rom_address |= ROM_BANK_SIZE * cart->rom_index;
-		rom_address |= (cart->ram_index << 19);
-	} else {
-		printf("ERROR: Out of bounds read from the cartridge\n");
-		exit(EXIT_FAILURE);
+		rom_index |= (cart->ram_index << 5);
+	} else if (address >= ROM_BANK_SIZE) {
+		address   -= ROM_BANK_SIZE;
+		rom_index |= cart->rom_index;
+		rom_index |= (cart->ram_index << 5);
 	}
-	rom_address %= cart->rom_size;
-	return cart->rom[rom_address];
+	rom_index %= (cart->rom_size / ROM_BANK_SIZE);
+	return cart->rom[rom_index][address];
 }
 
 void cart_ram_write_mbc1(struct HagemuCart *cart, uint16_t address, uint8_t value) {
-	uint32_t ram_address = address;
-	if (!cart->ram_enabled) {
-		fprintf(stderr, "Attempt to write value %d to RAM address %04X, but it was disabled\n", value, address);
+	if (!cart->ram_enabled)
 		return;
-	} else if (cart->mbc_banking_mode) {
-		ram_address |= RAM_BANK_SIZE * cart->ram_index;
+	else if (!cart->mbc_banking_mode) {
+		cart->ram[0][address] = value;
+		return;
 	}
-	ram_address %= cart->ram_size;
-	cart->ram[ram_address] = value;
+	uint8_t ram_index = cart->ram_index % (cart->ram_size / RAM_BANK_SIZE);
+	cart->ram[ram_index][address] = value;
 }
 
 uint8_t cart_ram_read_mbc1(struct HagemuCart *cart, uint16_t address) {
-	uint32_t ram_address = address;
-	if (!cart->ram_enabled) {
-		fprintf(stderr, "Attempt to read RAM address %04X, but it was disabled\n", address);
+	if (!cart->ram_enabled)
 		return 0xFF;
-	} else if (cart->mbc_banking_mode) {
-		ram_address |= RAM_BANK_SIZE * cart->ram_index;
-	}
-	ram_address %= cart->ram_size;
-	return cart->ram[ram_address];
+	else if (!cart->mbc_banking_mode)
+		return cart->ram[0][address];
+	uint8_t ram_index = cart->ram_index % (cart->ram_size / RAM_BANK_SIZE);
+	return cart->ram[ram_index][address];
 }

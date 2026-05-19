@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define RAM_BANK_SIZE 0x2000
+#define ROM_BANK_SIZE 0x4000
+
 enum MBCType {
 	NO_MBC, MBC1, MBC2, MBC3, MBC4,
 	MBC5, MBC6, MBC7, MMM01, TAMA5,
@@ -21,13 +24,13 @@ struct HagemuCartInfo {
 
 struct HagemuCart {
 	struct HagemuCartInfo info;
-	char     title[17];
-	uint8_t *rom;
-	uint8_t *ram;
+	uint8_t  (*rom)[ROM_BANK_SIZE];
+	uint8_t  (*ram)[RAM_BANK_SIZE];
 	size_t   rom_size;
 	size_t   ram_size;
 	uint16_t rom_index;
 	uint16_t ram_index;
+	char     title[17];
 	bool     ram_enabled;
 	bool     mbc_banking_mode;
 	bool     rtc_latched;
