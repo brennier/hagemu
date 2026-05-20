@@ -96,7 +96,7 @@ The following games have been tested:
     - [ ] 08 Length counter during power
     - [ ] 09 Wave read while on
     - [ ] 10 Wave trigger while on
-    - [ ] 11 registers after power
+    - [x] 11 registers after power
     - [ ] 12 wave write while on
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
   - [x] Basic support for saving and loading .sav files

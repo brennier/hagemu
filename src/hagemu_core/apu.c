@@ -128,9 +128,11 @@ struct Channel {
 
 	// Channel 1 only
 	unsigned sweep_current;
-	bool sweep_direction;
+	unsigned sweep_shadow_period;
 	unsigned sweep_step;
 	unsigned sweep_pace;
+	bool     sweep_enabled;
+	bool     sweep_direction;
 
 	// Channel 3 only
 	unsigned volume_level;
@@ -187,25 +189,46 @@ void tick_length_timer(struct Channel *channel) {
 	}
 }
 
+unsigned sweep_calculate(struct Channel *channel) {
+	int period_adjustment = channel->sweep_shadow_period >> channel->sweep_step;
+	if (channel->sweep_direction != 0)
+		period_adjustment *= -1;
+	return channel->period_value + period_adjustment;
+}
+
+bool sweep_overflow_check(struct Channel *channel) {
+	unsigned new_period = sweep_calculate(channel);
+	return (new_period > 0x7FF);
+}
+
+void apply_sweep(struct Channel *channel) {
+	unsigned new_period = sweep_calculate(channel);
+	// Period value overflowed
+	if (new_period > 0x7FF)
+		channel->enabled = false;
+	else
+		channel->period_value = new_period;
+}
+
 void tick_sweep(struct Channel *channel) {
+	if (!channel->sweep_enabled)
+		return;
+
+	unsigned new_period = sweep_calculate(channel);
+	if (new_period > 0x7FF) {
+		channel->enabled = false;
+	}
+
 	if (!channel->sweep_pace)
 		return;
 
 	channel->sweep_current++;
 	if (channel->sweep_current == channel->sweep_pace) {
 		channel->sweep_current = 0;
-
-		int period_adjustment;
-		if (channel->sweep_direction == 0)
-			period_adjustment = channel->period_value >> channel->sweep_step;
-		else
-			period_adjustment = - (channel->period_value >> channel->sweep_step);
-
-		// Period value overflowed
-		if (channel->period_value + period_adjustment > 0x7FF)
+		channel->period_value = new_period;
+		new_period = sweep_calculate(channel);
+		if (new_period > 0x7FF)
 			channel->enabled = false;
-		else
-			channel->period_value += period_adjustment;
 	}
 }
 
@@ -513,15 +536,19 @@ void channel_trigger(struct Channel *ch, int length_max) {
 		}
 	}
 	ch->envelope_current = 0;
-	ch->sweep_current = 0;
 	ch->volume_current = ch->volume_initial;
 	ch->duty_wave_index = 0;
 	if (ch->dac_enabled && ch->length_current != 0)
 		ch->enabled = true;
+	ch->sweep_shadow_period = ch->period_value;
+	ch->sweep_current = 0;
+	ch->sweep_enabled = (ch->sweep_step || ch->sweep_pace);
+	if (ch->sweep_step > 0)
+		apply_sweep(ch);
 }
 
 void apu_register_write(uint16_t address, uint8_t value) {
-	if (apu.enabled == false && address != SOUND_NR52)
+	if (apu.enabled == false && address != SOUND_NR52 && address != SOUND_NR41)
 		return;
 
 	apu.raw_regs[address - APU_REGISTER_START] = value;
@@ -556,11 +583,11 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR14:
+		apu.ch1.period_value &= ~(0xFF00);
+		apu.ch1.period_value |= get_bits(value, 0, 2) << 8;
 		channel_length_enable(&apu.ch1, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7))
 			channel_trigger(&apu.ch1, 64);
-		apu.ch1.period_value &= ~(0xFF00);
-		apu.ch1.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 		// CHANNEL 2
@@ -586,11 +613,11 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR24:
+		apu.ch2.period_value &= ~(0xFF00);
+		apu.ch2.period_value |= get_bits(value, 0, 2) << 8;
 		channel_length_enable(&apu.ch2, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7))
 			channel_trigger(&apu.ch2, 64);
-		apu.ch2.period_value &= ~(0xFF00);
-		apu.ch2.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 	case SOUND_NR30:
@@ -613,13 +640,13 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		return;
 
 	case SOUND_NR34:
+		apu.ch3.period_value &= ~(0xFF00);
+		apu.ch3.period_value |= get_bits(value, 0, 2) << 8;
 		channel_length_enable(&apu.ch3, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
 			channel_trigger(&apu.ch3, 256);
 			apu.ch3.wave_index = 0;
 		}
-		apu.ch3.period_value &= ~(0xFF00);
-		apu.ch3.period_value |= get_bits(value, 0, 2) << 8;
 		return;
 
 	case SOUND_NR41:
@@ -672,7 +699,8 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		apu.ch4_output_left  = (value >> 7) & 0x01;
 		return;
 
-	case SOUND_NR52:
+	case SOUND_NR52: {
+		bool old_enabled = apu.enabled;
 		apu.enabled = get_bits(value, 7, 7);
 		if (!apu.enabled) {
 			memset(apu.raw_regs, 0, APU_REGISTER_LENGTH);
@@ -680,8 +708,11 @@ void apu_register_write(uint16_t address, uint8_t value) {
 			apu_channel_reset(&apu.ch2);
 			apu_channel_reset(&apu.ch3);
 			apu_channel_reset(&apu.ch4);
+		} else if (!old_enabled && apu.enabled) {
+			apu.frame_sequencer_clock_step = 0;
 		}
 		return;
+	}
 
 		// Channel 3 wave data
 	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
