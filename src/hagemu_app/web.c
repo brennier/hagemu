@@ -53,8 +53,13 @@ const char *web_get_sram_file_name(void) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-void web_load_file(const char *filename) {
-	hagemu_handle_drop_event(hagemu_app, filename);
+bool web_load_rom(const char *filename) {
+	return hagemu_app_load_rom(hagemu_app, filename);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool web_load_sram(const char *filename) {
+	return hagemu_app_load_sram(hagemu_app, filename);
 }
 
 #endif // __EMSCRIPTEN__

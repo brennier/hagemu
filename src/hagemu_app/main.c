@@ -13,7 +13,7 @@
 #include "web.h" // Used to talk to javascript
 #endif
 
-#define WINDOW_TITLE "Hagemu Gameboy Emulator"
+#define WINDOW_TITLE "Hagemu GameBoy Emulator"
 #define SCALE_FACTOR 6
 #define WINDOW_WIDTH 160 * SCALE_FACTOR
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
@@ -352,6 +352,7 @@ int main(int argc, char *argv[]) {
 		SDL_SetRenderDrawColor(app.renderer, 138, 189, 76, 255);
 		SDL_RenderClear(app.renderer);
 		SDL_SetRenderDrawColor(app.renderer, 48, 102, 87, 255);
+#ifndef EMSCRIPTEN
 		text_draw_centered(app.renderer,
 				   "Click the \"Upload ROM\" button below",
 				   WINDOW_WIDTH / 2,
@@ -367,6 +368,7 @@ int main(int argc, char *argv[]) {
 			  SCALE_FACTOR,
 			  WINDOW_HEIGHT - 5 * SCALE_FACTOR,
 			  4 * SCALE_FACTOR);
+#endif
 		SDL_RenderPresent(app.renderer);
 	}
 

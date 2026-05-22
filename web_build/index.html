@@ -9,7 +9,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
     <link rel="shortcut icon" href="./images/favicon.ico" />
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap&display=block" rel="stylesheet">
     <style>
       body {
 	  font-family: arial;
@@ -40,27 +40,6 @@
           box-shadow: 4px 4px 10px rgba(0,0,0,0.3);
       }
 
-      .circle-button {
-          position: absolute;
-          font-size: 200%;
-          width: 10vh;
-          height: 10vh;
-          border-radius: 50%;
-          background-color: red;
-          border: none;
-          cursor: pointer;
-      }
-
-      .dpad-button {
-          position: absolute;
-          font-size: 200%;
-          width: 8vh;
-          height: 8vh;
-          background-color: darkgrey;
-          border: none;
-          cursor: pointer;
-      }
-
       button:hover {
           filter: brightness(0.85);
       }
@@ -82,6 +61,7 @@
           border-radius: 5px;
           margin: 0;
           padding: 0;
+          background-color: #8abd4c;
           image-rendering: pixelated;
           image-rendering: -moz-crisp-edges;
           image-rendering: crisp-edges;
@@ -134,13 +114,13 @@
       }
 
       #overlay {
+          display: flex;
           position: absolute;
-          display: none;
           align-items: center;
           justify-content: center;
           text-align: center;
           font-family: 'Press Start 2P';
-          font-size: calc(var(--gb-scale) * 8px);
+          font-size: calc(var(--gb-scale) * 6px);
 	  background-color: #8abd4c;
 	  color: #306657;
           border-radius: 5px;
@@ -148,7 +128,6 @@
           pointer-events: none;
           line-height: 2;
       }
-
     </style>
   </head>
   <body>
@@ -161,10 +140,6 @@
       <div style="position: relative; display: inline-block;">
         <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
         <div id="overlay">
-          Loading ROM...
-          <!-- Click the "Upload ROM" button below -->
-          <!-- <br/> -->
-          <!-- or drop a rom file onto this window -->
         </div>
       </div>
       <div id="logo">
@@ -184,14 +159,26 @@
       </div>
     </div>
 
-    <!-- <button style="top:70%; left:85%; transform: translate(-50%,-50%);" id="button_a" class="circle-button">A</button> -->
-    <!-- <button style="top:80%; left:65%; transform: translate(-50%,-50%);" id="button_b" class="circle-button">B</button> -->
-    <!-- <button style="top:70%; left:15vh; transform: translate(-50%,-50%);" id="button_up" class="dpad-button">↑</button> -->
-    <!-- <button style="top:86%; left:15vh; transform: translate(-50%,-50%);" id="button_down" class="dpad-button">↓</button> -->
-    <!-- <button style="top:78%; left:23vh; transform: translate(-50%,-50%);" id="button_right" class="dpad-button">→</button> -->
-    <!-- <button style="top:78%; left:7vh; transform: translate(-50%,-50%);" id="button_left" class="dpad-button">←</button> -->
-
     <script type='text/javascript'>
+      document.fonts.ready.then(() => {
+          const params = new URLSearchParams(window.location.search);
+          const targetUrl = params.get("rom");
+
+          if (!targetUrl) {
+              var overlay = document.getElementById('overlay');
+              overlay.textContent = "Waiting for a ROM file... Click the \"Upload ROM\" button below";
+          }
+      });
+
+      function waitForClick() {
+          return new Promise(resolve => {
+              var canvas = document.getElementById('canvas');
+              canvas.addEventListener('click', () => {
+                  resolve();
+              }, { once: true });
+          });
+      }
+
       async function downloadFileFromParam() {
           // 1. Read the "url" query parameter
           const proxyUrl = "https://fetch.barennier.workers.dev/";
@@ -200,19 +187,25 @@
 
           if (!targetUrl) {
               throw new Error(`No "rom" query parameter found.`);
+              overlay.textContent = "Failed to load the ROM";
           }
+
+          var overlay = document.getElementById('overlay');
+          overlay.textContent = "Click here to download and run the ROM file specified in the URL";
+          await waitForClick();
+
+          overlay.textContent = "Loading ROM...";
 
           const ext = targetUrl.split(".").pop().toLowerCase();
           if (ext !== "gb" && ext !== "gbc") {
               throw new Error(`Unsupported file type ".${ext}". Only gb and gbc files are allowed.`);
           }
 
-          var overlay = document.getElementById('overlay');
-          overlay.style.display = 'flex';
-          overlay.textContent = "Loading ROM...";
-
-          // 2. Fetch the remote file
-          const response = await fetch(`${proxyUrl}?url=${encodeURIComponent(targetUrl)}`);
+          // Always load for at least one second
+          const [response] = await Promise.all([
+              fetch(`${proxyUrl}?url=${encodeURIComponent(targetUrl)}`),
+              new Promise(res => setTimeout(res, 1000))
+          ]);
 
           if (!response.ok) {
               throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
@@ -231,7 +224,9 @@
           // Write file into virtual FS
           FS.writeFile(path, byteArray);
 
-          Module.ccall("web_load_file", null, ["string"], [path]);
+          Module.ccall("web_load_rom", null, ["string"], [path]);
+
+          await new Promise(r => setTimeout(r, 100));
 
           overlay.style.display = 'none';
 
@@ -280,6 +275,19 @@
               const buffer = await file.arrayBuffer();
               const data = new Uint8Array(buffer);
 
+              const ext = file.name.split(".").pop().toLowerCase();
+              var type;
+              if (ext == "gb" || ext == "gbc") {
+                  type = "rom";
+              } else if (ext == "sav" || ext == "sram") {
+                  type = "sram";
+              } else {
+                  throw new Error(`Unsupported file type ".${ext}"`);
+              }
+
+              var overlay = document.getElementById('overlay');
+              overlay.textContent = "Loading ROM...";
+
               // FS.mkdir("/tmp");
               const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
               const path = "/tmp/" + safeName;
@@ -287,7 +295,13 @@
               // Write file into virtual FS
               FS.writeFile(path, data);
 
-              Module.ccall("web_load_file", null, ["string"], [path]);
+              if (type == "sram") {
+                  Module.ccall("web_load_sram", null, ["string"], [path]);
+              } else {
+                  Module.ccall("web_load_rom", null, ["string"], [path]);
+              }
+
+              overlay.style.display = 'none';
           } catch (err) {
               console.error(err);
               alert("Failed to load file.");
@@ -373,7 +387,6 @@
           onRuntimeInitialized: function() {
               web_setup_filesystem();
               downloadFileFromParam().catch(err => {
-                  overlay.style.display = 'none';
                   console.error("downloadFileFromParam failed:", err);
               });
           },
