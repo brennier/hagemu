@@ -9,7 +9,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
     <link rel="shortcut icon" href="./images/favicon.ico" />
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap&display=block" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=block" rel="stylesheet">
     <style>
       body {
 	  font-family: arial;
@@ -160,16 +160,6 @@
     </div>
 
     <script type='text/javascript'>
-      document.fonts.ready.then(() => {
-          const params = new URLSearchParams(window.location.search);
-          const targetUrl = params.get("rom");
-
-          if (!targetUrl) {
-              var overlay = document.getElementById('overlay');
-              overlay.textContent = "Waiting for a ROM file... Click the \"Upload ROM\" button below";
-          }
-      });
-
       function waitForClick() {
           return new Promise(resolve => {
               var canvas = document.getElementById('canvas');
@@ -184,13 +174,14 @@
           const proxyUrl = "https://fetch.barennier.workers.dev/";
           const params = new URLSearchParams(window.location.search);
           const targetUrl = params.get("rom");
+          var overlay = document.getElementById('overlay');
 
           if (!targetUrl) {
+              overlay.textContent = "Waiting for a ROM file... Click the \"Upload ROM\" button below";
               throw new Error(`No "rom" query parameter found.`);
-              overlay.textContent = "Failed to load the ROM";
+              return;
           }
 
-          var overlay = document.getElementById('overlay');
           overlay.textContent = "Click here to download and run the ROM file specified in the URL";
           await waitForClick();
 
