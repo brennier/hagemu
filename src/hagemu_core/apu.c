@@ -748,12 +748,13 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		return;
 	}
 
-		// Channel 3 wave data
+	// Channel 3 wave data
 	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		apu.wave_data[address - APU_WAVE_DATA_START] = value;
+		if (!apu.ch3.enabled)
+			apu.wave_data[address - APU_WAVE_DATA_START] = value;
 		return;
 
 	default:
@@ -811,7 +812,17 @@ uint8_t apu_register_read(uint16_t address) {
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		return apu.wave_data[address - APU_WAVE_DATA_START];
+		if (apu.ch3.enabled) {
+			uint8_t data = apu.wave_data[apu.ch3.wave_index / 2];
+			if (apu.ch3.wave_index % 2 == 0)
+				data >>= 4;
+			else
+				data &= 0x0F;
+			return data;
+		}
+		else {
+			return apu.wave_data[address - APU_WAVE_DATA_START];
+		}
 
 	default:
 		return 0xFF;
