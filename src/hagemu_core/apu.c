@@ -284,42 +284,51 @@ void tick_noise_channel(struct Channel *channel) {
 	}
 }
 
-// The APU ticks twice per M-cycle (approximation 2MHz)
-void apu_tick_once(void) {
-	apu.ticks++;
-
+void apu_tick_channels(void) {
 	tick_pulse_channel(&apu.ch1);
 	tick_pulse_channel(&apu.ch2);
 	tick_wave_channel(&apu.ch3);
 	tick_noise_channel(&apu.ch4);
+}
 
-	// The frame frequencer ticks at 512 Hz
-	if (apu.ticks == (APU_TICK_RATE / 512)) {
-		apu.ticks = 0;
-		apu.frame_sequencer_clock_step++;
-		apu.frame_sequencer_clock_step %= 8;
+void apu_tick_frame_sequencer(void) {
+	apu.frame_sequencer_clock_step++;
+	apu.frame_sequencer_clock_step %= 8;
 
-		switch (apu.frame_sequencer_clock_step) {
+	switch (apu.frame_sequencer_clock_step) {
 
-		case 2: case 6:
-			tick_sweep(&apu.ch1);
-			// FALL THROUGH ON PURPOSE
+	case 2: case 6:
+		tick_sweep(&apu.ch1);
+		// FALL THROUGH ON PURPOSE
 
-		case 0: case 4:
-			tick_length_timer(&apu.ch1);
-			tick_length_timer(&apu.ch2);
-			tick_length_timer(&apu.ch3);
-			tick_length_timer(&apu.ch4);
-			break;
+	case 0: case 4:
+		tick_length_timer(&apu.ch1);
+		tick_length_timer(&apu.ch2);
+		tick_length_timer(&apu.ch3);
+		tick_length_timer(&apu.ch4);
+		break;
 
-		case 1: case 3: case 5:
-			break;
+	case 1: case 3: case 5:
+		break;
 
-		case 7:
-			tick_envelope(&apu.ch1);
-			tick_envelope(&apu.ch2);
-			tick_envelope(&apu.ch4);
-			break;
+	case 7:
+		tick_envelope(&apu.ch1);
+		tick_envelope(&apu.ch2);
+		tick_envelope(&apu.ch4);
+		break;
+	}
+}
+
+// The APU ticks twice per M-cycle (approximation 2MHz)
+void apu_tick_once(void) {
+	if (apu.enabled) {
+		apu.ticks++;
+		apu_tick_channels();
+
+		// The frame frequencer ticks at 512 Hz
+		if (apu.ticks == (APU_TICK_RATE / 512)) {
+			apu.ticks = 0;
+			apu_tick_frame_sequencer();
 		}
 	}
 
@@ -549,9 +558,27 @@ void sweep_trigger(struct Channel *ch) {
 	}
 }
 
+uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
+	switch (address) {
+	// Can still turn the APU off/on
+	case SOUND_NR52: break;
+
+	// The length counters are still writeable on DMG model
+	case SOUND_NR11: value &= 0x3F; break;
+	case SOUND_NR21: value &= 0x3F; break;
+	case SOUND_NR31: break;
+	case SOUND_NR41: break;
+
+	// All other writes are ignored
+	default: value = 0; break;
+	}
+
+	return value;
+}
+
 void apu_register_write(uint16_t address, uint8_t value) {
-	if (apu.enabled == false && address != SOUND_NR52 && address != SOUND_NR41)
-		return;
+	if (apu.enabled == false)
+		value = apu_register_write_while_off(address, value);
 
 	apu.raw_regs[address - APU_REGISTER_START] = value;
 	switch (address) {
@@ -708,7 +735,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR52: {
 		bool old_enabled = apu.enabled;
 		apu.enabled = get_bits(value, 7, 7);
-		if (!apu.enabled) {
+		if (old_enabled && !apu.enabled) {
 			memset(apu.raw_regs, 0, APU_REGISTER_LENGTH);
 			apu_channel_reset(&apu.ch1);
 			apu_channel_reset(&apu.ch2);

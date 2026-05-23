@@ -93,7 +93,7 @@ The following games have been tested:
     - [x] 05 sweep (detailed)
     - [x] 06 overflow on trigger
     - [x] 07 Length sweep period sync
-    - [ ] 08 Length counter during power
+    - [x] 08 Length counter during power
     - [ ] 09 Wave read while on
     - [ ] 10 Wave trigger while on
     - [x] 11 registers after power
