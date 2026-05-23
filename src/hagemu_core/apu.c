@@ -715,7 +715,8 @@ void apu_register_write(uint16_t address, uint8_t value) {
 			apu_channel_reset(&apu.ch3);
 			apu_channel_reset(&apu.ch4);
 		} else if (!old_enabled && apu.enabled) {
-			apu.frame_sequencer_clock_step = 0;
+			// The next step of the frame sequencer should be 0
+			apu.frame_sequencer_clock_step = 7;
 		}
 		return;
 	}
