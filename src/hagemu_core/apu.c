@@ -448,10 +448,8 @@ IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 	frame_diff.right = frame.right - prev_frame.right;
 
 	// This effectively multiplies by 0.6485
-	frame_diff.left  *= 664;
-	frame_diff.right *= 664;
-	frame_diff.left  /= 1024;
-	frame_diff.right /= 1024;
+	frame_diff.left  = (frame_diff.left  * 664) / 1024;
+	frame_diff.right = (frame_diff.right * 664) / 1024;
 
 	prev_frame.left  += frame_diff.left;
 	prev_frame.right += frame_diff.right;
@@ -459,23 +457,20 @@ IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 }
 
 // Emulates the DC Blocking of the gameboy
-/* const float R = 0.996f; */
-IntegerAudioFrame highpass_filter(IntegerAudioFrame frame) {
-	static IntegerAudioFrame prev_input  = { 0 };
-	static IntegerAudioFrame prev_output = { 0 };
-
-	// This effectively multiplies by 0.9961
-	prev_output.left   *= 1020;
-	prev_output.right  *= 1020;
-	prev_output.left   /= 1024;
-	prev_output.right  /= 1024;
-	IntegerAudioFrame output_frame = {
-		.left  = frame.left  - prev_input.left  + prev_output.left,
-		.right = frame.right - prev_input.right + prev_output.right,
-	};
-	prev_input  = frame;
-	prev_output = output_frame;
-	return output_frame;
+IntegerAudioFrame highpass_filter(IntegerAudioFrame input) {
+	static IntegerAudioFrame capacitor = { 0 };
+	IntegerAudioFrame output = { 0 };
+	bool highpass_enabled = apu.ch1.dac_enabled
+		|| apu.ch2.dac_enabled
+		|| apu.ch3.dac_enabled
+		|| apu.ch4.dac_enabled;
+	if (highpass_enabled) {
+		output.left  = input.left  - capacitor.left;
+		output.right = input.right - capacitor.right;
+		capacitor.left  = input.left  - (output.left  * 4081) / 4096;
+		capacitor.right = input.right - (output.right * 4081) / 4096;
+	}
+	return output;
 }
 
 // Use bit shifting and bitmasks to get the value of the
