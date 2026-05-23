@@ -106,21 +106,21 @@ unsigned apu_read_audio(float *output, unsigned max_frames) {
 
 struct Channel {
 	// All channels
-	bool enabled;
-	bool dac_enabled;
 	unsigned ticks;
 	unsigned period_value;
+	bool     enabled;
+	bool     dac_enabled;
 
 	// All channels
-	bool length_enabled;
 	unsigned length_current;
+	bool     length_enabled;
 
 	// Channels 1, 2, and 4
 	unsigned volume_initial;
 	unsigned volume_current;
 	unsigned envelope_current;
 	unsigned envelope_pace;
-	bool envelope_direction;
+	bool     envelope_direction;
 
 	// Channels 1 and 2
 	unsigned duty_wave_type;
@@ -140,10 +140,11 @@ struct Channel {
 	unsigned wave_index;
 
 	// Channel 4 only
-	uint16_t lfsr;
-	bool     lfsr_width;
+	unsigned lfsr;
 	unsigned lfsr_clock_shift;
 	unsigned lfsr_clock_divider;
+	bool     lfsr_short_mode;
+	bool     lfsr_last_out;
 };
 
 struct HagemuAPU {
@@ -157,7 +158,6 @@ struct HagemuAPU {
 	uint8_t raw_regs[APU_REGISTER_LENGTH];
 	uint8_t volume_left;
 	uint8_t volume_right;
-	bool enabled;
 	bool ch1_output_right;
 	bool ch1_output_left;
 	bool ch2_output_right;
@@ -166,6 +166,7 @@ struct HagemuAPU {
 	bool ch3_output_left;
 	bool ch4_output_right;
 	bool ch4_output_left;
+	bool enabled;
 } apu = { 0 };
 
 void apu_reset(void) {
@@ -268,19 +269,18 @@ void tick_noise_channel(struct Channel *channel) {
 	uint32_t period = channel->period_value;
 	if (channel->ticks > period) {
 		channel->ticks -= period;
-		bool next_bit = channel->lfsr & 0x01;
-		channel->lfsr >>= 1;
+		bool bit0 = (channel->lfsr >> 0) & 0x01;
+		bool bit1 = (channel->lfsr >> 1) & 0x01;
+		bool next_bit = !(bit0 ^ bit1);
 
-		next_bit ^= (channel->lfsr & 0x01);
-		next_bit = !next_bit;
-
-		// Since we already shifted, we copy to the 14 bit (and maybe the 6th bit)
-		channel->lfsr &= ~(1 << 14);
-		channel->lfsr |= (next_bit << 14);
-		if (channel->lfsr_width) {
-			channel->lfsr &= ~(1 << 6);
-			channel->lfsr |= (next_bit << 6);
+		channel->lfsr &= ~(1 << 15);
+		channel->lfsr |= (next_bit << 15);
+		if (channel->lfsr_short_mode) {
+			channel->lfsr &= ~(1 << 7);
+			channel->lfsr |= (next_bit << 7);
 		}
+		channel->lfsr_last_out = channel->lfsr & 0x01;
+		channel->lfsr >>= 1;
 	}
 }
 
@@ -404,7 +404,7 @@ uint8_t channel_output_noise(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
- 	if (channel->lfsr & 0x01)
+ 	if (channel->lfsr_last_out)
 		return channel->volume_current;
  	else
 		return 0;
@@ -699,7 +699,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 
 	case SOUND_NR43:
 		apu.ch4.lfsr_clock_divider = get_bits(value, 0, 2);
-		apu.ch4.lfsr_width = get_bits(value, 3, 3);
+		apu.ch4.lfsr_short_mode = get_bits(value, 3, 3);
 		apu.ch4.lfsr_clock_shift = get_bits(value, 4, 7);
 		if (!apu.ch4.lfsr_clock_divider)
 			apu.ch4.period_value = 4;
