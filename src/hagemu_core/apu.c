@@ -190,7 +190,7 @@ void tick_length_timer(struct Channel *channel) {
 }
 
 unsigned sweep_calculate(struct Channel *channel) {
-	int period_adjustment = channel->sweep_shadow_period >> channel->sweep_step;
+	int period_adjustment = channel->period_value >> channel->sweep_step;
 	if (channel->sweep_direction != 0)
 		period_adjustment *= -1;
 	return channel->period_value + period_adjustment;
@@ -201,33 +201,25 @@ bool sweep_overflow_check(struct Channel *channel) {
 	return (new_period > 0x7FF);
 }
 
-void apply_sweep(struct Channel *channel) {
-	unsigned new_period = sweep_calculate(channel);
-	// Period value overflowed
-	if (new_period > 0x7FF)
-		channel->enabled = false;
-	else
-		channel->period_value = new_period;
-}
-
 void tick_sweep(struct Channel *channel) {
 	if (!channel->sweep_enabled)
 		return;
 
-	unsigned new_period = sweep_calculate(channel);
-	if (new_period > 0x7FF) {
-		channel->enabled = false;
-	}
-
-	if (!channel->sweep_pace)
-		return;
-
-	channel->sweep_current++;
-	if (channel->sweep_current == channel->sweep_pace) {
-		channel->sweep_current = 0;
-		channel->period_value = new_period;
-		new_period = sweep_calculate(channel);
-		if (new_period > 0x7FF)
+	channel->sweep_current--;
+	if (channel->sweep_current == 0) {
+		channel->sweep_current = channel->sweep_pace;
+		if (!channel->sweep_pace) {
+			channel->sweep_current = 8;
+			return;
+		}
+		if (sweep_overflow_check(channel)) {
+			channel->enabled = false;
+			return;
+		}
+		if (channel->sweep_step == 0)
+			return;
+		channel->period_value = sweep_calculate(channel);
+		if (sweep_overflow_check(channel))
 			channel->enabled = false;
 	}
 }
@@ -540,11 +532,14 @@ void channel_trigger(struct Channel *ch, int length_max) {
 	ch->duty_wave_index = 0;
 	if (ch->dac_enabled && ch->length_current != 0)
 		ch->enabled = true;
+
+
 	ch->sweep_shadow_period = ch->period_value;
-	ch->sweep_current = 0;
+	ch->sweep_current = ch->sweep_pace ? ch->sweep_pace : 8;
 	ch->sweep_enabled = (ch->sweep_step || ch->sweep_pace);
-	if (ch->sweep_step > 0)
-		apply_sweep(ch);
+	if (ch->sweep_step > 0 && sweep_overflow_check(ch)) {
+		ch->enabled = false;
+	}
 }
 
 void apu_register_write(uint16_t address, uint8_t value) {
@@ -728,7 +723,6 @@ void apu_register_write(uint16_t address, uint8_t value) {
 }
 
 uint8_t apu_register_read_nr52(void) {
-	/* printf("CHANNEL3 LENGTH: %d\n", channel3.length_current); */
 	uint8_t value = 0;
 	value |= apu.ch1.enabled << 0;
 	value |= apu.ch2.enabled << 1;

@@ -89,9 +89,9 @@ The following games have been tested:
     - [x] 01 registers
     - [x] 02 length counter
     - [x] 03 channel trigger
-    - [ ] 04 sweep
+    - [x] 04 sweep
     - [ ] 05 sweep (detailed)
-    - [ ] 06 overflow on trigger
+    - [x] 06 overflow on trigger
     - [ ] 07 Length sweep period sync
     - [ ] 08 Length counter during power
     - [ ] 09 Wave read while on
