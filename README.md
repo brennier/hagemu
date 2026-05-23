@@ -90,7 +90,7 @@ The following games have been tested:
     - [x] 02 length counter
     - [x] 03 channel trigger
     - [x] 04 sweep
-    - [ ] 05 sweep (detailed)
+    - [x] 05 sweep (detailed)
     - [x] 06 overflow on trigger
     - [ ] 07 Length sweep period sync
     - [ ] 08 Length counter during power

@@ -133,6 +133,7 @@ struct Channel {
 	unsigned sweep_pace;
 	bool     sweep_enabled;
 	bool     sweep_direction;
+	bool     sweep_negate_flag;
 
 	// Channel 3 only
 	unsigned volume_level;
@@ -190,15 +191,18 @@ void tick_length_timer(struct Channel *channel) {
 }
 
 unsigned sweep_calculate(struct Channel *channel) {
-	int period_adjustment = channel->period_value >> channel->sweep_step;
-	if (channel->sweep_direction != 0)
-		period_adjustment *= -1;
-	return channel->period_value + period_adjustment;
+	unsigned new_period = channel->sweep_shadow_period;
+	new_period >>= channel->sweep_step;
+	if (channel->sweep_direction != 0) {
+		channel->sweep_negate_flag = true;
+		new_period *= -1;
+	}
+	new_period += channel->sweep_shadow_period;
+	return new_period;
 }
 
-bool sweep_overflow_check(struct Channel *channel) {
-	unsigned new_period = sweep_calculate(channel);
-	return (new_period > 0x7FF);
+bool sweep_overflow_check(struct Channel *ch) {
+	return (sweep_calculate(ch) > 0x7FF);
 }
 
 void tick_sweep(struct Channel *channel) {
@@ -219,6 +223,7 @@ void tick_sweep(struct Channel *channel) {
 		if (channel->sweep_step == 0)
 			return;
 		channel->period_value = sweep_calculate(channel);
+		channel->sweep_shadow_period = channel->period_value;
 		if (sweep_overflow_check(channel))
 			channel->enabled = false;
 	}
@@ -532,9 +537,11 @@ void channel_trigger(struct Channel *ch, int length_max) {
 	ch->duty_wave_index = 0;
 	if (ch->dac_enabled && ch->length_current != 0)
 		ch->enabled = true;
+}
 
-
+void sweep_trigger(struct Channel *ch) {
 	ch->sweep_shadow_period = ch->period_value;
+	ch->sweep_negate_flag = false;
 	ch->sweep_current = ch->sweep_pace ? ch->sweep_pace : 8;
 	ch->sweep_enabled = (ch->sweep_step || ch->sweep_pace);
 	if (ch->sweep_step > 0 && sweep_overflow_check(ch)) {
@@ -553,6 +560,8 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	case SOUND_NR10:
 		apu.ch1.sweep_step = get_bits(value, 0, 2);
 		apu.ch1.sweep_direction = get_bits(value, 3, 3);
+		if (apu.ch1.sweep_direction == 0 && apu.ch1.sweep_negate_flag)
+			apu.ch1.enabled = false;
 		apu.ch1.sweep_pace = get_bits(value, 4, 6);
 		return;
 
@@ -581,8 +590,10 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		apu.ch1.period_value &= ~(0xFF00);
 		apu.ch1.period_value |= get_bits(value, 0, 2) << 8;
 		channel_length_enable(&apu.ch1, get_bits(value, 6, 6));
-		if (get_bits(value, 7, 7))
+		if (get_bits(value, 7, 7)) {
 			channel_trigger(&apu.ch1, 64);
+			sweep_trigger(&apu.ch1);
+		}
 		return;
 
 		// CHANNEL 2
