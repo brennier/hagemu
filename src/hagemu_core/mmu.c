@@ -63,7 +63,10 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 	case 0xFF46: dma_start(value);                return;
 	case 0xFF50: mmu.boot_rom_ignore = true;      return;
 #ifdef CGB_MODE
-	case 0xFF70: mmu.wram_bank = value & 0x07;    return;
+	case 0xFF70:
+		mmu.wram_bank = value & 0x07;
+		if (!mmu.wram_bank) mmu.wram_bank = 1;
+		return;
 	case 0xFF4F: ppu_set_vram_bank(value & 0x01); return;
 #endif
 	}
