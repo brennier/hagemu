@@ -19,4 +19,7 @@ void ppu_register_write(uint16_t address, uint8_t value);
 // This is for the DMA, which has priority over the PPU at all times
 void ppu_oam_write_nonblocking(uint16_t address, uint8_t value);
 
+void ppu_set_vram_bank(bool vram_bank);
+bool ppu_get_vram_bank(void);
+
 #endif

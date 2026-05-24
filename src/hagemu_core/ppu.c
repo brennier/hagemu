@@ -68,9 +68,14 @@ struct HagemuPPU {
 
 	ARGB8888 screen_buffer[2][144][160];
 
+	bool vram_bank;
 	// This corresponds exactly to the 8 kilobytes of VRAM
 	struct Tile tile_data[384];  // 384 tiles of 16 bytes each
 	uint8_t tile_map[2][32][32]; // Two 32x32 maps of 1 byte indices
+
+	// This corresponds to the second bank of VRAM
+	struct Tile tile_data2[384];  // 384 tiles of 16 bytes each
+	uint8_t tile_map2[2][32][32]; // Two 32x32 maps of 1 byte indices
 
 	// This correponds exactly to the 160 bytes of OAM RAM
 	struct Sprite sprites[OAM_SPRITE_COUNT];
@@ -114,12 +119,6 @@ struct HagemuPPU {
 
 void ppu_reset(void) {
 	memset(&ppu, 0, sizeof(struct HagemuPPU));
-}
-
-// This is kind of hacky and needs to be fixed later
-uint8_t ppu_read_direct(uint16_t address) {
-	uint8_t *vram = (uint8_t *)ppu.tile_data;
-	return vram[address - 0x8000];
 }
 
 unsigned ppu_get_frame_count(void) {
@@ -491,17 +490,33 @@ void ppu_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
+void ppu_set_vram_bank(bool vram_bank) {
+	ppu.vram_bank = vram_bank;
+}
+
+bool ppu_get_vram_bank(void) {
+	return ppu.vram_bank;
+}
+
 uint8_t ppu_vram_read(uint16_t address) {
 	if (ppu.enabled && ppu.mode == PIXEL_DRAW)
 		return 0xFF;
-	uint8_t *vram = (uint8_t *)ppu.tile_data;
+	uint8_t *vram;
+	if (ppu.vram_bank)
+		vram = (uint8_t *)ppu.tile_data2;
+	else
+		vram = (uint8_t *)ppu.tile_data;
 	return vram[address];
 }
 
 void ppu_vram_write(uint16_t address, uint8_t value) {
 	if (ppu.enabled && ppu.mode == PIXEL_DRAW)
 		return;
-	uint8_t *vram = (uint8_t *)ppu.tile_data;
+	uint8_t *vram;
+	if (ppu.vram_bank)
+		vram = (uint8_t *)ppu.tile_data2;
+	else
+		vram = (uint8_t *)ppu.tile_data;
 	vram[address] = value;
 }
 
