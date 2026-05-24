@@ -54,7 +54,7 @@
           transform: translate(-50%, -50%);
       }
 
-      /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+      <!-- /* the canvas *must not* have any border or padding, or mouse coords will be wrong */ -->
       #canvas {
           display: block;
           outline: none;
@@ -121,6 +121,7 @@
           text-align: center;
           font-family: 'Press Start 2P';
           font-size: calc(var(--gb-scale) * 6px);
+          padding: calc(var(--gb-scale) * 4px);
 	  background-color: #8abd4c;
 	  color: #306657;
           border-radius: 5px;
@@ -160,12 +161,16 @@
     </div>
 
     <script type='text/javascript'>
-      function waitForClick() {
+      function waitForGesture() {
           return new Promise(resolve => {
+              const events = ['click', 'pointerdown'];
               var canvas = document.getElementById('canvas');
-              canvas.addEventListener('click', () => {
+              const handler = () => {
+                  events.forEach(e => canvas.removeEventListener(e, handler));
                   resolve();
-              }, { once: true });
+              };
+
+              events.forEach(e => canvas.addEventListener(e, handler));
           });
       }
 
@@ -177,15 +182,15 @@
           var overlay = document.getElementById('overlay');
 
           if (!targetUrl) {
-              overlay.textContent = "Waiting for a ROM file... Click the \"Upload ROM\" button below";
+              overlay.textContent = "No ROM file loaded. Click the \"Upload ROM\" button below to get started.";
               throw new Error(`No "rom" query parameter found.`);
               return;
           }
 
-          overlay.textContent = "Click here to download and run the ROM file specified in the URL";
-          await waitForClick();
+          overlay.textContent = "A ROM file was found in the URL. Click here to download and run it.";
+          await waitForGesture();
 
-          overlay.textContent = "Loading ROM...";
+          overlay.textContent = "Loading ROM file...";
 
           const ext = targetUrl.split(".").pop().toLowerCase();
           if (ext !== "gb" && ext !== "gbc") {
@@ -277,7 +282,7 @@
               }
 
               var overlay = document.getElementById('overlay');
-              overlay.textContent = "Loading ROM...";
+              overlay.textContent = "Loading ROM file...";
 
               // FS.mkdir("/tmp");
               const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -291,6 +296,8 @@
               } else {
                   Module.ccall("web_load_rom", null, ["string"], [path]);
               }
+
+              await new Promise(r => setTimeout(r, 100));
 
               overlay.style.display = 'none';
           } catch (err) {
