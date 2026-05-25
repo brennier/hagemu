@@ -18,6 +18,7 @@
 #define HIGH_RAM_SIZE  0x80   // 128 bytes
 
 struct HagemuMMU {
+	struct HagemuCPU *cpu;
 	bool boot_rom_ignore;
 	unsigned wram_bank;
 	uint8_t wram[8][WRAM_BANK_SIZE];
@@ -26,9 +27,10 @@ struct HagemuMMU {
 	uint8_t serial_control;
 } mmu = { 0 };
 
-void mmu_reset(void) {
+void mmu_reset(struct HagemuCPU *cpu) {
 	memset(&mmu, 0, sizeof(struct HagemuMMU));
 	mmu.wram_bank = 1;
+	mmu.cpu = cpu;
 }
 
 static uint8_t mmu_read_io(uint16_t address) {
@@ -40,6 +42,10 @@ static uint8_t mmu_read_io(uint16_t address) {
 	case 0xFF46: return dma_read();
 	case 0xFF50: return mmu.boot_rom_ignore;
 #ifdef CGB_MODE
+	case 0xFF4D:
+		return (cpu_get_speed_mode(mmu.cpu) << 7) |
+			0x7E |
+			(cpu_get_speed_mode_pending(mmu.cpu));
 	case 0xFF51: case 0xFF52: case 0xFF53:
 	case 0xFF54: case 0xFF55:
 		return hdma_read_register(address);
@@ -67,9 +73,16 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 	case 0xFF46: dma_start(value);                return;
 	case 0xFF50: mmu.boot_rom_ignore = true;      return;
 #ifdef CGB_MODE
+	case 0xFF4D:
+		printf("CPU speed mode register write: %02X\n", value);
+		cpu_set_speed_mode_pending(mmu.cpu, value & 0x01);
+		return;
 	case 0xFF51: case 0xFF52: case 0xFF53:
 	case 0xFF54: case 0xFF55:
 		hdma_write_register(address, value);
+		return;
+	case 0xFF69:
+		printf("BG palette written to with value %02X\n", value);
 		return;
 	case 0xFF70:
 		mmu.wram_bank = value & 0x07;

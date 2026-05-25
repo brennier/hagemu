@@ -2,7 +2,9 @@
 #define MMU_H
 #include <stdint.h>
 
-void mmu_reset(void);
+#include "cpu.h"
+
+void mmu_reset(struct HagemuCPU *cpu);
 
 uint8_t mmu_read(uint16_t address);
 void mmu_write(uint16_t address, uint8_t value);

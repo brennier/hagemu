@@ -21,7 +21,7 @@ struct HagemuGB* hagemu_create(void) {
 
 void hagemu_reset(struct HagemuGB* gb) {
 	cpu_reset(gb->cpu);
-	mmu_reset();
+	mmu_reset(gb->cpu);
 	ppu_reset();
 	apu_reset();
 	interrupt_reset();

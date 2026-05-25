@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
 #include "mmu.h"
 #include "interrupt.h"
@@ -19,6 +18,9 @@ struct HagemuCPU {
 	bool f_zero;
 
 	// other misc flags
+	bool double_speed_mode;
+	bool speed_mode_odd_cycle;
+	bool set_speed_mode_pending;
 	bool master_interrupt;
 	bool master_interrupt_pending;
 	bool is_halted;
@@ -31,11 +33,22 @@ struct HagemuCPU {
 #include "apu.h"
 #include "dma.h"
 void system_tick(struct HagemuCPU *cpu) {
-	ppu_tick();
-	apu_tick();
-	dma_tick();
 	timer_tick();
-	cpu->cycles_passed += 4;
+	dma_tick();
+
+	if (!cpu->double_speed_mode) {
+		ppu_tick();
+		apu_tick();
+		cpu->cycles_passed += 4;
+		return;
+	}
+
+	if (cpu->speed_mode_odd_cycle) {
+		ppu_tick();
+		apu_tick();
+		cpu->cycles_passed += 2;
+	}
+	cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
 }
 
 struct HagemuCPU *cpu_create(void) {
@@ -50,6 +63,18 @@ void cpu_resume_if_stopped(struct HagemuCPU *cpu) {
 
 void cpu_destory(struct HagemuCPU *cpu) {
 	free(cpu);
+}
+
+bool cpu_get_speed_mode(struct HagemuCPU *cpu) {
+	return cpu->double_speed_mode;
+}
+
+void cpu_set_speed_mode_pending(struct HagemuCPU *cpu, bool flag) {
+	cpu->set_speed_mode_pending = flag;
+}
+
+bool cpu_get_speed_mode_pending(struct HagemuCPU *cpu) {
+	return cpu->set_speed_mode_pending;
 }
 
 enum Reg8 {
@@ -602,7 +627,16 @@ static inline void op_store_sp(struct HagemuCPU *cpu) {
 
 static inline void op_stop(struct HagemuCPU *cpu) {
 	printf("[WARNING] The stop operation is not fully tested\n");
-	cpu->is_stopped = true;
+	if (!cpu->set_speed_mode_pending) {
+		cpu->is_stopped = true;
+		cpu->pc++;
+		return;
+	}
+
+	cpu->double_speed_mode = !cpu->double_speed_mode;
+	printf("[INFO] CPU speed mode = %d\n", cpu->double_speed_mode);
+	cpu->set_speed_mode_pending = false;
+	timer_register_write(0xFF04, 1); // Reset the timer
 	cpu->pc++;
 }
 
