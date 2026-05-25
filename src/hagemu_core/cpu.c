@@ -40,7 +40,7 @@ void system_tick(struct HagemuCPU *cpu) {
 
 struct HagemuCPU *cpu_create(void) {
 	struct HagemuCPU *cpu = malloc(sizeof(struct HagemuCPU));
-	memset(cpu, 0, sizeof(struct HagemuCPU));
+	cpu_reset(cpu);
 	return cpu;
 }
 
@@ -242,6 +242,15 @@ static inline void set_reg16(struct HagemuCPU *cpu, enum Reg16 reg, uint16_t val
 
 void cpu_reset(struct HagemuCPU *cpu) {
 	memset(cpu, 0, sizeof(struct HagemuCPU));
+#ifdef CGB_MODE
+	set_reg8(cpu, REG_A, 0x11);
+	cpu->f_zero = true;
+	set_reg8(cpu, REG_D, 0xFF);
+	set_reg8(cpu, REG_E, 0x56);
+	set_reg8(cpu, REG_L, 0x0D);
+	set_reg16(cpu, REG_PC, 0x0100);
+	set_reg16(cpu, REG_SP, 0xFFFE);
+#endif
 }
 
 void cpu_print_state(struct HagemuCPU *cpu) {

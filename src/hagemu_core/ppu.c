@@ -75,7 +75,7 @@ struct HagemuPPU {
 
 	// This corresponds to the second bank of VRAM
 	struct Tile tile_data2[384];  // 384 tiles of 16 bytes each
-	uint8_t tile_map2[2][32][32]; // Two 32x32 maps of 1 byte indices
+	uint8_t bg_attributes[2][32][32]; // Two 32x32 maps of 1 byte attributes
 
 	// This correponds exactly to the 160 bytes of OAM RAM
 	struct Sprite sprites[OAM_SPRITE_COUNT];
