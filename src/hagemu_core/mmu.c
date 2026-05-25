@@ -12,6 +12,7 @@
 #include "dma.h"
 #include "boot.h"
 #include "interrupt.h"
+#include "hdma.h"
 
 #define WRAM_BANK_SIZE 0x1000 // 4 kilobytes
 #define HIGH_RAM_SIZE  0x80   // 128 bytes
@@ -39,6 +40,9 @@ static uint8_t mmu_read_io(uint16_t address) {
 	case 0xFF46: return dma_read();
 	case 0xFF50: return mmu.boot_rom_ignore;
 #ifdef CGB_MODE
+	case 0xFF51: case 0xFF52: case 0xFF53:
+	case 0xFF54: case 0xFF55:
+		return hdma_read_register(address);
 	case 0xFF70: return mmu.wram_bank | 0xF8;
 	case 0xFF4F: return ppu_get_vram_bank() | 0xFE;
 #endif
@@ -63,6 +67,10 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 	case 0xFF46: dma_start(value);                return;
 	case 0xFF50: mmu.boot_rom_ignore = true;      return;
 #ifdef CGB_MODE
+	case 0xFF51: case 0xFF52: case 0xFF53:
+	case 0xFF54: case 0xFF55:
+		hdma_write_register(address, value);
+		return;
 	case 0xFF70:
 		mmu.wram_bank = value & 0x07;
 		if (!mmu.wram_bank) mmu.wram_bank = 1;
