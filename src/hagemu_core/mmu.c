@@ -101,7 +101,14 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 }
 
 uint8_t mmu_read_nonblocking(uint16_t address) {
-#ifndef CGB_MODE
+#ifdef CGB_MODE
+	if (!mmu.boot_rom_ignore && address < 0x100) {
+		return boot_read(address);
+	}
+	else if (!mmu.boot_rom_ignore && address >= 0x200 && address < 0x900) {
+		return boot_read(address);
+	}
+#else
 	if (!mmu.boot_rom_ignore && address < 0x100) {
 		return boot_read(address);
 	}
