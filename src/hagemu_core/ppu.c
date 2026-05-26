@@ -77,6 +77,10 @@ struct HagemuPPU {
 	struct Tile tile_data2[384];  // 384 tiles of 16 bytes each
 	uint8_t bg_attributes[2][32][32]; // Two 32x32 maps of 1 byte attributes
 
+	uint8_t bg_pram_index;
+	uint8_t bg_pram[64]; // Background palette RAM
+	uint8_t sprite_pram[64]; // Sprite palette RAM
+
 	// This correponds exactly to the 160 bytes of OAM RAM
 	struct Sprite sprites[OAM_SPRITE_COUNT];
 
@@ -181,10 +185,20 @@ void ppu_tick(void) {
 	}
 }
 
+#ifdef CGB_MODE
+RGB555 apply_color(uint8_t palette_index, uint8_t color_index) {
+	uint16_t color = 0;
+	color |= ppu.bg_pram[2 * ((4 * palette_index) + color_index) + 1];
+	color <<= 8;
+	color |= ppu.bg_pram[2 * ((4 * palette_index) + color_index)];
+	return color;
+}
+#else
 RGB555 apply_color(uint8_t palette, uint8_t index) {
 	uint8_t default_color_index = (palette >> 2 * index) & 0x03;
 	return ppu_default_colors[default_color_index];
 }
+#endif
 
 void ppu_draw_scanline(void) {
 	RGB555 scanline[160];
@@ -271,7 +285,11 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
+#ifdef CGB_MODE
+			scanline[screen_col] = apply_color(color_palette, color_index);
+#else
 			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
+#endif
 			bg_nonzero[screen_col] = (color_index != 0);
 			screen_col++;
 		}
@@ -468,6 +486,9 @@ uint8_t ppu_get_lcd_status(void) {
 #define REG_WIN_SCROLL_Y  0xFF4A
 #define REG_WIN_SCROLL_X  0xFF4B
 
+#define REG_BG_PRAM_INDEX 0xFF68
+#define REG_BG_PRAM_DATA  0xFF69
+
 uint8_t ppu_register_read(uint16_t address) {
 	switch (address) {
 	case REG_LCD_CONTROL:  return ppu.lcd_control_raw;
@@ -481,6 +502,8 @@ uint8_t ppu_register_read(uint16_t address) {
 	case REG_OBJ1_PALETTE: return ppu.obj1_palette;
 	case REG_WIN_SCROLL_Y: return ppu.win_scroll_y;
 	case REG_WIN_SCROLL_X: return ppu.win_scroll_x;
+	case REG_BG_PRAM_INDEX: return ppu.bg_pram_index;
+	case REG_BG_PRAM_DATA: return ppu.bg_pram[ppu.bg_pram_index & 0x3F];
 	default:
 		fprintf(stderr, "[ERROR] Invalid PPU register read at %04X\n", address);
 		exit(EXIT_FAILURE);
@@ -499,6 +522,16 @@ void ppu_register_write(uint16_t address, uint8_t value) {
 	case REG_OBJ1_PALETTE: ppu.obj1_palette = value;   break;
 	case REG_WIN_SCROLL_Y: ppu.win_scroll_y = value;   break;
 	case REG_WIN_SCROLL_X: ppu.win_scroll_x = value;   break;
+	case REG_BG_PRAM_INDEX: ppu.bg_pram_index = value | 0x40; break;
+	case REG_BG_PRAM_DATA:
+		ppu.bg_pram[ppu.bg_pram_index & 0x3F] = value;
+		if (ppu.bg_pram_index & 0x80) {
+			if ((ppu.bg_pram_index & 0x3F) == 0x3F)
+				ppu.bg_pram_index &= 0xC0;
+			else
+				ppu.bg_pram_index++;
+		}
+		break;
 	case REG_LY_COMPARE: // Setting this register could trigger an interrupt
 		ppu.line_compare = value;
 		if (ppu.interrupt_select_LYC && ppu.current_line == ppu.line_compare)

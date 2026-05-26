@@ -50,6 +50,8 @@ static uint8_t mmu_read_io(uint16_t address) {
 		return hdma_read_register(address);
 	case 0xFF70: return mmu.wram_bank | 0xF8;
 	case 0xFF4F: return ppu_get_vram_bank() | 0xFE;
+	case 0xFF68: return ppu_register_read(address); // BG palette ram index
+	case 0xFF69: return ppu_register_read(address); // BG palette ram data
 #endif
 	}
 
@@ -85,6 +87,8 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 		if (!mmu.wram_bank) mmu.wram_bank = 1;
 		return;
 	case 0xFF4F: ppu_set_vram_bank(value & 0x01); return;
+	case 0xFF68: ppu_register_write(address, value); return; // BG palette ram index
+	case 0xFF69: ppu_register_write(address, value); return; // BG palette ram data
 #endif
 	}
 
