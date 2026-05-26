@@ -79,6 +79,8 @@ struct HagemuPPU {
 
 	uint8_t bg_pram_index;
 	uint8_t bg_pram[64]; // Background palette RAM
+
+	uint8_t sprite_pram_index;
 	uint8_t sprite_pram[64]; // Sprite palette RAM
 
 	// This correponds exactly to the 160 bytes of OAM RAM
@@ -186,11 +188,12 @@ void ppu_tick(void) {
 }
 
 #ifdef CGB_MODE
-RGB555 apply_color(uint8_t palette_index, uint8_t color_index) {
+RGB555 apply_color(uint8_t palette_index, uint8_t color_index, bool sprite_palettes) {
+	uint8_t *pram = sprite_palettes ? ppu.sprite_pram : ppu.bg_pram;
 	uint16_t color = 0;
-	color |= ppu.bg_pram[2 * ((4 * palette_index) + color_index) + 1];
+	color |= pram[2 * ((4 * palette_index) + color_index) + 1];
 	color <<= 8;
-	color |= ppu.bg_pram[2 * ((4 * palette_index) + color_index)];
+	color |= pram[2 * ((4 * palette_index) + color_index)];
 	return color;
 }
 #else
@@ -286,7 +289,7 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
 #ifdef CGB_MODE
-			scanline[screen_col] = apply_color(color_palette, color_index);
+			scanline[screen_col] = apply_color(color_palette, color_index, false);
 #else
 			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
 #endif
@@ -333,7 +336,7 @@ void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero) {
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
-			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
+			scanline[screen_col] = apply_color(ppu.bg_palette, color_index, false);
 			bg_nonzero[screen_col] = (color_index != 0);
 			screen_col++;
 		}
@@ -385,6 +388,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 	bool palette_select = (sprite.attributes >> 4) & 0x01;
 	bool bank_select    = (sprite.attributes >> 3) & 0x01;
 	uint8_t tile_index  = sprite.tile_index;
+	uint8_t cgb_palette = sprite.attributes & 0x07;
 
 	int sprite_row = ppu.current_line - (int)sprite.y_position + 16;
 	if (y_flip && ppu.use_tall_sprites)
@@ -414,7 +418,11 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 		else if (color_indices[sprite_col] == 0)
 			continue;
 
+#ifdef CGB_MODE
+		scanline[col] = apply_color(cgb_palette, color_indices[sprite_col], true);
+#else
 		scanline[col] = apply_color(sprite_palette, color_indices[sprite_col]);
+#endif
 	}
 }
 
@@ -488,6 +496,8 @@ uint8_t ppu_get_lcd_status(void) {
 
 #define REG_BG_PRAM_INDEX 0xFF68
 #define REG_BG_PRAM_DATA  0xFF69
+#define REG_SPRITE_PRAM_INDEX 0xFF6A
+#define REG_SPRITE_PRAM_DATA  0xFF6B
 
 uint8_t ppu_register_read(uint16_t address) {
 	switch (address) {
@@ -504,6 +514,8 @@ uint8_t ppu_register_read(uint16_t address) {
 	case REG_WIN_SCROLL_X: return ppu.win_scroll_x;
 	case REG_BG_PRAM_INDEX: return ppu.bg_pram_index;
 	case REG_BG_PRAM_DATA: return ppu.bg_pram[ppu.bg_pram_index & 0x3F];
+	case REG_SPRITE_PRAM_INDEX: return ppu.sprite_pram_index;
+	case REG_SPRITE_PRAM_DATA: return ppu.sprite_pram[ppu.sprite_pram_index & 0x3F];
 	default:
 		fprintf(stderr, "[ERROR] Invalid PPU register read at %04X\n", address);
 		exit(EXIT_FAILURE);
@@ -530,6 +542,16 @@ void ppu_register_write(uint16_t address, uint8_t value) {
 				ppu.bg_pram_index &= 0xC0;
 			else
 				ppu.bg_pram_index++;
+		}
+		break;
+	case REG_SPRITE_PRAM_INDEX: ppu.sprite_pram_index = value | 0x40; break;
+	case REG_SPRITE_PRAM_DATA:
+		ppu.sprite_pram[ppu.sprite_pram_index & 0x3F] = value;
+		if (ppu.sprite_pram_index & 0x80) {
+			if ((ppu.sprite_pram_index & 0x3F) == 0x3F)
+				ppu.sprite_pram_index &= 0xC0;
+			else
+				ppu.sprite_pram_index++;
 		}
 		break;
 	case REG_LY_COMPARE: // Setting this register could trigger an interrupt

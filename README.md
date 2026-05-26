@@ -112,6 +112,24 @@ The following games have been tested:
   - [ ] Other, less popular MCBs
   - [ ] Real Time Clock support
   - [ ] Rumble support
+- [ ] Implement GBC game support
+  - [x] Add extra WRAM and VRAM
+  - [x] Use copyright-free CGB boot rom
+  - [x] Implement basic general-purpose VRAM DMA support
+  - [x] CPU double speed mode
+  - [x] Background/sprites can use either VRAM bank
+  - [x] Apply background flipping attributes
+  - [x] Setting and using background color palettes
+  - [x] Setting and using sprite color palettes
+  - [ ] Rendering the window also uses color palettes and flipping attributes
+  - [ ] Use background high priority attribute
+  - [ ] Figure out sprite/background priority (it's a bit messy)
+  - [ ] Sort sprites by OAM position instead of X position
+  - [ ] Verify double speed mode
+  - [ ] Verify general-purpose VRAM DMA
+  - [ ] Implement HBLANK VRAM DMA
+  - [ ] Check the registers FF4C and FF6C after the boot sequence
+  - [ ] Pass cgb-acid test rom
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
   - [x] Add support for gamepads
