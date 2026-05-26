@@ -121,7 +121,7 @@ The following games have been tested:
   - [x] Apply background flipping attributes
   - [x] Setting and using background color palettes
   - [x] Setting and using sprite color palettes
-  - [ ] Rendering the window also uses color palettes and flipping attributes
+  - [x] Rendering the window also uses color palettes and flipping attributes
   - [ ] Use background high priority attribute
   - [ ] Figure out sprite/background priority (it's a bit messy)
   - [ ] Sort sprites by OAM position instead of X position
