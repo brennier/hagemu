@@ -129,6 +129,7 @@ The following games have been tested:
   - [ ] Verify general-purpose VRAM DMA
   - [ ] Implement HBLANK VRAM DMA
   - [ ] Check the registers FF4C and FF6C after the boot sequence
+  - [ ] Fix the problem where some games run too fast in double speed mode
   - [ ] Pass cgb-acid test rom
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
@@ -155,12 +156,13 @@ The following games have been tested:
   - [x] OAM DMA transfers pass all of Mooneye's tests
   - [x] Clear all APU registers when disabled
   - [x] Make the audio registers readable
+  - [x] Pass Blargg's interrupt_time test
   - [ ] Make the color palette settable instead of internal to the ppu
   - [ ] Add support for the VIN sound channel
   - [ ] Rewrite PPU to be more modular
   - [ ] Add option to blend frames
   - [ ] Add support for the serial data port
-  - [ ] Pass Blargg's interrupt_time test
+  - [ ] Add support for the infrared communications port
   - [ ] Pass Blargg's APU test
   - [ ] Run the Mooneye Test Suite
   - [ ] Use some profiling tools to find critical code blocks
@@ -195,11 +197,6 @@ The following games have been tested:
     - [ ] Audio menu
     - [ ] Color palette menu
     - [ ] Save state menu
-- [ ] Add GBC functionality
-  - [ ] Double speed mode
-  - [ ] Extra work and video ram
-  - [ ] HDMA features
-  - [ ] Pass cgb-acid2
 - [ ] Future Refactoring Ideas
   - [x] Separate the core from the interface
   - [x] Switch from Raylib to SDL3
@@ -212,7 +209,6 @@ The following games have been tested:
   - [x] Add dynamic audio resampling
   - [x] Using box averaging to downsample the audio
   - [x] Add a high-pass filter and a low-pass filter to the APU
-  - [ ] Use CMake instead of make
   - [ ] Organize all state into a gameboy struct
   - [ ] Support save/load states
   - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
@@ -230,7 +226,6 @@ The following games have been tested:
   - Sound info: https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
   - General info: https://hacktix.github.io/GBEDG/
   - Timing of the LYC STAT: https://gbdev.io/guides/lyc_timing.html
-  - Custom bootrom: https://github.com/Hacktix/Bootix
 - Links about MBC3's real-time clock
   - MBC3 .sav format: https://bgb.bircd.org/rtcsave.html
   - MBC3 RTC test rom: https://github.com/aaaaaa123456789/rtc3test
