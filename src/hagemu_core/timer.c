@@ -16,9 +16,11 @@ struct HagemuTimer {
 	uint8_t  modulo;
 	uint8_t  counter;
 	bool     enabled;
+	bool     double_speed_mode;
 } timer = { 0 };
 
-void set_clock_select(uint8_t select) {
+void set_clock_select(void) {
+	uint8_t select = timer.timer_control_raw & 0x03;
 	timer.clock_select = 1;
 	switch (select) {
         case 0x00: timer.clock_select <<= 9; break;
@@ -26,6 +28,8 @@ void set_clock_select(uint8_t select) {
         case 0x02: timer.clock_select <<= 5; break;
         case 0x03: timer.clock_select <<= 7; break;
 	}
+	if (timer.double_speed_mode)
+		timer.clock_select <<= 1;
 }
 
 void maybe_increment(uint16_t old_time, uint16_t new_time) {
@@ -73,7 +77,7 @@ void timer_register_write(uint16_t address, uint8_t value) {
 	case TIMER_CONTROL:
 		timer.timer_control_raw = value;
 		timer.enabled = value & (1 << 2);
-		set_clock_select(value & 0x03);
+		set_clock_select();
 		return;
 	default:
 		fprintf(stderr, "[ERROR] Write to illegal timer address %04X\n", address);
@@ -81,7 +85,14 @@ void timer_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-void timer_tick(void) {
-	maybe_increment(timer.time, timer.time + 4);
-	timer.time += 4;
+void timer_set_speed_mode(bool double_speed_mode) {
+	timer.double_speed_mode = double_speed_mode;
+	maybe_increment(timer.time, 0);
+	timer.time = 0;
+	set_clock_select();
+}
+
+void timer_tick(int t_cycles) {
+	maybe_increment(timer.time, timer.time + t_cycles);
+	timer.time += t_cycles;
 }

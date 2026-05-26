@@ -33,22 +33,26 @@ struct HagemuCPU {
 #include "apu.h"
 #include "dma.h"
 void system_tick(struct HagemuCPU *cpu) {
-	timer_tick();
-	dma_tick();
-
 	if (!cpu->double_speed_mode) {
+		dma_tick();
+		timer_tick(4);
 		ppu_tick();
 		apu_tick();
 		cpu->cycles_passed += 4;
 		return;
-	}
-
-	if (cpu->speed_mode_odd_cycle) {
+	} else if (cpu->double_speed_mode && cpu->speed_mode_odd_cycle) {
+		dma_tick();
+		timer_tick(4);
 		ppu_tick();
 		apu_tick();
 		cpu->cycles_passed += 2;
+		cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
+	} else {
+		dma_tick();
+		timer_tick(4);
+		cpu->cycles_passed += 2;
+		cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
 	}
-	cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
 }
 
 struct HagemuCPU *cpu_create(void) {
@@ -627,7 +631,7 @@ static inline void op_stop(struct HagemuCPU *cpu) {
 	cpu->double_speed_mode = !cpu->double_speed_mode;
 	printf("[INFO] CPU speed mode = %d\n", cpu->double_speed_mode);
 	cpu->set_speed_mode_pending = false;
-	timer_register_write(0xFF04, 1); // Reset the timer
+	timer_set_speed_mode(cpu->double_speed_mode);
 	cpu->pc++;
 }
 
