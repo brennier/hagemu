@@ -246,10 +246,28 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 			pixels_to_draw = 160 - screen_col;
 
 		uint8_t tile_index = ppu.tile_map[ppu.bg_tile_map][tile_row][tile_col];
-		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area, false);
+		uint8_t tile_attributes = ppu.bg_attributes[ppu.bg_tile_map][tile_row][tile_col];
+		bool priority = (tile_attributes >> 7) & 0x01;
+		bool y_flip = (tile_attributes >> 6) & 0x01;
+		bool x_flip = (tile_attributes >> 5) & 0x01;
+		bool bank_select = (tile_attributes >> 3) & 0x01;
+		uint8_t color_palette = tile_attributes & 0x07;
+
+		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area, bank_select);
+
+		if (y_flip)
+			pixel_row = 7 - pixel_row;
 
 		uint8_t color_indices[8];
 		tile_decode_row(tile, pixel_row, color_indices);
+
+		if (x_flip) {
+			for (int i = 0; i < 4; i++) {
+				uint8_t temp = color_indices[i];
+				color_indices[i] = color_indices[7 - i];
+				color_indices[7 - i] = temp;
+			}
+		}
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
