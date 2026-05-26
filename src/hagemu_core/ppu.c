@@ -212,11 +212,12 @@ void ppu_draw_scanline(void) {
 	}
 }
 
-static inline struct Tile tile_get(uint8_t tile_index, bool unsigned_addressing_mode) {
+static inline struct Tile tile_get(uint8_t tile_index, bool unsigned_addressing_mode, bool bank_select) {
+	struct Tile *tile_data = bank_select ? ppu.tile_data2 : ppu.tile_data;
 	if (unsigned_addressing_mode)
-	        return ppu.tile_data[tile_index];
+	        return tile_data[tile_index];
 	int8_t signed_index = (int8_t)tile_index;
-	return ppu.tile_data[256+signed_index];
+	return tile_data[256+signed_index];
 }
 
 static inline void tile_decode_row(struct Tile tile, int row, uint8_t out[8]) {
@@ -245,7 +246,7 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 			pixels_to_draw = 160 - screen_col;
 
 		uint8_t tile_index = ppu.tile_map[ppu.bg_tile_map][tile_row][tile_col];
-		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area);
+		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area, false);
 
 		uint8_t color_indices[8];
 		tile_decode_row(tile, pixel_row, color_indices);
@@ -289,7 +290,7 @@ void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero) {
 			pixels_to_draw = 160 - screen_col;
 
 		uint8_t tile_index = ppu.tile_map[ppu.window_tile_map][tile_row][tile_col];
-		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area);
+		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area, false);
 
 		uint8_t color_indices[8];
 		tile_decode_row(tile, pixel_row, color_indices);
@@ -346,6 +347,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 	bool y_flip = (sprite.attributes >> 6) & 0x01;
 	bool x_flip = (sprite.attributes >> 5) & 0x01;
 	bool palette_select = (sprite.attributes >> 4) & 0x01;
+	bool bank_select    = (sprite.attributes >> 3) & 0x01;
 	uint8_t tile_index  = sprite.tile_index;
 
 	int sprite_row = ppu.current_line - (int)sprite.y_position + 16;
@@ -362,7 +364,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 	}
 
 	uint8_t color_indices[8];
-	struct Tile tile = tile_get(tile_index, true);
+	struct Tile tile = tile_get(tile_index, true, bank_select);
 	tile_decode_row(tile, sprite_row, color_indices);
 	uint8_t sprite_palette = palette_select ? ppu.obj1_palette : ppu.obj0_palette;
 	for (int i = 0; i < 8; i++) {

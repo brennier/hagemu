@@ -12,7 +12,7 @@ struct HagemuHDMA {
 } hdma = { 0 };
 
 void hdma_write_ff55(uint8_t value) {
-	printf("HDMA transfer requested %02X\n", value);
+	/* printf("HDMA transfer requested %02X\n", value); */
 	uint16_t source = 0;
 	source |= (uint16_t)hdma.source_high << 8;
 	source |= (uint16_t)hdma.source_low;
