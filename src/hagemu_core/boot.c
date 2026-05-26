@@ -225,9 +225,8 @@ const uint8_t bootix_dmg_bin[DMB_BOOT_SIZE] = {
   0x3e, 0x01, 0xe0, 0x50
 };
 
-uint8_t boot_read(uint8_t address) {
+uint8_t boot_read(uint16_t address) {
 #ifdef CGB_MODE
-	printf("CGB Boot Rom Accessed\n");
 	return cgb_boot_bin[address];
 #else
 	return bootix_dmg_bin[address];

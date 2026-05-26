@@ -40,7 +40,6 @@ static uint8_t mmu_read_io(uint16_t address) {
 	case 0xFF02: return mmu.serial_control; // not implemented
 	case 0xFF0F: return interrupt_register_read();
 	case 0xFF46: return dma_read();
-	case 0xFF50: return mmu.boot_rom_ignore;
 #ifdef CGB_MODE
 	case 0xFF4D:
 		return (cpu_get_speed_mode(mmu.cpu) << 7) |
@@ -80,9 +79,6 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 	case 0xFF51: case 0xFF52: case 0xFF53:
 	case 0xFF54: case 0xFF55:
 		hdma_write_register(address, value);
-		return;
-	case 0xFF69:
-		printf("BG palette written to with value %02X\n", value);
 		return;
 	case 0xFF70:
 		mmu.wram_bank = value & 0x07;
