@@ -11,11 +11,18 @@
     <link rel="shortcut icon" href="./images/favicon.ico" />
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=block" rel="stylesheet">
     <style>
+      :root {
+          --bg-color:   #306657;
+          --font-color: #8abd4c;
+          --frame-color:#20453A;
+      }
+
       body {
 	  font-family: arial;
 	  margin: 0;
 	  padding: none;
-	  background-color: #306657;
+	  background-color: var(--bg-color);
+	  color: var(--font-color);
       }
 
       a {
@@ -29,7 +36,7 @@
 
       button {
           color: inherit;
-          background: #2e6354;
+          background: var(--bg-color);
           border: 1px;
           border-radius: 5px;
           padding: 7px;
@@ -40,14 +47,66 @@
           box-shadow: 4px 4px 10px rgba(0,0,0,0.3);
       }
 
+      #cgb-toggle {
+          display: flex;
+          align-items: center;
+          padding: calc(var(--gb-scale) * 5px);
+          font-size: calc(var(--gb-scale) * 6px);
+      }
+
+      .toggle {
+          position: relative;
+          display: inline-block;
+          width:  calc(var(--gb-scale) * 15px);
+          height: calc(var(--gb-scale) * 8.5px);
+          margin-left: calc(var(--gb-scale) * 2px);
+          margin-right: calc(var(--gb-scale) * 2px);
+      }
+
+      .toggle input {
+          display: none;
+      }
+
+      .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          transition: 0.4s;
+          border-radius: 34px;
+          background-color: var(--font-color);
+      }
+
+      .slider:before {
+          position: absolute;
+          content: "";
+          height: calc(var(--gb-scale) * 6.5px);
+          width: calc(var(--gb-scale) * 6.5px);
+          left: calc(var(--gb-scale) * 1px);
+          bottom: calc(var(--gb-scale) * 1px);
+          background-color: #FFF;
+          transition: 0.4s;
+          border-radius: 50%;
+      }
+
+      /* input:checked + .slider { */
+      /*     background-color: #606; */
+      /* } */
+
+      input:checked + .slider:before {
+          transform: translateX(calc(var(--gb-scale) * 6.5px));
+      }
+
       button:hover {
           filter: brightness(0.85);
       }
 
       #content {
           position: absolute;
-          background-color: #20453A;
-          border: 15px #20453A solid;
+          background-color: var(--frame-color);
+          border: 15px var(--frame-color) solid;
           border-radius: 15px;
           top: 50%;
           left: 50%;
@@ -61,7 +120,7 @@
           border-radius: 5px;
           margin: 0;
           padding: 0;
-          background-color: #8abd4c;
+          background-color: var(--font-color);
           image-rendering: pixelated;
           image-rendering: -moz-crisp-edges;
           image-rendering: crisp-edges;
@@ -71,7 +130,6 @@
           font-size: calc(var(--gb-scale) * 6px);
 	  font-family: "Courier New", monospace;
 	  font-weight: bold;
-	  color: #8abd4c;
 	  text-align: center;
       }
 
@@ -82,7 +140,6 @@
           text-align: center;
 	  font-family: "Courier New", monospace;
 	  font-weight: bold;
-	  color: #8abd4c;
 	  text-align: center;
           padding-top: 5px;
       }
@@ -122,8 +179,8 @@
           font-family: 'Press Start 2P';
           font-size: calc(var(--gb-scale) * 6px);
           padding: calc(var(--gb-scale) * 4px);
-	  background-color: #8abd4c;
-	  color: #306657;
+	  background-color: var(--font-color);
+	  color: var(--bg-color);
           border-radius: 5px;
           inset: 0;
           pointer-events: none;
@@ -132,6 +189,14 @@
     </style>
   </head>
   <body>
+    <div id="cgb-toggle">
+      <span class="toggle-label left">GB</span>
+      <label class="toggle">
+        <input type="checkbox">
+        <span class="slider"></span>
+      </label>
+      <span class="toggle-label right">GBC</span>
+    </div>
 
     <div id='spinner'></div>
     <div id="status"></div>
@@ -173,6 +238,19 @@
               events.forEach(e => canvas.addEventListener(e, handler));
           });
       }
+
+      let is_cgb_mode = false;
+
+      const toggle = document.querySelector('#cgb-toggle input');
+      toggle.addEventListener('change', () => {
+          is_cgb_mode = toggle.checked;
+          const bg_color    = is_cgb_mode ? "#494786" : "#306657";
+          const font_color  = is_cgb_mode ? "#a8a8a8" : "#8abd4c";
+          const frame_color = is_cgb_mode ? "#21282b" : "#20453a";
+          document.documentElement.style.setProperty('--bg-color', bg_color);
+          document.documentElement.style.setProperty('--font-color', font_color);
+          document.documentElement.style.setProperty('--frame-color', frame_color);
+      });
 
       async function downloadFileFromParam() {
           // 1. Read the "url" query parameter
@@ -220,7 +298,7 @@
           // Write file into virtual FS
           FS.writeFile(path, byteArray);
 
-          Module.ccall("web_load_rom", null, ["string"], [path]);
+          Module.ccall("web_load_rom", null, ["string", "boolean"], [path, is_cgb_mode]);
 
           await new Promise(r => setTimeout(r, 100));
 
@@ -294,7 +372,7 @@
               if (type == "sram") {
                   Module.ccall("web_load_sram", null, ["string"], [path]);
               } else {
-                  Module.ccall("web_load_rom", null, ["string"], [path]);
+                  Module.ccall("web_load_rom", null, ["string", "boolean"], [path, is_cgb_mode]);
               }
 
               await new Promise(r => setTimeout(r, 100));

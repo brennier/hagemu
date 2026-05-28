@@ -126,11 +126,7 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	uint8_t *sram_data = hagemu_file_load(filename, &sram_size);
 	bool result = hagemu_set_sram(sram_data, sram_size);
 	if (result) {
-		char* ext = strrchr(app->rom_filename, '.');
-		if (strcmp(ext, ".gbc") == 0)
-			hagemu_reset(app->gb, true);
-		else
-			hagemu_reset(app->gb, false);
+		hagemu_reset(app->gb, app->cgb_mode);
 		app->state = HAGEMU_GAME_RUNNING;
 		app->smooth_sample_rate_adjust = 1.0;
 		app->smooth_delta_time  = 1.0 / 60.0;
@@ -142,7 +138,7 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	return true;
 }
 
-bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
+bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, bool cgb_mode) {
 	printf("Loading the rom file '%s'\n", filename);
 	size_t rom_size;
 	uint8_t *rom_data = hagemu_file_load(filename, &rom_size);
@@ -151,13 +147,8 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 		return false;
 	}
 
-	char* ext = strrchr(filename, '.');
-	if (strcmp(ext, ".gbc") == 0)
-		hagemu_set_rom(app->gb, true, rom_data, rom_size);
-	else
-		hagemu_set_rom(app->gb, false, rom_data, rom_size);
-	free(rom_data);
-
+	app->cgb_mode = cgb_mode;
+	hagemu_set_rom(app->gb, cgb_mode, rom_data, rom_size);
 	app->rom_filename = malloc(strlen(filename) + 1);
 	strcpy(app->rom_filename, filename);
 
@@ -231,8 +222,10 @@ void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button,
 
 void hagemu_handle_drop_event(struct HagemuApp *app, const char *filename) {
 	const char *ext = strrchr(filename, '.');
-	if (strcmp(ext, ".gb") == 0 || strcmp(ext, ".gbc") == 0)
-		hagemu_app_load_rom(app, filename);
+	if (strcmp(ext, ".gbc") == 0)
+		hagemu_app_load_rom(app, filename, true);
+	else if (strcmp(ext, ".gb") == 0)
+		hagemu_app_load_rom(app, filename, false);
 	else if (strcmp(ext, ".sav") == 0 || strcmp(ext, ".sram") == 0)
 		hagemu_app_load_sram(app, filename);
 	else
@@ -337,6 +330,13 @@ void main_loop(void* arg) {
 	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, 2 * sizeof(float) * frames);
 }
 
+bool is_gbc_file(const char *filename) {
+	const char *ext = strrchr(filename, '.');
+	if (strcmp(ext, ".gbc") == 0)
+		return true;
+	return false;
+}
+
 int main(int argc, char *argv[]) {
 	struct HagemuApp app = { 0 };
 	hagemu_app_setup(&app);
@@ -349,7 +349,7 @@ int main(int argc, char *argv[]) {
 	printf("Waiting for a rom file\n");
 
 	if (argc == 2) {
-		hagemu_app_load_rom(&app, argv[1]);
+		hagemu_app_load_rom(&app, argv[1], is_gbc_file(argv[1]));
 	} else if (argc > 2) {
 		fprintf(stderr, "Error: Too many arguments\n");
 		exit(EXIT_FAILURE);

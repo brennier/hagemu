@@ -53,8 +53,8 @@ const char *web_get_sram_file_name(void) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-bool web_load_rom(const char *filename) {
-	return hagemu_app_load_rom(hagemu_app, filename);
+bool web_load_rom(const char *filename, bool is_cgb_mode) {
+	return hagemu_app_load_rom(hagemu_app, filename, is_cgb_mode);
 }
 
 EMSCRIPTEN_KEEPALIVE

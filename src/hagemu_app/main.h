@@ -27,10 +27,10 @@ struct HagemuApp {
 	double smooth_sample_rate_adjust;
 	enum AppState state;
 	char *rom_filename;
+	bool cgb_mode;
 };
 
-void hagemu_handle_drop_event(struct HagemuApp *app, const char *filename);
-bool hagemu_app_load_rom(struct HagemuApp *app, const char *filename);
+bool hagemu_app_load_rom(struct HagemuApp *app, const char *filename, bool cgb_mode);
 bool hagemu_app_load_sram(struct HagemuApp *app, const char *filename);
 void hagemu_save_sram_file(struct HagemuApp *app);
 
