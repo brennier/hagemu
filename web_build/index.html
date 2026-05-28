@@ -265,15 +265,20 @@
               return;
           }
 
-          overlay.textContent = "A ROM file was found in the URL. Click here to download and run it.";
-          await waitForGesture();
-
-          overlay.textContent = "Loading ROM file...";
-
           const ext = targetUrl.split(".").pop().toLowerCase();
-          if (ext !== "gb" && ext !== "gbc") {
+          if (ext === "gb") {
+              toggle.checked = false;
+              toggle.dispatchEvent(new Event('change'));
+          } else if (ext === "gbc") {
+              toggle.checked = true;
+              toggle.dispatchEvent(new Event('change'));
+          } else {
               throw new Error(`Unsupported file type ".${ext}". Only gb and gbc files are allowed.`);
           }
+
+          overlay.textContent = "A ROM file was found in the URL. Click here to download and run it.";
+          await waitForGesture();
+          overlay.textContent = "Loading ROM file...";
 
           // Always load for at least one second
           const [response] = await Promise.all([
