@@ -207,17 +207,26 @@ void ppu_draw_scanline(void) {
 	RGB555 scanline[160];
 	bool   bg_nonzero[160] = { 0 };
 
-	for (int i = 0; i < 160; i++)
-		scanline[i] = ppu_default_colors[0];
-
 	if (ppu.win_scroll_y == ppu.current_line)
 		ppu.window_triggered = true;
 
-	if (ppu.bg_enabled)
-		ppu_draw_background(scanline, bg_nonzero);
-
-	if (ppu.bg_enabled && ppu.window_enabled && ppu.window_triggered)
+	ppu_draw_background(scanline, bg_nonzero);
+	if (ppu.window_enabled && ppu.window_triggered)
 		ppu_draw_window(scanline, bg_nonzero);
+
+	if (!ppu.bg_enabled) {
+		for (int i = 0; i < 160; i++) {
+#ifdef CGB_MODE
+			// If the background is not enabled, sprites always have priority
+			bg_nonzero[i] = 1;
+#else
+			// If the background is not enabled, just draw the default color
+			scanline[i] = ppu_default_colors[0];
+			bg_nonzero[i] = 0;
+#endif
+		}
+	}
+
 
 	if (ppu.objects_enabled)
 		ppu_draw_sprites(scanline, bg_nonzero);

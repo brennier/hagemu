@@ -226,6 +226,7 @@ The following games have been tested:
   - Sound info: https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
   - General info: https://hacktix.github.io/GBEDG/
   - Timing of the LYC STAT: https://gbdev.io/guides/lyc_timing.html
+  - GBC PPU tests: https://github.com/alloncm/MagenTests
 - Links about MBC3's real-time clock
   - MBC3 .sav format: https://bgb.bircd.org/rtcsave.html
   - MBC3 RTC test rom: https://github.com/aaaaaa123456789/rtc3test
