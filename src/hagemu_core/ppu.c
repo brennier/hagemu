@@ -397,6 +397,14 @@ int sprite_compare_dmg(const void *data1, const void *data2) {
     return sprite2 - sprite1;
 }
 
+int sprite_compare_cgb(const void *data1, const void *data2) {
+    struct Sprite *sprite1 = (struct Sprite*)data1;
+    struct Sprite *sprite2 = (struct Sprite*)data2;
+    // This is pointer subtraction. Since they're in the same array,
+    // this is valid C and sorts based on their position in OAM.
+    return sprite2 - sprite1;
+}
+
 unsigned read_sprites(struct Sprite *sprites) {
 	unsigned sprite_count = 0;
 	for (int i = 0; i < OAM_SPRITE_COUNT; i++) {
@@ -460,7 +468,11 @@ void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero) {
 	struct Sprite sprites[SPRITE_LIMIT];
 	unsigned sprite_count = read_sprites(sprites);
 
+#ifdef CGB_MODE
+	qsort(sprites, sprite_count, sizeof(struct Sprite), sprite_compare_cgb);
+#else
 	qsort(sprites, sprite_count, sizeof(struct Sprite), sprite_compare_dmg);
+#endif
 
 	for (int i = 0; i < sprite_count; i++) {
 		draw_sprite(scanline, bg_nonzero, sprites[i]);
