@@ -48,4 +48,4 @@ web:
 		TARGET=$(WEB_TARGET) \
 		BUILD_DIR=$(WEB_BUILD_DIR) \
 		LFLAGS='$(LFLAGS) $(EMFLAGS)'"
-	@cd web_build && python -m http.server 8000
+	@cd web_build && python3 -m http.server 8000

@@ -131,6 +131,7 @@ The following games have been tested:
   - [ ] Implement HBLANK VRAM DMA
   - [ ] Check the registers FF4C and FF6C after the boot sequence
   - [ ] Fix the problem where some games run too fast in double speed mode
+  - [ ] Make my own custom bootrom
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
   - [x] Add support for gamepads
@@ -219,10 +220,10 @@ The following games have been tested:
   <summary><h3>Links for the future (click here to expand)</h3></summary>
 
 - Links for the future
-  - Gameboy Color differences: https://jsgroth.dev/blog/posts/game-boy-color/
-  - Gameboy Color PPU: https://github.com/mattcurrie/cgb-acid2
-  - Gameboy Color HDMA: https://gbdev.io/pandocs/CGB_Registers.html
-  - Using WASM: https://gioarc.me/posts/games/wasm.html
+  - GBC registers and features: https://gbdev.io/pandocs/CGB_Registers.html
+  - Gameboy Color differences: https://web.archive.org/web/20260120022111/https://jsgroth.dev/blog/posts/game-boy-color/ 
+  - Gameboy Color HDMA: https://web.archive.org/web/20260207230355/https://jsgroth.dev/blog/posts/emulator-bugs-gbc-hdma/
+  - PPU FIFO: https://web.archive.org/web/20250903031440/https://hacktix.github.io/GBEDG/ppu/
   - Sound info: https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
   - General info: https://hacktix.github.io/GBEDG/
   - Timing of the LYC STAT: https://gbdev.io/guides/lyc_timing.html
