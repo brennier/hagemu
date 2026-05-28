@@ -260,11 +260,11 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 	int bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
 	int bg_col = (ppu.bg_scroll_x) % 256;
 	int tile_row   = bg_row / 8;
-	int pixel_row  = bg_row % 8;
 	int screen_col = 0;
 
 	while (screen_col < 160) {
 		int tile_col  = bg_col / 8;
+		int pixel_row = bg_row % 8;
 		int pixel_col = bg_col % 8;
 
 		int pixels_to_draw = 8 - pixel_col;
@@ -313,6 +313,7 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero) {
 	int win_row = ppu.current_window_line;
 	int win_col = 0;
+	int tile_row = win_row / 8;
 	int screen_col = ppu.win_scroll_x - 7;
 
 	// If the window isn't visible, exit early
@@ -326,11 +327,9 @@ void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero) {
 		screen_col = 0;
 	}
 
-	int tile_row  = win_row / 8;
-	int pixel_row = win_row % 8;
-
 	while (screen_col < 160) {
 		int tile_col  = win_col / 8;
+		int pixel_row = win_row % 8;
 		int pixel_col = win_col % 8;
 
 		int pixels_to_draw = 8 - pixel_col;
