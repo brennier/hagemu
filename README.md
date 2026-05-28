@@ -122,15 +122,15 @@ The following games have been tested:
   - [x] Setting and using background color palettes
   - [x] Setting and using sprite color palettes
   - [x] Rendering the window also uses color palettes and flipping attributes
-  - [ ] Use background high priority attribute
-  - [ ] Figure out sprite/background priority (it's a bit messy)
-  - [ ] Sort sprites by OAM position instead of X position
+  - [x] Use background high priority attribute
+  - [x] Figure out sprite/background priority (it's a bit messy)
+  - [x] Sort sprites by OAM position instead of X position
+  - [x] Pass cgb-acid test rom
   - [ ] Verify double speed mode
   - [ ] Verify general-purpose VRAM DMA
   - [ ] Implement HBLANK VRAM DMA
   - [ ] Check the registers FF4C and FF6C after the boot sequence
   - [ ] Fix the problem where some games run too fast in double speed mode
-  - [ ] Pass cgb-acid test rom
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
   - [x] Add support for gamepads

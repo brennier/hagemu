@@ -14,9 +14,9 @@ typedef uint16_t RGB555;
 typedef uint32_t ARGB8888;
 
 void ppu_draw_scanline(void);
-void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero);
-void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero);
-void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero);
+void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority);
+void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
+void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
 
 /* // BW color palette from lightest to darkest */
 /* static const RGB555 ppu_default_colors[4] = { */
@@ -206,30 +206,33 @@ RGB555 apply_color(uint8_t palette, uint8_t index) {
 void ppu_draw_scanline(void) {
 	RGB555 scanline[160];
 	bool   bg_nonzero[160] = { 0 };
+	bool   bg_priority[160] = { 0 };
 
 	if (ppu.win_scroll_y == ppu.current_line)
 		ppu.window_triggered = true;
 
-	ppu_draw_background(scanline, bg_nonzero);
+	ppu_draw_background(scanline, bg_nonzero, bg_priority);
 	if (ppu.window_enabled && ppu.window_triggered)
-		ppu_draw_window(scanline, bg_nonzero);
+		ppu_draw_window(scanline, bg_nonzero, bg_priority);
 
 	if (!ppu.bg_enabled) {
 		for (int i = 0; i < 160; i++) {
 #ifdef CGB_MODE
 			// If the background is not enabled, sprites always have priority
-			bg_nonzero[i] = 1;
+			bg_nonzero[i]  = 1;
+			bg_priority[i] = 0;
 #else
 			// If the background is not enabled, just draw the default color
-			scanline[i] = ppu_default_colors[0];
-			bg_nonzero[i] = 0;
+			scanline[i]    = ppu_default_colors[0];
+			bg_nonzero[i]  = 0;
+			bg_priority[i] = 0;
 #endif
 		}
 	}
 
 
 	if (ppu.objects_enabled)
-		ppu_draw_sprites(scanline, bg_nonzero);
+		ppu_draw_sprites(scanline, bg_nonzero, bg_priority);
 
 	for (int i = 0; i < 160; i++) {
 		scanline[i] &= 0x7FFF;
@@ -256,7 +259,7 @@ static inline void tile_decode_row(struct Tile tile, int row, uint8_t out[8]) {
 	}
 }
 
-void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
+void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
 	int bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
 	int bg_col = (ppu.bg_scroll_x) % 256;
 	int tile_row   = bg_row / 8;
@@ -299,6 +302,7 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 			uint8_t color_index = color_indices[pixel_col + p];
 #ifdef CGB_MODE
 			scanline[screen_col] = apply_color(color_palette, color_index, false);
+			bg_priority[screen_col] = priority;
 #else
 			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
 #endif
@@ -310,7 +314,7 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero) {
 	}
 }
 
-void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero) {
+void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
 	int win_row = ppu.current_window_line;
 	int win_col = 0;
 	int tile_row = win_row / 8;
@@ -364,6 +368,7 @@ void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero) {
 			uint8_t color_index = color_indices[pixel_col + p];
 #ifdef CGB_MODE
 			scanline[screen_col] = apply_color(color_palette, color_index, false);
+			bg_priority[screen_col] = priority;
 #else
 			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
 #endif
@@ -419,7 +424,7 @@ unsigned read_sprites(struct Sprite *sprites) {
 	return sprite_count;
 }
 
-static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct Sprite sprite) {
+static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority, struct Sprite sprite) {
 	bool background_has_priority = (sprite.attributes >> 7) & 0x01;
 	bool y_flip = (sprite.attributes >> 6) & 0x01;
 	bool x_flip = (sprite.attributes >> 5) & 0x01;
@@ -451,7 +456,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 
 		if (col < 0 || col >= 160)
 			continue;
-		else if (background_has_priority && bg_nonzero[col])
+		else if ((background_has_priority || bg_priority[col]) && bg_nonzero[col])
 			continue;
 		else if (color_indices[sprite_col] == 0)
 			continue;
@@ -464,7 +469,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, struct 
 	}
 }
 
-void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero) {
+void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority) {
 	struct Sprite sprites[SPRITE_LIMIT];
 	unsigned sprite_count = read_sprites(sprites);
 
@@ -475,7 +480,7 @@ void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero) {
 #endif
 
 	for (int i = 0; i < sprite_count; i++) {
-		draw_sprite(scanline, bg_nonzero, sprites[i]);
+		draw_sprite(scanline, bg_nonzero, bg_priority, sprites[i]);
 	}
 }
 
