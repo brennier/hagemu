@@ -18,18 +18,18 @@ void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_p
 void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
 void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
 
-/* // BW color palette from lightest to darkest */
-/* static const RGB555 ppu_default_colors[4] = { */
-/*     0x7FFF, // White        (0 11111 11111 11111) */
-/*     0x56B5, // Light grey   (0 10101 10101 10101) */
-/*     0x294A, // Dark grey    (0 01010 01010 01010) */
-/*     0x0000, // Black        (0 00000 00000 00000) */
-/* }; */
-
 // Green color palette from lightest to darkest
-static const RGB555 ppu_default_colors[4] = {
+static const RGB555 dmg_palette_colors[4] = {
 	// From lightest green to darkest green
-	0x46E9, 0x220D, 0x198A, 0x1128
+	0x26F1, 0x3608, 0x2986, 0x2124
+};
+
+// BW color palette from lightest to darkest
+static const RGB555 mgb_palette_colors[4] = {
+    0x7FFF, // White        (0 11111 11111 11111)
+    0x56B5, // Light grey   (0 10101 10101 10101)
+    0x294A, // Dark grey    (0 01010 01010 01010)
+    0x0000, // Black        (0 00000 00000 00000)
 };
 
 // This function is used a lot, so I optimized it a bit
@@ -49,6 +49,13 @@ enum PPUMode {
 	PIXEL_DRAW = 3, // also referred to as MODE 3
 };
 
+enum GBModel {
+	MODEL_DMG, // Original gameboy
+	MODEL_CGB, // Gameboy color (default)
+	MODEL_CGB_BACKCOMPAT, // Gameboy color in DMG mode
+	MODEL_MGB, // Gameboy pocket
+};
+
 struct Sprite {
 	// This is the same order as in memory
 	uint8_t y_position;
@@ -63,6 +70,7 @@ struct Tile {
 
 struct HagemuPPU {
 	enum PPUMode mode;
+	enum GBModel model;
 	unsigned frames_completed;
 	unsigned current_cycle;
 
@@ -187,21 +195,31 @@ void ppu_tick(void) {
 	}
 }
 
-#ifdef CGB_MODE
-RGB555 apply_color(uint8_t palette_index, uint8_t color_index, bool sprite_palettes) {
-	uint8_t *pram = sprite_palettes ? ppu.sprite_pram : ppu.bg_pram;
-	uint16_t color = 0;
-	color |= pram[2 * ((4 * palette_index) + color_index) + 1];
-	color <<= 8;
-	color |= pram[2 * ((4 * palette_index) + color_index)];
+RGB555 read_pram(uint8_t palette_index, uint8_t color_index, bool is_sprite) {
+	uint8_t *pram = is_sprite ? ppu.sprite_pram : ppu.bg_pram;
+	int offset = 2 * ((4 * palette_index) + color_index);
+	RGB555 color = (pram[offset+1] << 8) | pram[offset];
 	return color;
 }
-#else
-RGB555 apply_color(uint8_t palette, uint8_t index) {
-	uint8_t default_color_index = (palette >> 2 * index) & 0x03;
-	return ppu_default_colors[default_color_index];
+
+// In DMG mode, palette_reg is used. In CGB mode, palette_index is used.
+RGB555 apply_color(uint8_t palette_reg, uint8_t palette_index, uint8_t color_index, bool is_sprite) {
+	uint8_t shade = (palette_reg >> (2 * color_index)) & 0x03;
+
+	switch (ppu.model) {
+	case MODEL_CGB:
+		return read_pram(palette_index, color_index, is_sprite);
+	case MODEL_CGB_BACKCOMPAT:
+		return read_pram(palette_index, shade, is_sprite);
+	case MODEL_DMG:
+		return dmg_palette_colors[shade];
+	case MODEL_MGB:
+		return mgb_palette_colors[shade];
+	default:
+		fprintf(stderr, "Invalid GB model\n");
+		exit(EXIT_FAILURE);
+	}
 }
-#endif
 
 void ppu_draw_scanline(void) {
 	RGB555 scanline[160];
@@ -215,27 +233,25 @@ void ppu_draw_scanline(void) {
 	if (ppu.window_enabled && ppu.window_triggered)
 		ppu_draw_window(scanline, bg_nonzero, bg_priority);
 
-	if (!ppu.bg_enabled) {
+	if (!ppu.bg_enabled && ppu.model == MODEL_CGB) {
+		// If the background is not enabled, sprites always have priority
 		for (int i = 0; i < 160; i++) {
-#ifdef CGB_MODE
-			// If the background is not enabled, sprites always have priority
 			bg_nonzero[i]  = 1;
 			bg_priority[i] = 0;
-#else
-			// If the background is not enabled, just draw the default color
-			scanline[i]    = ppu_default_colors[0];
+		}
+	} else if (!ppu.bg_enabled) {
+		// If the background is not enabled, just draw the default color
+		for (int i = 0; i < 160; i++) {
+			scanline[i]    = dmg_palette_colors[0];
 			bg_nonzero[i]  = 0;
 			bg_priority[i] = 0;
-#endif
 		}
 	}
-
 
 	if (ppu.objects_enabled)
 		ppu_draw_sprites(scanline, bg_nonzero, bg_priority);
 
 	for (int i = 0; i < 160; i++) {
-		scanline[i] &= 0x7FFF;
 		ARGB8888 color32 = convert_color(scanline[i]);
 		ppu.screen_buffer[ppu.buffer_index][ppu.current_line][i] = color32;
 	}
@@ -280,7 +296,7 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) 
 		bool y_flip = (tile_attributes >> 6) & 0x01;
 		bool x_flip = (tile_attributes >> 5) & 0x01;
 		bool bank_select = (tile_attributes >> 3) & 0x01;
-		uint8_t color_palette = tile_attributes & 0x07;
+		uint8_t palette_index = tile_attributes & 0x07;
 
 		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area, bank_select);
 
@@ -300,13 +316,9 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) 
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
-#ifdef CGB_MODE
-			scanline[screen_col] = apply_color(color_palette, color_index, false);
+			scanline[screen_col] = apply_color(ppu.bg_palette, palette_index, color_index, false);
 			bg_priority[screen_col] = priority;
-#else
-			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
-#endif
-			bg_nonzero[screen_col] = (color_index != 0);
+			bg_nonzero[screen_col]  = (color_index != 0);
 			screen_col++;
 		}
 
@@ -346,7 +358,7 @@ void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
 		bool y_flip = (tile_attributes >> 6) & 0x01;
 		bool x_flip = (tile_attributes >> 5) & 0x01;
 		bool bank_select = (tile_attributes >> 3) & 0x01;
-		uint8_t color_palette = tile_attributes & 0x07;
+		uint8_t palette_index = tile_attributes & 0x07;
 
 		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area, bank_select);
 
@@ -366,12 +378,8 @@ void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
-#ifdef CGB_MODE
-			scanline[screen_col] = apply_color(color_palette, color_index, false);
+			scanline[screen_col] = apply_color(ppu.bg_palette, palette_index, color_index, false);
 			bg_priority[screen_col] = priority;
-#else
-			scanline[screen_col] = apply_color(ppu.bg_palette, color_index);
-#endif
 			bg_nonzero[screen_col] = (color_index != 0);
 			screen_col++;
 		}
@@ -431,7 +439,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const b
 	bool palette_select = (sprite.attributes >> 4) & 0x01;
 	bool bank_select    = (sprite.attributes >> 3) & 0x01;
 	uint8_t tile_index  = sprite.tile_index;
-	uint8_t cgb_palette = sprite.attributes & 0x07;
+	uint8_t palette_index = sprite.attributes & 0x07;
 
 	int sprite_row = ppu.current_line - (int)sprite.y_position + 16;
 	if (y_flip && ppu.use_tall_sprites)
@@ -461,11 +469,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const b
 		else if (color_indices[sprite_col] == 0)
 			continue;
 
-#ifdef CGB_MODE
-		scanline[col] = apply_color(cgb_palette, color_indices[sprite_col], true);
-#else
-		scanline[col] = apply_color(sprite_palette, color_indices[sprite_col]);
-#endif
+		scanline[col] = apply_color(sprite_palette, palette_index, color_indices[sprite_col], true);
 	}
 }
 
@@ -473,11 +477,13 @@ void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_p
 	struct Sprite sprites[SPRITE_LIMIT];
 	unsigned sprite_count = read_sprites(sprites);
 
-#ifdef CGB_MODE
-	qsort(sprites, sprite_count, sizeof(struct Sprite), sprite_compare_cgb);
-#else
-	qsort(sprites, sprite_count, sizeof(struct Sprite), sprite_compare_dmg);
-#endif
+	int (*sort_function)(const void *, const void *);
+	if (ppu.model == MODEL_CGB)
+		sort_function = sprite_compare_cgb;
+	else
+		sort_function = sprite_compare_dmg;
+
+	qsort(sprites, sprite_count, sizeof(struct Sprite), sort_function);
 
 	for (int i = 0; i < sprite_count; i++) {
 		draw_sprite(scanline, bg_nonzero, bg_priority, sprites[i]);
