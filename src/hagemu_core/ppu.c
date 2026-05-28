@@ -42,6 +42,21 @@ static inline ARGB8888 convert_color(RGB555 c) {
 	return result | 0xFF000000;
 }
 
+static inline ARGB8888 correct_color(ARGB8888 c) {
+	// Extract each color channel
+	uint32_t red   = (c >> 0)  & 0xFF;
+	uint32_t green = (c >> 8)  & 0xFF;
+	uint32_t blue  = (c >> 16) & 0xFF;
+
+	// Apply GBC color correction
+	uint32_t r = (13 * red +  2 * green +  1 * blue) >> 4;
+	uint32_t g = ( 0 * red + 12 * green +  4 * blue) >> 4;
+	uint32_t b = ( 3 * red +  2 * green + 11 * blue) >> 4;
+
+	// Convert to ABGR8888 value
+	return 0xFF000000 | (b << 16) | (g << 8) | r;
+}
+
 enum PPUMode {
 	HBLANK     = 0, // also referred to as MODE 0
 	VBLANK     = 1, // also referred to as MODE 1
@@ -250,6 +265,8 @@ void ppu_draw_scanline(void) {
 
 	for (int i = 0; i < 160; i++) {
 		ARGB8888 color32 = convert_color(scanline[i]);
+		if (ppu.model == MODEL_CGB || ppu.model == MODEL_CGB_BACKCOMPAT)
+			color32 = correct_color(color32);
 		ppu.screen_buffer[ppu.buffer_index][ppu.current_line][i] = color32;
 	}
 }
