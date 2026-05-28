@@ -4,6 +4,7 @@
 
 #include "cpu.h"
 
+void mmu_set_cgb_mode(bool cgb_mode);
 void mmu_reset(struct HagemuCPU *cpu);
 
 uint8_t mmu_read(uint16_t address);

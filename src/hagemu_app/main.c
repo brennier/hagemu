@@ -27,7 +27,7 @@
 #define GREEN4 (Color){ 36,  76,  64,  255 }
 
 bool hagemu_app_setup(struct HagemuApp *app) {
-	app->gb = hagemu_create();
+	app->gb = hagemu_create(false);
 	app->state = HAGEMU_NO_ROM;
 	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
 	app->smooth_sample_rate_adjust = 1.0;
@@ -126,7 +126,11 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	uint8_t *sram_data = hagemu_file_load(filename, &sram_size);
 	bool result = hagemu_set_sram(sram_data, sram_size);
 	if (result) {
-		hagemu_reset(app->gb);
+		char* ext = strrchr(app->rom_filename, '.');
+		if (strcmp(ext, ".gbc") == 0)
+			hagemu_reset(app->gb, true);
+		else
+			hagemu_reset(app->gb, false);
 		app->state = HAGEMU_GAME_RUNNING;
 		app->smooth_sample_rate_adjust = 1.0;
 		app->smooth_delta_time  = 1.0 / 60.0;
@@ -146,7 +150,12 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename) {
 		fprintf(stderr, "[ERROR] Unable to load the file '%s'\n", filename);
 		return false;
 	}
-	hagemu_set_rom(app->gb, rom_data, rom_size);
+
+	char* ext = strrchr(filename, '.');
+	if (strcmp(ext, ".gbc") == 0)
+		hagemu_set_rom(app->gb, true, rom_data, rom_size);
+	else
+		hagemu_set_rom(app->gb, false, rom_data, rom_size);
 	free(rom_data);
 
 	app->rom_filename = malloc(strlen(filename) + 1);

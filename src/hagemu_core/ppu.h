@@ -3,6 +3,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+enum GBModel {
+	MODEL_DMG, // Original gameboy (default)
+	MODEL_CGB, // Gameboy color
+	MODEL_CGB_BACKCOMPAT, // Gameboy color in DMG mode
+	MODEL_MGB, // Gameboy pocket
+};
+
+void ppu_set_model(enum GBModel model);
+
 void ppu_tick(void);
 const uint32_t* ppu_get_frame(void);
 int ppu_get_current_line(void);

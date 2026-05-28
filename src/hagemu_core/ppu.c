@@ -1,9 +1,9 @@
+#include "ppu.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "ppu.h"
 #include "interrupt.h"
 
 #define PIXEL_DRAW_LENGTH 200
@@ -47,13 +47,6 @@ enum PPUMode {
 	VBLANK     = 1, // also referred to as MODE 1
 	OAM_SCAN   = 2, // also referred to as MODE 2
 	PIXEL_DRAW = 3, // also referred to as MODE 3
-};
-
-enum GBModel {
-	MODEL_DMG, // Original gameboy
-	MODEL_CGB, // Gameboy color (default)
-	MODEL_CGB_BACKCOMPAT, // Gameboy color in DMG mode
-	MODEL_MGB, // Gameboy pocket
 };
 
 struct Sprite {
@@ -130,6 +123,10 @@ struct HagemuPPU {
 	bool interrupt_select_oam_scan; // bit 5
 	bool interrupt_select_LYC;      // bit 6
 } ppu = { 0 };
+
+void ppu_set_model(enum GBModel model) {
+	ppu.model = model;
+}
 
 void ppu_reset(void) {
 	memset(&ppu, 0, sizeof(struct HagemuPPU));

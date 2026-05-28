@@ -19,6 +19,7 @@
 
 struct HagemuMMU {
 	struct HagemuCPU *cpu;
+	bool cgb_mode;
 	bool boot_rom_ignore;
 	unsigned wram_bank;
 	uint8_t wram[8][WRAM_BANK_SIZE];
@@ -26,6 +27,10 @@ struct HagemuMMU {
 	uint8_t serial_data;
 	uint8_t serial_control;
 } mmu = { 0 };
+
+void mmu_set_cgb_mode(bool cgb_mode) {
+	mmu.cgb_mode = cgb_mode;
+}
 
 void mmu_reset(struct HagemuCPU *cpu) {
 	memset(&mmu, 0, sizeof(struct HagemuMMU));
@@ -40,21 +45,24 @@ static uint8_t mmu_read_io(uint16_t address) {
 	case 0xFF02: return mmu.serial_control; // not implemented
 	case 0xFF0F: return interrupt_register_read();
 	case 0xFF46: return dma_read();
-#ifdef CGB_MODE
-	case 0xFF4D:
-		return (cpu_get_speed_mode(mmu.cpu) << 7) |
-			0x7E |
-			(cpu_get_speed_mode_pending(mmu.cpu));
-	case 0xFF51: case 0xFF52: case 0xFF53:
-	case 0xFF54: case 0xFF55:
-		return hdma_read_register(address);
-	case 0xFF70: return mmu.wram_bank | 0xF8;
-	case 0xFF4F: return ppu_get_vram_bank() | 0xFE;
-	case 0xFF68: return ppu_register_read(address); // BG palette ram index
-	case 0xFF69: return ppu_register_read(address); // BG palette ram data
-	case 0xFF6A: return ppu_register_read(address); // Sprite palette ram index
-	case 0xFF6B: return ppu_register_read(address); // Sprite palette ram data
-#endif
+	}
+
+	if (mmu.cgb_mode) {
+		switch (address) {
+		case 0xFF4D:
+			return (cpu_get_speed_mode(mmu.cpu) << 7) |
+				0x7E |
+				(cpu_get_speed_mode_pending(mmu.cpu));
+		case 0xFF51: case 0xFF52: case 0xFF53:
+		case 0xFF54: case 0xFF55:
+			return hdma_read_register(address);
+		case 0xFF70: return mmu.wram_bank | 0xF8;
+		case 0xFF4F: return ppu_get_vram_bank() | 0xFE;
+		case 0xFF68: return ppu_register_read(address); // BG palette ram index
+		case 0xFF69: return ppu_register_read(address); // BG palette ram data
+		case 0xFF6A: return ppu_register_read(address); // Sprite palette ram index
+		case 0xFF6B: return ppu_register_read(address); // Sprite palette ram data
+		}
 	}
 
 	if (address >= 0xFF04 && address <= 0xFF07)
@@ -74,26 +82,35 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 	case 0xFF02: mmu.serial_control = value;      return; // not implemented
 	case 0xFF0F: interrupt_register_write(value); return;
 	case 0xFF46: dma_start(value);                return;
-	case 0xFF50: mmu.boot_rom_ignore = true;      return;
-#ifdef CGB_MODE
-	case 0xFF4D:
-		printf("CPU speed mode register write: %02X\n", value);
-		cpu_set_speed_mode_pending(mmu.cpu, value & 0x01);
+	case 0xFF50:
+		if (mmu.cgb_mode
+		    && cart_rom_read(0x0143) != 0x80
+		    && cart_rom_read(0x0143) != 0xC0)
+			ppu_set_model(MODEL_CGB_BACKCOMPAT);
+		mmu.boot_rom_ignore = true;
 		return;
-	case 0xFF51: case 0xFF52: case 0xFF53:
-	case 0xFF54: case 0xFF55:
-		hdma_write_register(address, value);
-		return;
-	case 0xFF70:
-		mmu.wram_bank = value & 0x07;
-		if (!mmu.wram_bank) mmu.wram_bank = 1;
-		return;
-	case 0xFF4F: ppu_set_vram_bank(value & 0x01); return;
-	case 0xFF68: ppu_register_write(address, value); return; // BG palette ram index
-	case 0xFF69: ppu_register_write(address, value); return; // BG palette ram data
-	case 0xFF6A: ppu_register_write(address, value); return; // Sprite palette ram index
-	case 0xFF6B: ppu_register_write(address, value); return; // Sprite palette ram data
-#endif
+	}
+
+	if (mmu.cgb_mode) {
+		switch (address) {
+		case 0xFF4D:
+			printf("CPU speed mode register write: %02X\n", value);
+			cpu_set_speed_mode_pending(mmu.cpu, value & 0x01);
+			return;
+		case 0xFF51: case 0xFF52: case 0xFF53:
+		case 0xFF54: case 0xFF55:
+			hdma_write_register(address, value);
+			return;
+		case 0xFF70:
+			mmu.wram_bank = value & 0x07;
+			if (!mmu.wram_bank) mmu.wram_bank = 1;
+			return;
+		case 0xFF4F: ppu_set_vram_bank(value & 0x01); return;
+		case 0xFF68: ppu_register_write(address, value); return; // BG palette ram index
+		case 0xFF69: ppu_register_write(address, value); return; // BG palette ram data
+		case 0xFF6A: ppu_register_write(address, value); return; // Sprite palette ram index
+		case 0xFF6B: ppu_register_write(address, value); return; // Sprite palette ram data
+		}
 	}
 
 	if (address >= 0xFF04 && address <= 0xFF07)
@@ -105,18 +122,12 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 }
 
 uint8_t mmu_read_nonblocking(uint16_t address) {
-#ifdef CGB_MODE
 	if (!mmu.boot_rom_ignore && address < 0x100) {
-		return boot_read(address);
+		return boot_read(address, mmu.cgb_mode);
 	}
-	else if (!mmu.boot_rom_ignore && address >= 0x200 && address < 0x900) {
-		return boot_read(address);
+	else if (!mmu.boot_rom_ignore && mmu.cgb_mode && address >= 0x200 && address < 0x900) {
+		return boot_read(address, mmu.cgb_mode);
 	}
-#else
-	if (!mmu.boot_rom_ignore && address < 0x100) {
-		return boot_read(address);
-	}
-#endif
 
 	switch (address & 0xF000) {
 

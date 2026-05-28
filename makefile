@@ -1,5 +1,5 @@
 TARGET = hagemu
-CFLAGS = -O3 -std=c99 -Wall -pedantic -DCGB_MODE
+CFLAGS = -O3 -std=c99 -Wall -pedantic
 LFLAGS = $(shell pkg-config --libs sdl3)
 INCLUDES = -I src/hagemu_core -I src/hagemu_app $(shell pkg-config --cflags sdl3)
 
