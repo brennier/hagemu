@@ -245,18 +245,34 @@ void ppu_draw_scanline(void) {
 	if (ppu.window_enabled && ppu.window_triggered)
 		ppu_draw_window(scanline, bg_nonzero, bg_priority);
 
-	if (!ppu.bg_enabled && ppu.model == MODEL_CGB) {
+	if (!ppu.bg_enabled) {
+		switch (ppu.model) {
 		// If the background is not enabled, sprites always have priority
-		for (int i = 0; i < 160; i++) {
-			bg_nonzero[i]  = 1;
-			bg_priority[i] = 0;
-		}
-	} else if (!ppu.bg_enabled) {
-		// If the background is not enabled, just draw the default color
-		for (int i = 0; i < 160; i++) {
-			scanline[i]    = dmg_palette_colors[0];
-			bg_nonzero[i]  = 0;
-			bg_priority[i] = 0;
+		case MODEL_CGB:
+			for (int i = 0; i < 160; i++) {
+				bg_nonzero[i]  = 1;
+				bg_priority[i] = 0;
+			}
+			break;
+
+		// If the background is not enabled, just draw a light green color
+		case MODEL_DMG:
+			for (int i = 0; i < 160; i++) {
+				scanline[i]    = dmg_palette_colors[0];
+				bg_nonzero[i]  = 0;
+				bg_priority[i] = 0;
+			}
+			break;
+
+		// If the background is not enabled, just draw white
+		case MODEL_MGB:
+		case MODEL_CGB_BACKCOMPAT:
+			for (int i = 0; i < 160; i++) {
+				scanline[i]    = 0x7FFF;
+				bg_nonzero[i]  = 0;
+				bg_priority[i] = 0;
+			}
+			break;
 		}
 	}
 
