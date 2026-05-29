@@ -64,8 +64,10 @@ void rtc_update_regs(void) {
 	}
 
 	// timer is halted, so do nothing
-	if (rtc_regs.day_high & 0x40)
+	if (rtc_regs.day_high & 0x40) {
+		last_time = time(NULL);
 		return;
+	}
 
 	int64_t new_time = time(NULL);
 	int64_t delta_time = new_time - last_time;
@@ -151,6 +153,13 @@ void cart_ram_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 	} else {
 		rtc_update_regs();
 		uint8_t *regs = (uint8_t *)&rtc_regs;
+		switch (cart->ram_index) {
+		case 0x08: value &= 0x3F; break;
+		case 0x09: value &= 0x3F; break;
+		case 0x0A: value &= 0x1F; break;
+		case 0x0B: value &= 0xFF; break;
+		case 0x0C: value &= 0xC1; break;
+		}
 		regs[cart->ram_index - 0x08] = value;
 		last_time = time(NULL);
 		return;
