@@ -90,31 +90,33 @@ bool cart_set_sram(const uint8_t *data, size_t size) {
 		return false;
 	}
 
-	if (cart.info.has_timer) {
-		rtc_reset();
-		size_t rtc_start = cart.ram_size - RTC_SERIALIZED_SIZE;
-		size_t rtc_size  = size - rtc_start;
-
-		switch (rtc_size) {
-		case 0:
-			printf("SRAM file expected to contain RTC clock data, but does not. Using a blank RTC clock instead.\n");
-			break;
-		case 44:
-			printf("SRAM file contains 44 bytes of RTC clock data. Updating the RTC clock using the old RTC format.\n");
-			rtc_deserialize(data + rtc_start, 44);
-			break;
-		case 48:
-			printf("SRAM file contains 48 bytes of RTC clock data. Updating the RTC clock.\n");
-			rtc_deserialize(data + rtc_start, 48);
-			break;
-		default:
-			printf("Failed to copy SRAM data. Expected %zu bytes, but data was %zu bytes\n", cart.ram_size, size);
-			return false;
-		}
-	}
-
 	printf("Copying SRAM data to emulator core\n");
 	memcpy(cart.ram, data, size);
+
+	if (!cart.info.has_timer)
+		return true;
+
+	size_t rtc_start = cart.ram_size - RTC_SERIALIZED_SIZE;
+	size_t rtc_size  = size - rtc_start;
+
+	switch (rtc_size) {
+	case 0:
+		printf("SRAM file expected to contain RTC clock data, but does not.\n");
+		printf("Resetting internal clock registers.\n");
+		rtc_reset();
+		break;
+	case 44: case 48:
+		printf("SRAM file contains %zu bytes of RTC clock data.\n", rtc_size);
+		printf("Copying clock data to internal clock registers.\n");
+		rtc_deserialize(data + rtc_start, rtc_size);
+		break;
+	default:
+		printf("Failed to copy SRAM data. Expected %zu bytes plus "
+		       "RTC clock data, but data was actually %zu bytes\n", rtc_start, size);
+		rtc_reset();
+		return false;
+	}
+
 	return true;
 }
 
@@ -124,6 +126,7 @@ const uint8_t *cart_get_sram(size_t *out_size) {
 		*out_size = 0;
 		return NULL;
 	}
+
 	if (cart.info.has_timer) {
 		size_t rtc_size;
 		const uint8_t *rtc_data = rtc_serialize(&rtc_size);

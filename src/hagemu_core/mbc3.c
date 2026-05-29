@@ -109,10 +109,8 @@ void rtc_deserialize(const uint8_t *data, size_t size) {
 	rtc.latched_regs.day_high = data[36];
 
 	rtc.last_time = 0;
-	for (int i = size - 1; i >= 40; i--) {
-		rtc.last_time |= data[i];
-		rtc.last_time <<= 8;
-	}
+	for (int i = 0; i < 8; i++)
+		rtc.last_time |= (uint64_t)data[40+i] << (i * 8);
 	rtc_update_regs();
 }
 
