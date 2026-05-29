@@ -429,23 +429,20 @@ bool sprite_is_visible(struct Sprite *sprite) {
 		return false;
 }
 
-int sprite_compare_dmg(const void *data1, const void *data2) {
-    struct Sprite *sprite1 = (struct Sprite*)data1;
-    struct Sprite *sprite2 = (struct Sprite*)data2;
-    int x_compare = sprite2->x_position - sprite1->x_position;
-    if (x_compare != 0)
-	    return x_compare;
-    // This is pointer subtraction. Since they're in the same array,
-    // this is valid C and sorts based on their position in OAM.
-    return sprite2 - sprite1;
-}
+// I'm writing my own sorting algorithm because I need to guarantee that
+// the items are sorted in a stable manner (since they're already in OAM
+// order). I chose insertion sort since there's only at most 10 items.
+void sprite_sort_x_position(struct Sprite *sprites, unsigned sprite_count) {
+	for (int sorted_up_to = 1; sorted_up_to < sprite_count; sorted_up_to++) {
+		struct Sprite key = sprites[sorted_up_to];
+		int i = sorted_up_to - 1;
 
-int sprite_compare_cgb(const void *data1, const void *data2) {
-    struct Sprite *sprite1 = (struct Sprite*)data1;
-    struct Sprite *sprite2 = (struct Sprite*)data2;
-    // This is pointer subtraction. Since they're in the same array,
-    // this is valid C and sorts based on their position in OAM.
-    return sprite2 - sprite1;
+		while (i >= 0 && sprites[i].x_position > key.x_position) {
+			sprites[i+1] = sprites[i];
+			i--;
+		}
+		sprites[i+1] = key;
+	}
 }
 
 unsigned read_sprites(struct Sprite *sprites) {
@@ -507,15 +504,12 @@ void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_p
 	struct Sprite sprites[SPRITE_LIMIT];
 	unsigned sprite_count = read_sprites(sprites);
 
-	int (*sort_function)(const void *, const void *);
-	if (ppu.model == MODEL_CGB)
-		sort_function = sprite_compare_cgb;
-	else
-		sort_function = sprite_compare_dmg;
+	if (ppu.model != MODEL_CGB) {
+		sprite_sort_x_position(sprites, sprite_count);
+	}
 
-	qsort(sprites, sprite_count, sizeof(struct Sprite), sort_function);
-
-	for (int i = 0; i < sprite_count; i++) {
+	// Draw the sprites backwards so that earlier sprites have higher priority
+	for (int i = sprite_count - 1; i >= 0; i--) {
 		draw_sprite(scanline, bg_nonzero, bg_priority, sprites[i]);
 	}
 }
