@@ -69,6 +69,9 @@ void cart_set_info(struct HagemuCart *cart) {
 		cart->ram_size = 0x200;
 	else
 		cart->ram_size = ram_size_table[ram_size_byte];;
+
+	if (cart->info.has_timer)
+		cart->ram_size += RTC_SERIALIZED_SIZE;
 }
 
 bool cart_sram_available(void) {
@@ -82,10 +85,34 @@ bool cart_set_sram(const uint8_t *data, size_t size) {
 	} else if (cart.ram_size == 0 || !cart.info.has_battery) {
 		printf("Failed to load SRAM data. This cartridge doesn't support battery-backed RAM.\n");
 		return false;
-	} else if (size != cart.ram_size) {
+	} else if (!cart.info.has_timer && size != cart.ram_size) {
 		printf("Failed to copy SRAM data. Expected %zu bytes, but data was %zu bytes\n", cart.ram_size, size);
 		return false;
 	}
+
+	if (cart.info.has_timer) {
+		rtc_reset();
+		size_t rtc_start = cart.ram_size - RTC_SERIALIZED_SIZE;
+		size_t rtc_size  = size - rtc_start;
+
+		switch (rtc_size) {
+		case 0:
+			printf("SRAM file expected to contain RTC clock data, but does not. Using a blank RTC clock instead.\n");
+			break;
+		case 44:
+			printf("SRAM file contains 44 bytes of RTC clock data. Updating the RTC clock using the old RTC format.\n");
+			rtc_deserialize(data + rtc_start, 44);
+			break;
+		case 48:
+			printf("SRAM file contains 48 bytes of RTC clock data. Updating the RTC clock.\n");
+			rtc_deserialize(data + rtc_start, 48);
+			break;
+		default:
+			printf("Failed to copy SRAM data. Expected %zu bytes, but data was %zu bytes\n", cart.ram_size, size);
+			return false;
+		}
+	}
+
 	printf("Copying SRAM data to emulator core\n");
 	memcpy(cart.ram, data, size);
 	return true;
@@ -93,9 +120,15 @@ bool cart_set_sram(const uint8_t *data, size_t size) {
 
 const uint8_t *cart_get_sram(size_t *out_size) {
 	if (!cart.ram) {
-		printf("This game has no sram for saving\n");
+		printf("This game has no sram or RTC for saving\n");
 		*out_size = 0;
 		return NULL;
+	}
+	if (cart.info.has_timer) {
+		size_t rtc_size;
+		const uint8_t *rtc_data = rtc_serialize(&rtc_size);
+		size_t rtc_start = cart.ram_size - RTC_SERIALIZED_SIZE;
+		memcpy((uint8_t *)cart.ram + rtc_start, rtc_data, RTC_SERIALIZED_SIZE);
 	}
 	*out_size = cart.ram_size;
 	return (const uint8_t *)cart.ram;
@@ -139,7 +172,7 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 		printf("WARNING: Cartridge file is %zu bytes, but expected %zu bytes\n", size, cart.rom_size);
 
 	if (cart.ram_size == 0) {
-		printf("Cartridge contains no SRAM\n");
+		printf("Cartridge contains no SRAM or RTC\n");
 		return;
 	}
 
@@ -154,6 +187,8 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 void cart_sram_reset(void) {
 	if (!cart.ram) return;
 	memset(cart.ram, 0xFF, cart.ram_size);
+	if (cart.info.has_timer)
+		rtc_reset();
 }
 
 void cart_rom_write(uint16_t address, uint8_t value) {

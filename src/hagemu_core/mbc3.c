@@ -88,16 +88,11 @@ const uint8_t *rtc_serialize(size_t *out_size) {
 	return rtc.rtc_serialized;
 }
 
-void rtc_deserialize(uint8_t *data, size_t size) {
+void rtc_deserialize(const uint8_t *data, size_t size) {
 	rtc_reset();
 
-	switch (size) {
-	case 44:
-		printf("Found 44 bytes of RTC data. Setting the RTC\n");
-	case 48:
-		printf("Found 48 bytes of RTC data. Setting the RTC\n");
-	default:
-		printf("Unable to the RTC. Invalid format of %zu bytes. Using a blank RTC clock instead.\n", size);
+	if (size != 44 && size != 48) {
+		printf("Unable load the RTC data. Invalid format of %zu bytes. Using a blank RTC clock instead.\n", size);
 		return;
 	}
 
