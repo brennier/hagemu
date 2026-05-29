@@ -189,7 +189,7 @@ uint8_t cart_rom_read(uint16_t address) {
 }
 
 void cart_ram_write(uint16_t address, uint8_t value) {
-	if (!cart.ram) return;
+	if (!cart.ram && !cart.info.has_timer) return;
 
 	switch (cart.info.type) {
 	case NO_MBC: cart.ram[0][address] = value; break;
@@ -204,7 +204,7 @@ void cart_ram_write(uint16_t address, uint8_t value) {
 }
 
 uint8_t cart_ram_read(uint16_t address) {
-	if (!cart.ram) return 0xFF;
+	if (!cart.ram && !cart.info.has_timer) return 0xFF;
 
 	switch (cart.info.type) {
 	case NO_MBC: return cart.ram[0][address]; break;
