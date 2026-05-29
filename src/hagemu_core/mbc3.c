@@ -4,8 +4,6 @@
 #include <string.h>
 #include <time.h>
 
-#define RTC_SERIALIZED_SIZE 48
-
 struct RTCRegisters {
 	uint8_t seconds;
 	uint8_t minutes;
@@ -14,87 +12,113 @@ struct RTCRegisters {
 	uint8_t day_high;
 };
 
-uint8_t rtc_serialized[RTC_SERIALIZED_SIZE] = { 0 };
-int64_t last_time = 0;
-bool latch_prev = false;
-struct RTCRegisters rtc_regs = { .day_high = 0x40 };
-struct RTCRegisters latched_regs = { .day_high = 0x40 };
-
-const uint8_t *rtc_serialize(size_t *out_size) {
-	rtc_serialized[0]  = rtc_regs.seconds;
-	rtc_serialized[4]  = rtc_regs.minutes;
-	rtc_serialized[8]  = rtc_regs.hours;
-	rtc_serialized[12] = rtc_regs.day_low;
-	rtc_serialized[16] = rtc_regs.day_high;
-
-	rtc_serialized[20] = latched_regs.seconds;
-	rtc_serialized[24] = latched_regs.minutes;
-	rtc_serialized[28] = latched_regs.hours;
-	rtc_serialized[32] = latched_regs.day_low;
-	rtc_serialized[36] = latched_regs.day_high;
-
-	int64_t unix_time = time(NULL);
-	for (int i = 0; i < 8; i++) {
-		rtc_serialized[40+i] = unix_time & 0xFF;
-		unix_time >>= 8;
-	}
-	*out_size = RTC_SERIALIZED_SIZE;
-	return rtc_serialized;
-}
-
-void rtc_deserialize(uint8_t *data, size_t size) {
-	switch (size) {
-	case 44:
-		memset(rtc_serialized, 0, RTC_SERIALIZED_SIZE);
-		memcpy(rtc_serialized, data, size);
-		break;
-	case 48:
-		memcpy(rtc_serialized, data, size);
-		break;
-	default:
-		fprintf(stderr, "[ERROR] Unknown RTC data format of length %zu\n", size);
-		return;
-	}
-}
+struct RTC {
+	int64_t last_time;
+	uint8_t rtc_serialized[RTC_SERIALIZED_SIZE];
+	bool    is_latched;
+	struct RTCRegisters regs;
+	struct RTCRegisters latched_regs;
+} rtc = { .regs.day_high = 0x40 };
 
 void rtc_update_regs(void) {
-	if (!last_time) {
-		last_time = time(NULL);
+	if (!rtc.last_time) {
+		rtc.last_time = time(NULL);
 		return;
 	}
 
 	// timer is halted, so do nothing
-	if (rtc_regs.day_high & 0x40) {
-		last_time = time(NULL);
+	if (rtc.regs.day_high & 0x40) {
+		rtc.last_time = time(NULL);
 		return;
 	}
 
 	int64_t new_time = time(NULL);
-	int64_t delta_time = new_time - last_time;
+	int64_t delta_time = new_time - rtc.last_time;
 
-	delta_time += rtc_regs.seconds;
-	rtc_regs.seconds = delta_time % 60;
+	delta_time += rtc.regs.seconds;
+	rtc.regs.seconds = delta_time % 60;
 	delta_time /= 60;
 
-	delta_time += rtc_regs.minutes;
-	rtc_regs.minutes = delta_time % 60;
+	delta_time += rtc.regs.minutes;
+	rtc.regs.minutes = delta_time % 60;
 	delta_time /= 60;
 
-	delta_time += rtc_regs.hours;
-	rtc_regs.hours = delta_time % 24;
+	delta_time += rtc.regs.hours;
+	rtc.regs.hours = delta_time % 24;
 	delta_time /= 24;
 
-	uint64_t days = ((rtc_regs.day_high & 0x01) << 8) | rtc_regs.day_low;
+	uint64_t days = ((rtc.regs.day_high & 0x01) << 8) | rtc.regs.day_low;
 	days += delta_time;
 	if (days >= 512) {
-		rtc_regs.day_high |= 0x80;
+		rtc.regs.day_high |= 0x80;
 		days %= 512;
 	}
-	rtc_regs.day_low = days & 0xFF;
-	rtc_regs.day_high &= 0xFE;
-	rtc_regs.day_high |= (days >> 8) & 0x01;
+	rtc.regs.day_low = days & 0xFF;
+	rtc.regs.day_high &= 0xFE;
+	rtc.regs.day_high |= (days >> 8) & 0x01;
 
-	last_time = new_time;
+	rtc.last_time = new_time;
+}
+
+void rtc_reset(void) {
+	memset(&rtc, 0, sizeof(struct RTC));
+	rtc.regs.day_high = 0x40;
+}
+
+const uint8_t *rtc_serialize(size_t *out_size) {
+	rtc_update_regs();
+	rtc.rtc_serialized[0]  = rtc.regs.seconds;
+	rtc.rtc_serialized[4]  = rtc.regs.minutes;
+	rtc.rtc_serialized[8]  = rtc.regs.hours;
+	rtc.rtc_serialized[12] = rtc.regs.day_low;
+	rtc.rtc_serialized[16] = rtc.regs.day_high;
+
+	rtc.rtc_serialized[20] = rtc.latched_regs.seconds;
+	rtc.rtc_serialized[24] = rtc.latched_regs.minutes;
+	rtc.rtc_serialized[28] = rtc.latched_regs.hours;
+	rtc.rtc_serialized[32] = rtc.latched_regs.day_low;
+	rtc.rtc_serialized[36] = rtc.latched_regs.day_high;
+
+	int64_t unix_time = time(NULL);
+	for (int i = 0; i < 8; i++) {
+		rtc.rtc_serialized[40+i] = unix_time & 0xFF;
+		unix_time >>= 8;
+	}
+	*out_size = RTC_SERIALIZED_SIZE;
+	return rtc.rtc_serialized;
+}
+
+void rtc_deserialize(uint8_t *data, size_t size) {
+	rtc_reset();
+
+	switch (size) {
+	case 44:
+		printf("Found 44 bytes of RTC data. Setting the RTC\n");
+	case 48:
+		printf("Found 48 bytes of RTC data. Setting the RTC\n");
+	default:
+		printf("Unable to the RTC. Invalid format of %zu bytes. Using a blank RTC clock instead.\n", size);
+		return;
+	}
+
+	rtc.regs.seconds  = data[0];
+	rtc.regs.minutes  = data[4];
+	rtc.regs.hours    = data[8];
+	rtc.regs.day_low  = data[12];
+	rtc.regs.day_high = data[16];
+
+	rtc.latched_regs.seconds  = data[20];
+	rtc.latched_regs.minutes  = data[24];
+	rtc.latched_regs.hours    = data[28];
+	rtc.latched_regs.day_low  = data[32];
+	rtc.latched_regs.day_high = data[36];
+
+	rtc.last_time = 0;
+	for (int i = size - 1; i >= 40; i--) {
+		rtc.last_time |= data[i];
+		rtc.last_time <<= 8;
+	}
+	rtc_update_regs();
 }
 
 void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t value) {
@@ -118,6 +142,7 @@ void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 	case 0x4000: case 0x5000:
 		if (value < 0x08) {
 			cart->ram_index = value; // RAM bank
+			// cart->ram_size might include RTC data, but it will be truncated away
 			cart->ram_index %= (cart->ram_size / RAM_BANK_SIZE);
 		} else if (value < 0x0D) {
 			/* printf("RTC register %02X was selected\n", value - 0x08); */
@@ -129,11 +154,11 @@ void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 	// Latch the RTC clock
 	case 0x6000: case 0x7000:
 		value &= 0x01;
-		if (latch_prev == 0 && value) {
+		if (rtc.is_latched == 0 && value) {
 			rtc_update_regs();
-			memcpy(&latched_regs, &rtc_regs, sizeof(struct RTCRegisters));
+			memcpy(&rtc.latched_regs, &rtc.regs, sizeof(struct RTCRegisters));
 		}
-		latch_prev = value;
+		rtc.is_latched = value;
 		return;
 	}
 }
@@ -152,7 +177,7 @@ void cart_ram_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 		return;
 	} else {
 		rtc_update_regs();
-		uint8_t *regs = (uint8_t *)&rtc_regs;
+		uint8_t *regs = (uint8_t *)&rtc.regs;
 		switch (cart->ram_index) {
 		case 0x08: value &= 0x3F; break;
 		case 0x09: value &= 0x3F; break;
@@ -161,7 +186,7 @@ void cart_ram_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 		case 0x0C: value &= 0xC1; break;
 		}
 		regs[cart->ram_index - 0x08] = value;
-		last_time = time(NULL);
+		rtc.last_time = time(NULL);
 		return;
 	}
 }
@@ -172,7 +197,7 @@ uint8_t cart_ram_read_mbc3(struct HagemuCart *cart, uint16_t address) {
 	} else if (cart->ram_index < 0x08) {
 		return cart->ram[cart->ram_index][address];
 	} else {
-		uint8_t *regs = (uint8_t *)&latched_regs;
+		uint8_t *regs = (uint8_t *)&rtc.latched_regs;
 		return regs[cart->ram_index - 0x08];
 	}
 }
