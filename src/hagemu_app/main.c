@@ -147,6 +147,8 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	}
 
 	hagemu_set_rom(app->gb, model, rom_data, rom_size);
+	if (app->rom_filename)
+		free(app->rom_filename);
 	app->rom_filename = malloc(strlen(filename) + 1);
 	strcpy(app->rom_filename, filename);
 
@@ -171,6 +173,17 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	}
 	free(sram_file_name);
 	return true;
+}
+
+void hagemu_quit_rom(struct HagemuApp *app) {
+	hagemu_reset(app->gb);
+	free(app->rom_filename);
+	app->state = HAGEMU_NO_ROM;
+	app->smooth_sample_rate_adjust = 1.0;
+	app->smooth_delta_time = 1.0 / 60.0;
+	app->old_time = SDL_GetPerformanceCounter();
+	SDL_ClearAudioStream(app->audio_stream);
+	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
 }
 
 void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool is_pressed) {
@@ -301,9 +314,38 @@ double get_smooth_delta_time(struct HagemuApp *app) {
 	return app->smooth_delta_time;
 }
 
+void hagemu_no_rom_screen(struct HagemuApp *app) {
+	SDL_SetRenderDrawColor(app->renderer, 138, 189, 76, 255);
+	SDL_RenderClear(app->renderer);
+	SDL_SetRenderDrawColor(app->renderer, 48, 102, 87, 255);
+#ifndef EMSCRIPTEN
+	text_draw_centered(app->renderer,
+			   "Click the \"Upload ROM\" button below",
+			   WINDOW_WIDTH / 2,
+			   WINDOW_HEIGHT / 2 - 7 * SCALE_FACTOR,
+			   7 * SCALE_FACTOR);
+	text_draw_centered(app->renderer,
+			   "or drop a rom file directly onto this window",
+			   WINDOW_WIDTH / 2,
+			   WINDOW_HEIGHT / 2 + 7 * SCALE_FACTOR,
+			   7 * SCALE_FACTOR);
+	text_draw(app->renderer,
+		  "Compilation Date: " __DATE__,
+		  SCALE_FACTOR,
+		  WINDOW_HEIGHT - 5 * SCALE_FACTOR,
+		  4 * SCALE_FACTOR);
+#endif
+	SDL_RenderPresent(app->renderer);
+}
+
 void main_loop(void* arg) {
 	struct HagemuApp *app = (struct HagemuApp *)arg;
 	hagemu_handle_events(app);
+
+	if (app->state == HAGEMU_NO_ROM) {
+		hagemu_no_rom_screen(app);
+		return;
+	}
 
 	double smooth_delta_time = get_smooth_delta_time(app);
 	int cycles = smooth_delta_time * GB_CLOCK_FREQUENCY;
@@ -351,32 +393,6 @@ int main(int argc, char *argv[]) {
 	} else if (argc > 2) {
 		fprintf(stderr, "Error: Too many arguments\n");
 		exit(EXIT_FAILURE);
-	}
-
-	while (app.state == HAGEMU_NO_ROM) {
-		hagemu_handle_events(&app);
-
-		SDL_SetRenderDrawColor(app.renderer, 138, 189, 76, 255);
-		SDL_RenderClear(app.renderer);
-		SDL_SetRenderDrawColor(app.renderer, 48, 102, 87, 255);
-#ifndef EMSCRIPTEN
-		text_draw_centered(app.renderer,
-				   "Click the \"Upload ROM\" button below",
-				   WINDOW_WIDTH / 2,
-				   WINDOW_HEIGHT / 2 - 7 * SCALE_FACTOR,
-				   7 * SCALE_FACTOR);
-		text_draw_centered(app.renderer,
-				   "or drop a rom file directly onto this window",
-				   WINDOW_WIDTH / 2,
-				   WINDOW_HEIGHT / 2 + 7 * SCALE_FACTOR,
-				   7 * SCALE_FACTOR);
-		text_draw(app.renderer,
-			  "Compilation Date: " __DATE__,
-			  SCALE_FACTOR,
-			  WINDOW_HEIGHT - 5 * SCALE_FACTOR,
-			  4 * SCALE_FACTOR);
-#endif
-		SDL_RenderPresent(app.renderer);
 	}
 
 #ifdef __EMSCRIPTEN__

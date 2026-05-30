@@ -65,4 +65,9 @@ bool web_load_sram(const char *filename) {
 	return hagemu_app_load_sram(hagemu_app, filename);
 }
 
+EMSCRIPTEN_KEEPALIVE
+void web_quit_rom(void) {
+	hagemu_quit_rom(hagemu_app);
+}
+
 #endif // __EMSCRIPTEN__

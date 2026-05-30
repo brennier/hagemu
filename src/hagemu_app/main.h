@@ -33,5 +33,6 @@ struct HagemuApp {
 bool hagemu_app_load_rom(struct HagemuApp *app, const char *filename, enum GBModel model);
 bool hagemu_app_load_sram(struct HagemuApp *app, const char *filename);
 void hagemu_save_sram_file(struct HagemuApp *app);
+void hagemu_quit_rom(struct HagemuApp *app);
 
 #endif // HAGEMU_MAIN_H

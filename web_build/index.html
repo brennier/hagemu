@@ -221,7 +221,8 @@
           <input type="file" accept=".sav,.sram" id="saveFileInput" style="display:none" />
         </label>
         <button onclick="downloadSRAM()">Download Save File</button>
-	<button id="terminal-button">Show Terminal Output</button>
+	<button id="terminal-button">Show Terminal</button>
+        <button onclick="quitROM()">Quit ROM</button>
       </div>
     </div>
 
@@ -237,6 +238,13 @@
 
               events.forEach(e => canvas.addEventListener(e, handler));
           });
+      }
+
+      function quitROM() {
+          var overlay = document.getElementById('overlay');
+          overlay.textContent = "No ROM file loaded. Click the \"Upload ROM\" button below to get started.";
+          overlay.style.display = 'flex';
+          Module.ccall("web_quit_rom", null, null, null);
       }
 
       let is_cgb_mode = false;
