@@ -101,16 +101,16 @@ The following games have been tested:
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
   - [x] Basic support for saving and loading .sav files
   - [x] Separate MBC code into its own file
-  - [x] MCB1 (Full support, tested with Mooneye's MBC1 test roms)
-  - [ ] MCB1M
-  - [x] MCB2 (tested with Mooneye's MBC2 test roms)
-  - [x] MCB3 (without RTC) (tested with ZoomTen's MBC30 test rom)
-  - [x] MCB5 (without rumble) (tested with Mooneye's MBC5 test roms)
-  - [ ] MCB6
-  - [ ] MCB7
+  - [x] MBC1 (Full support, tested with Mooneye's MBC1 test roms)
+  - [ ] MBC1M
+  - [x] MBC2 (tested with Mooneye's MBC2 test roms)
+  - [x] MBC3 (tested with ZoomTen's MBC30 test rom)
+  - [x] MBC3 Real Time Clock support (tested with aaaaaa123456789's basic RTC tests)
+  - [x] MBC5 (without rumble) (tested with Mooneye's MBC5 test roms)
+  - [ ] MBC6
+  - [ ] MBC7
   - [x] MBC30 (tested with ZoomTen's MBC30 test rom)
-  - [ ] Other, less popular MCBs
-  - [ ] Real Time Clock support
+  - [ ] Other, less popular MBCs
   - [ ] Rumble support
 - [ ] Implement GBC game support
   - [x] Add extra WRAM and VRAM
@@ -225,13 +225,7 @@ The following games have been tested:
   - Gameboy Color HDMA: https://web.archive.org/web/20260207230355/https://jsgroth.dev/blog/posts/emulator-bugs-gbc-hdma/
   - PPU FIFO: https://web.archive.org/web/20250903031440/https://hacktix.github.io/GBEDG/ppu/
   - Sound info: https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
-  - General info: https://hacktix.github.io/GBEDG/
+  - General info: https://github.com/Ashiepaws/GBEDG/tree/master 
   - Timing of the LYC STAT: https://gbdev.io/guides/lyc_timing.html
   - GBC PPU tests: https://github.com/alloncm/MagenTests
-- Links about MBC3's real-time clock
-  - MBC3 .sav format: https://bgb.bircd.org/rtcsave.html
-  - MBC3 RTC test rom: https://github.com/aaaaaa123456789/rtc3test
-  - Discussion about MBC3 RTC: https://www.reddit.com/r/EmuDev/comments/12vk8io/gameboy_color_mbc3_rtc/
-  - MBC3 Pandocs: https://gbdev.io/pandocs/MBC3.html
-  - More detail about the implementation: https://hacktix.github.io/GBEDG/mbcs/mbc3/ 
 </details>

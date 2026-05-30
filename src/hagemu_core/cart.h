@@ -30,7 +30,7 @@ struct HagemuCart {
 	size_t   ram_size;
 	uint16_t rom_index;
 	uint16_t ram_index;
-	char     title[17];
+	char     title[17]; // +1 for the null terminator
 	bool     ram_enabled;
 	bool     mbc_banking_mode;
 	bool     rtc_latched;
