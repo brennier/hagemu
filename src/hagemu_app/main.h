@@ -5,6 +5,7 @@
 #define AUDIO_TARGET_FRAMES 4096
 
 #include <SDL3/SDL.h>
+#include "hagemu_core.h"
 
 enum AppState {
 	HAGEMU_NO_ROM,
@@ -27,10 +28,9 @@ struct HagemuApp {
 	double smooth_sample_rate_adjust;
 	enum AppState state;
 	char *rom_filename;
-	bool cgb_mode;
 };
 
-bool hagemu_app_load_rom(struct HagemuApp *app, const char *filename, bool cgb_mode);
+bool hagemu_app_load_rom(struct HagemuApp *app, const char *filename, enum GBModel model);
 bool hagemu_app_load_sram(struct HagemuApp *app, const char *filename);
 void hagemu_save_sram_file(struct HagemuApp *app);
 

@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "core_types.h"
 
-uint8_t boot_read(uint16_t address, bool cgb_mode);
+uint8_t boot_read(uint16_t address, enum GBModel model);
 
 #endif

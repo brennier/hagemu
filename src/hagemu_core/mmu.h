@@ -1,10 +1,11 @@
 #ifndef MMU_H
 #define MMU_H
 #include <stdint.h>
+#include "core_types.h"
 
 #include "cpu.h"
 
-void mmu_set_cgb_mode(bool cgb_mode);
+void mmu_set_model(enum GBModel model);
 void mmu_reset(struct HagemuCPU *cpu);
 
 uint8_t mmu_read(uint16_t address);

@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "hagemu_core.h"
 #include "text.h"
 #include "file.h"
 
@@ -27,7 +26,7 @@
 #define GREEN4 (Color){ 36,  76,  64,  255 }
 
 bool hagemu_app_setup(struct HagemuApp *app) {
-	app->gb = hagemu_create(false);
+	app->gb = hagemu_create();
 	app->state = HAGEMU_NO_ROM;
 	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
 	app->smooth_sample_rate_adjust = 1.0;
@@ -126,7 +125,7 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	uint8_t *sram_data = hagemu_file_load(filename, &sram_size);
 	bool result = hagemu_set_sram(sram_data, sram_size);
 	if (result) {
-		hagemu_reset(app->gb, app->cgb_mode);
+		hagemu_reset(app->gb);
 		app->state = HAGEMU_GAME_RUNNING;
 		app->smooth_sample_rate_adjust = 1.0;
 		app->smooth_delta_time  = 1.0 / 60.0;
@@ -138,7 +137,7 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	return true;
 }
 
-bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, bool cgb_mode) {
+bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBModel model) {
 	printf("Loading the rom file '%s'\n", filename);
 	size_t rom_size;
 	uint8_t *rom_data = hagemu_file_load(filename, &rom_size);
@@ -147,8 +146,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, bool cgb_m
 		return false;
 	}
 
-	app->cgb_mode = cgb_mode;
-	hagemu_set_rom(app->gb, cgb_mode, rom_data, rom_size);
+	hagemu_set_rom(app->gb, model, rom_data, rom_size);
 	app->rom_filename = malloc(strlen(filename) + 1);
 	strcpy(app->rom_filename, filename);
 

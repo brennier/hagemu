@@ -2,13 +2,7 @@
 #define PPU_H
 #include <stdint.h>
 #include <stdbool.h>
-
-enum GBModel {
-	MODEL_DMG, // Original gameboy (default)
-	MODEL_CGB, // Gameboy color
-	MODEL_CGB_BACKCOMPAT, // Gameboy color in DMG mode
-	MODEL_MGB, // Gameboy pocket
-};
+#include "core_types.h"
 
 void ppu_set_model(enum GBModel model);
 

@@ -19,7 +19,7 @@
 
 struct HagemuMMU {
 	struct HagemuCPU *cpu;
-	bool cgb_mode;
+	enum GBModel gb_model;
 	bool boot_rom_ignore;
 	unsigned wram_bank;
 	uint8_t wram[8][WRAM_BANK_SIZE];
@@ -28,8 +28,8 @@ struct HagemuMMU {
 	uint8_t serial_control;
 } mmu = { 0 };
 
-void mmu_set_cgb_mode(bool cgb_mode) {
-	mmu.cgb_mode = cgb_mode;
+void mmu_set_model(enum GBModel model) {
+	mmu.gb_model = model;
 }
 
 void mmu_reset(struct HagemuCPU *cpu) {
@@ -47,7 +47,7 @@ static uint8_t mmu_read_io(uint16_t address) {
 	case 0xFF46: return dma_read();
 	}
 
-	if (mmu.cgb_mode) {
+	if (mmu.gb_model == MODEL_CGB) {
 		switch (address) {
 		case 0xFF4D:
 			return (cpu_get_speed_mode(mmu.cpu) << 7) |
@@ -83,15 +83,17 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 	case 0xFF0F: interrupt_register_write(value); return;
 	case 0xFF46: dma_start(value);                return;
 	case 0xFF50:
-		if (mmu.cgb_mode
+		if (mmu.gb_model == MODEL_CGB
 		    && cart_rom_read(0x0143) != 0x80
-		    && cart_rom_read(0x0143) != 0xC0)
+		    && cart_rom_read(0x0143) != 0xC0) {
+			mmu_set_model(MODEL_CGB_BACKCOMPAT);
 			ppu_set_model(MODEL_CGB_BACKCOMPAT);
+		}
 		mmu.boot_rom_ignore = true;
 		return;
 	}
 
-	if (mmu.cgb_mode) {
+	if (mmu.gb_model == MODEL_CGB) {
 		switch (address) {
 		case 0xFF4D:
 			printf("CPU speed mode register write: %02X\n", value);
@@ -123,10 +125,12 @@ static void mmu_write_io(uint16_t address, uint8_t value) {
 
 uint8_t mmu_read_nonblocking(uint16_t address) {
 	if (!mmu.boot_rom_ignore && address < 0x100) {
-		return boot_read(address, mmu.cgb_mode);
+		return boot_read(address, mmu.gb_model);
 	}
-	else if (!mmu.boot_rom_ignore && mmu.cgb_mode && address >= 0x200 && address < 0x900) {
-		return boot_read(address, mmu.cgb_mode);
+	else if (!mmu.boot_rom_ignore
+		 && mmu.gb_model == MODEL_CGB
+		 && address >= 0x200 && address < 0x900) {
+		return boot_read(address, mmu.gb_model);
 	}
 
 	switch (address & 0xF000) {

@@ -9,8 +9,8 @@
 struct HagemuGB;
 
 // setup and reset
-struct HagemuGB *hagemu_create(bool cgb_mode);
-void hagemu_reset(struct HagemuGB *gb, bool cgb_mode);
+struct HagemuGB *hagemu_create(void);
+void hagemu_reset(struct HagemuGB *gb);
 void hagemu_destory(struct HagemuGB* gb);
 
 // Running the core
@@ -18,7 +18,7 @@ unsigned hagemu_next_instruction(struct HagemuGB *gb);
 void hagemu_run_frame(struct HagemuGB *gb);
 
 // Loading and saving files
-void hagemu_set_rom(struct HagemuGB *gb, bool cgb_mode, const uint8_t *data, size_t size);
+void hagemu_set_rom(struct HagemuGB *gb, enum GBModel model, const uint8_t *data, size_t size);
 bool hagemu_sram_available(void);
 bool hagemu_set_sram(const uint8_t *data, size_t size);
 const uint8_t *hagemu_get_sram(size_t *out_size);
