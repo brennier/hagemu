@@ -238,6 +238,22 @@ RGB555 apply_color(uint8_t palette_reg, uint8_t palette_index, uint8_t color_ind
 	}
 }
 
+void ppu_clear_background(RGB555 *scanline) {
+	switch (ppu.model) {
+	// Draw a light green color
+	case MODEL_DMG:
+	for (int i = 0; i < 160; i++)
+		scanline[i] = dmg_palette_colors[0];
+	break;
+
+	// Draw a pure white color
+	case MODEL_MGB: case MODEL_CGB_BACKCOMPAT: case MODEL_CGB:
+	for (int i = 0; i < 160; i++)
+		scanline[i] = 0x7FFF;
+	break;
+	}
+}
+
 void ppu_draw_scanline(void) {
 	RGB555 scanline[160];
 	bool   bg_nonzero[160] = { 0 };
@@ -251,33 +267,13 @@ void ppu_draw_scanline(void) {
 		ppu_draw_window(scanline, bg_nonzero, bg_priority);
 
 	if (!ppu.bg_enabled) {
-		switch (ppu.model) {
-		// If the background is not enabled, sprites always have priority
-		case MODEL_CGB:
-			for (int i = 0; i < 160; i++) {
-				bg_nonzero[i]  = 1;
-				bg_priority[i] = 0;
-			}
-			break;
+		// The background doesn't clear on the CGB model
+		if (ppu.model != MODEL_CGB)
+			ppu_clear_background(scanline);
 
-		// If the background is not enabled, just draw a light green color
-		case MODEL_DMG:
-			for (int i = 0; i < 160; i++) {
-				scanline[i]    = dmg_palette_colors[0];
-				bg_nonzero[i]  = 0;
-				bg_priority[i] = 0;
-			}
-			break;
-
-		// If the background is not enabled, just draw white
-		case MODEL_MGB:
-		case MODEL_CGB_BACKCOMPAT:
-			for (int i = 0; i < 160; i++) {
-				scanline[i]    = 0x7FFF;
-				bg_nonzero[i]  = 0;
-				bg_priority[i] = 0;
-			}
-			break;
+		for (int i = 0; i < 160; i++) {
+			bg_nonzero[i]  = 0;
+			bg_priority[i] = 0;
 		}
 	}
 
