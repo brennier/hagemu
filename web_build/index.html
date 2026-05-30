@@ -313,6 +313,9 @@
 
           Module.ccall("web_load_rom", null, ["string", "boolean"], [path, is_cgb_mode]);
 
+          // Reset so the same file can be uploaded
+          event.target.value = "";
+
           await new Promise(r => setTimeout(r, 100));
 
           overlay.style.display = 'none';
@@ -394,6 +397,9 @@
           } catch (err) {
               console.error(err);
               alert("Failed to load file.");
+          } finally {
+              // Reset so the same file can be uploaded
+              event.target.value = "";
           }
       }
 
