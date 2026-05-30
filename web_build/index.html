@@ -120,7 +120,7 @@
           border-radius: 5px;
           margin: 0;
           padding: 0;
-          background-color: var(--font-color);
+          background-color: var(--frame-color);
           image-rendering: pixelated;
           image-rendering: -moz-crisp-edges;
           image-rendering: crisp-edges;
@@ -244,9 +244,9 @@
       const toggle = document.querySelector('#cgb-toggle input');
       toggle.addEventListener('change', () => {
           is_cgb_mode = toggle.checked;
-          const bg_color    = is_cgb_mode ? "#494786" : "#306657";
-          const font_color  = is_cgb_mode ? "#a8a8a8" : "#8abd4c";
-          const frame_color = is_cgb_mode ? "#21282b" : "#20453a";
+          const bg_color    = is_cgb_mode ? "#505068" : "#306657";
+          const font_color  = is_cgb_mode ? "#adadad" : "#8abd4c";
+          const frame_color = is_cgb_mode ? "#303030" : "#20453a";
           document.documentElement.style.setProperty('--bg-color', bg_color);
           document.documentElement.style.setProperty('--font-color', font_color);
           document.documentElement.style.setProperty('--frame-color', frame_color);

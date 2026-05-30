@@ -49,9 +49,14 @@ static inline ARGB8888 correct_color(ARGB8888 c) {
 	uint32_t blue  = (c >> 16) & 0xFF;
 
 	// Apply GBC color correction
-	uint32_t r = (12 * red +  2 * green +  1 * blue) >> 4;
-	uint32_t g = ( 0 * red + 12 * green +  3 * blue) >> 4;
-	uint32_t b = ( 3 * red +  2 * green + 10 * blue) >> 4;
+	uint32_t r = (13 * red +  2 * green +  1 * blue) >> 4;
+	uint32_t g = ( 0 * red + 13 * green +  3 * blue) >> 4;
+	uint32_t b = ( 3 * red +  2 * green + 11 * blue) >> 4;
+
+	// Darken the colors slightly
+	r -= (r >> 2);
+	g -= (g >> 2);
+	b -= (b >> 2);
 
 	// Convert to ABGR8888 value
 	return 0xFF000000 | (b << 16) | (g << 8) | r;
