@@ -222,7 +222,7 @@
         </label>
         <button onclick="downloadSRAM()">Download Save File</button>
 	<button id="terminal-button">Show Terminal</button>
-        <button onclick="quitROM()">Quit ROM</button>
+        <button onclick="resetROM()">Reset ROM</button>
       </div>
     </div>
 
@@ -240,24 +240,35 @@
           });
       }
 
-      function quitROM() {
+      async function myConfirm(prompt) {
+          const audioCtx = Module.SDL3.audioContext;
+          await audioCtx.suspend();
+          const confirmed = confirm(prompt);
+          await audioCtx.resume();
+          return confirmed;
+      }
+
+      async function resetROM() {
+          if (!Module._web_is_rom_running()) {
+              return;
+          }
           Module._web_save_sram_file();
-          var overlay = document.getElementById('overlay');
-          overlay.textContent = "No ROM file loaded. Click the \"Upload ROM\" button below to get started.";
-          overlay.style.display = 'flex';
-          Module.ccall("web_quit_rom", null, null, null);
+          const confirmed = await myConfirm("Are you sure you want to reset the game?");
+          if (confirmed) {
+              Module._web_rom_reset(is_cgb_mode);
+          }
       }
 
       let is_cgb_mode = false;
 
       const toggle = document.querySelector('#cgb-toggle input');
-      toggle.addEventListener('change', () => {
+      toggle.addEventListener('change', async () => {
           Module._web_save_sram_file();
           const is_running = Module._web_is_rom_running();
           let should_continue = true;
 
           if (is_running) {
-              should_continue = confirm("Switching between Game Boy and Game Boy Color mode will reset the current game. Any unsaved progress will be lost. Continue?");
+              should_continue = await myConfirm("Switching between Game Boy and Game Boy Color mode will reset the current game. Any unsaved progress will be lost. Continue?");
           }
 
           if (should_continue) {
@@ -474,7 +485,6 @@
           }
           else {
               div.style.display = 'flex';
-              div.scrollTop = textarea.scrollHeight;
           }
       };
 
