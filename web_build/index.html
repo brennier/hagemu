@@ -25,7 +25,6 @@
 	  padding: 0;
 	  background-color: var(--bg-color);
 	  color: var(--font-color);
-          min-height: 100vh;
           justify-content: center;
           align-items: center;
           overflow: hidden;
@@ -223,7 +222,7 @@
           flex-direction: row;
           justify-content: space-between;
           align-items: center;
-          min-width: 100vw;
+          min-width: 100svw;
       }
 
       #frame {
@@ -650,6 +649,8 @@
           let scale = 0;
           if (window.innerWidth * 1.2 > window.innerHeight) {
               content.style.flexWrap = 'nowrap';
+              content.style.height = '';
+              content.style.width = '100svw';
               frame.style.order = '';
               frame.style.margin = '';
               scale = Math.min(
@@ -659,9 +660,10 @@
               content.style.height = '';
           } else {
               content.style.flexWrap = 'wrap';
+              content.style.height = '100svh';
+              content.style.width = '';
               frame.style.order = '-1';
               frame.style.margin = '0 auto';
-              content.style.height = '100vh';
               scale = Math.min(
                   (window.innerWidth - 50) / 160, // 30px for the border
                   (0.50 * window.innerHeight - 50) / 144 // 50px for the border + padding
