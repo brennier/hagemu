@@ -54,10 +54,8 @@ const char *web_get_sram_file_name(void) {
 
 EMSCRIPTEN_KEEPALIVE
 bool web_load_rom(const char *filename, bool is_cgb_mode) {
-	if (is_cgb_mode)
-		return hagemu_app_load_rom(hagemu_app, filename, MODEL_CGB);
-	else
-		return hagemu_app_load_rom(hagemu_app, filename, MODEL_DMG);
+	enum GBModel model = is_cgb_mode ? MODEL_CGB : MODEL_DMG;
+	return hagemu_app_load_rom(hagemu_app, filename, model);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -68,6 +66,17 @@ bool web_load_sram(const char *filename) {
 EMSCRIPTEN_KEEPALIVE
 void web_quit_rom(void) {
 	hagemu_quit_rom(hagemu_app);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool web_is_rom_running(void) {
+	return (hagemu_app->state == HAGEMU_GAME_RUNNING);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void web_rom_reset(bool is_cgb_mode) {
+	enum GBModel model = is_cgb_mode ? MODEL_CGB : MODEL_DMG;
+	hagemu_app_reset(hagemu_app, model);
 }
 
 #endif // __EMSCRIPTEN__

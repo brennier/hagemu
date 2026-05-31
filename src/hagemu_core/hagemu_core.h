@@ -10,7 +10,7 @@ struct HagemuGB;
 
 // setup and reset
 struct HagemuGB *hagemu_create(void);
-void hagemu_reset(struct HagemuGB *gb);
+void hagemu_reset(struct HagemuGB *gb, enum GBModel model);
 void hagemu_destory(struct HagemuGB* gb);
 
 // Running the core

@@ -119,19 +119,23 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 	SDL_Quit();
 }
 
+void hagemu_app_reset(struct HagemuApp *app, enum GBModel model) {
+	hagemu_reset(app->gb, model);
+	app->smooth_sample_rate_adjust = 1.0;
+	app->smooth_delta_time  = 1.0 / 60.0;
+	app->old_time = SDL_GetPerformanceCounter();
+	SDL_ClearAudioStream(app->audio_stream);
+	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
+}
+
 bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	printf("Loading SRAM data from '%s'\n", filename);
 	size_t sram_size;
 	uint8_t *sram_data = hagemu_file_load(filename, &sram_size);
 	bool result = hagemu_set_sram(sram_data, sram_size);
 	if (result) {
-		hagemu_reset(app->gb);
 		app->state = HAGEMU_GAME_RUNNING;
-		app->smooth_sample_rate_adjust = 1.0;
-		app->smooth_delta_time  = 1.0 / 60.0;
-		app->old_time = SDL_GetPerformanceCounter();
-		SDL_ClearAudioStream(app->audio_stream);
-		memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
+		hagemu_app_reset(app, app->gb_model);
 	}
 	free(sram_data);
 	return true;
@@ -153,11 +157,8 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	strcpy(app->rom_filename, filename);
 
 	app->state = HAGEMU_GAME_RUNNING;
-	app->smooth_sample_rate_adjust = 1.0;
-	app->smooth_delta_time  = 1.0 / 60.0;
-	app->old_time = SDL_GetPerformanceCounter();
-	SDL_ClearAudioStream(app->audio_stream);
-	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
+	app->gb_model = model;
+	hagemu_app_reset(app, app->gb_model);
 
 	if (!hagemu_sram_available())
 		return true;
@@ -176,14 +177,9 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 }
 
 void hagemu_quit_rom(struct HagemuApp *app) {
-	hagemu_reset(app->gb);
-	free(app->rom_filename);
 	app->state = HAGEMU_NO_ROM;
-	app->smooth_sample_rate_adjust = 1.0;
-	app->smooth_delta_time = 1.0 / 60.0;
-	app->old_time = SDL_GetPerformanceCounter();
-	SDL_ClearAudioStream(app->audio_stream);
-	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
+	free(app->rom_filename);
+	hagemu_app_reset(app, app->gb_model);
 }
 
 void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool is_pressed) {

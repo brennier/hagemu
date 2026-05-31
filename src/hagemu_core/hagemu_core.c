@@ -21,15 +21,15 @@ struct HagemuGB* hagemu_create(void) {
 	return gb;
 }
 
-void hagemu_reset(struct HagemuGB* gb) {
+void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 	cpu_reset(gb->cpu);
 	mmu_reset(gb->cpu);
 	ppu_reset();
 	apu_reset();
 	interrupt_reset();
 	dma_reset();
-	mmu_set_model(gb->model);
-	ppu_set_model(gb->model);
+	mmu_set_model(model);
+	ppu_set_model(model);
 }
 
 void hagemu_destory(struct HagemuGB* gb) {
@@ -44,7 +44,7 @@ unsigned hagemu_next_instruction(struct HagemuGB* gb) {
 void hagemu_set_rom(struct HagemuGB *gb, enum GBModel model, const uint8_t *data, size_t size) {
 	gb->model = model;
 	cart_set_rom(data, size);
-	hagemu_reset(gb);
+	hagemu_reset(gb, model);
 }
 
 void hagemu_run_frame(struct HagemuGB *gb) {

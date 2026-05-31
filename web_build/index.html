@@ -241,6 +241,7 @@
       }
 
       function quitROM() {
+          Module._web_save_sram_file();
           var overlay = document.getElementById('overlay');
           overlay.textContent = "No ROM file loaded. Click the \"Upload ROM\" button below to get started.";
           overlay.style.display = 'flex';
@@ -251,13 +252,27 @@
 
       const toggle = document.querySelector('#cgb-toggle input');
       toggle.addEventListener('change', () => {
-          is_cgb_mode = toggle.checked;
-          const bg_color    = is_cgb_mode ? "#505068" : "#306657";
-          const font_color  = is_cgb_mode ? "#adadad" : "#8abd4c";
-          const frame_color = is_cgb_mode ? "#303030" : "#20453a";
-          document.documentElement.style.setProperty('--bg-color', bg_color);
-          document.documentElement.style.setProperty('--font-color', font_color);
-          document.documentElement.style.setProperty('--frame-color', frame_color);
+          Module._web_save_sram_file();
+          const is_running = Module._web_is_rom_running();
+          let should_continue = true;
+
+          if (is_running) {
+              should_continue = confirm("Switching between Game Boy and Game Boy Color mode will reset the current game. Any unsaved progress will be lost. Continue?");
+          }
+
+          if (should_continue) {
+              is_cgb_mode = toggle.checked;
+              if (is_running)
+                  Module._web_rom_reset(is_cgb_mode);
+              const bg_color    = is_cgb_mode ? "#505068" : "#306657";
+              const font_color  = is_cgb_mode ? "#adadad" : "#8abd4c";
+              const frame_color = is_cgb_mode ? "#303030" : "#20453a";
+              document.documentElement.style.setProperty('--bg-color', bg_color);
+              document.documentElement.style.setProperty('--font-color', font_color);
+              document.documentElement.style.setProperty('--frame-color', frame_color);
+          } else {
+              toggle.checked = !toggle.checked;
+          }
       });
 
       async function downloadFileFromParam() {

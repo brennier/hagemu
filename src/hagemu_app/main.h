@@ -16,6 +16,7 @@ enum AppState {
 
 struct HagemuApp {
 	struct HagemuGB *gb;
+	enum GBModel gb_model;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	SDL_Texture *screen_texture;
@@ -32,6 +33,7 @@ struct HagemuApp {
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char *filename, enum GBModel model);
 bool hagemu_app_load_sram(struct HagemuApp *app, const char *filename);
+void hagemu_app_reset(struct HagemuApp *app, enum GBModel model);
 void hagemu_save_sram_file(struct HagemuApp *app);
 void hagemu_quit_rom(struct HagemuApp *app);
 
