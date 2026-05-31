@@ -220,14 +220,23 @@ RGB555 read_pram(uint8_t palette_index, uint8_t color_index, bool is_sprite) {
 }
 
 // In DMG mode, palette_reg is used. In CGB mode, palette_index is used.
-RGB555 apply_color(uint8_t palette_reg, uint8_t palette_index, uint8_t color_index, bool is_sprite) {
-	uint8_t shade = (palette_reg >> (2 * color_index)) & 0x03;
+RGB555 apply_color(bool dmg_palette_index, uint8_t palette_index, uint8_t color_index, bool is_sprite) {
+	if (ppu.model == MODEL_CGB)
+		return read_pram(palette_index, color_index, is_sprite);
+
+	uint8_t dmg_palette_reg;
+	if (!is_sprite)
+		dmg_palette_reg = ppu.bg_palette;
+	else if (dmg_palette_index == 0)
+		dmg_palette_reg = ppu.obj0_palette;
+	else
+		dmg_palette_reg = ppu.obj1_palette;
+
+	uint8_t shade = (dmg_palette_reg >> (2 * color_index)) & 0x03;
 
 	switch (ppu.model) {
-	case MODEL_CGB:
-		return read_pram(palette_index, color_index, is_sprite);
 	case MODEL_CGB_BACKCOMPAT:
-		return read_pram(palette_index, shade, is_sprite);
+		return read_pram(dmg_palette_index, shade, is_sprite);
 	case MODEL_DMG:
 		return dmg_palette_colors[shade];
 	case MODEL_MGB:
@@ -347,7 +356,7 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) 
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
-			scanline[screen_col] = apply_color(ppu.bg_palette, palette_index, color_index, false);
+			scanline[screen_col] = apply_color(0, palette_index, color_index, false);
 			bg_priority[screen_col] = priority;
 			bg_nonzero[screen_col]  = (color_index != 0);
 			screen_col++;
@@ -409,7 +418,7 @@ void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
-			scanline[screen_col] = apply_color(ppu.bg_palette, palette_index, color_index, false);
+			scanline[screen_col] = apply_color(0, palette_index, color_index, false);
 			bg_priority[screen_col] = priority;
 			bg_nonzero[screen_col] = (color_index != 0);
 			screen_col++;
@@ -485,7 +494,6 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const b
 	uint8_t color_indices[8];
 	struct Tile tile = tile_get(tile_index, true, bank_select);
 	tile_decode_row(tile, sprite_row, color_indices);
-	uint8_t sprite_palette = palette_select ? ppu.obj1_palette : ppu.obj0_palette;
 	for (int i = 0; i < 8; i++) {
 		int col = (int)sprite.x_position + i - 8;
 		uint8_t sprite_col = x_flip ? 7 - i : i;
@@ -497,7 +505,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const b
 		else if (color_indices[sprite_col] == 0)
 			continue;
 
-		scanline[col] = apply_color(sprite_palette, palette_index, color_indices[sprite_col], true);
+		scanline[col] = apply_color(palette_select, palette_index, color_indices[sprite_col], true);
 	}
 }
 
