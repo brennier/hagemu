@@ -152,9 +152,6 @@
           margin: 0;
           padding: 0;
           background-color: var(--frame-color);
-          image-rendering: pixelated;
-          image-rendering: -moz-crisp-edges;
-          image-rendering: crisp-edges;
       }
 
       #logo {
@@ -236,8 +233,8 @@
 
       #dpad {
           margin: auto;
-          padding: calc(var(--gb-scale) * 10px);
-          gap: calc(var(--gb-scale) * 4px);
+          padding: calc(var(--gb-scale) * 8px);
+          gap: calc(var(--gb-scale) * 3px);
           display: grid;
           grid-template-areas:
             ".    up    ."
@@ -249,8 +246,8 @@
 
       #face-buttons {
           margin: auto;
-          padding: calc(var(--gb-scale) * 10px);
-          gap: calc(var(--gb-scale) * 4px);
+          padding: calc(var(--gb-scale) * 8px);
+          gap: calc(var(--gb-scale) * 3px);
           display: grid;
           grid-template-areas:
             ". a"
@@ -259,8 +256,8 @@
       }
 
       #special-buttons {
-          padding: calc(var(--gb-scale) * 10px);
-          gap: calc(var(--gb-scale) * 4px);
+          padding: calc(var(--gb-scale) * 8px);
+          gap: calc(var(--gb-scale) * 3px);
           display: grid;
           grid-template-areas:
             "select gbstart";
@@ -353,10 +350,10 @@
             <input type="file" accept=".gb,.gbc" id="romFileInput" style="display:none" />
           </label>
           <label style="cursor:pointer;">
-            <button onclick="triggerSaveUpload()">Upload Save File</button>
+            <button onclick="triggerSaveUpload()">Upload Save</button>
             <input type="file" accept=".sav,.sram" id="saveFileInput" style="display:none" />
           </label>
-          <button onclick="downloadSRAM()">Download Save File</button>
+          <button onclick="downloadSRAM()">Download Save</button>
           <button id="terminal-button">Show Terminal</button>
           <button onclick="resetROM()">Reset ROM</button>
         </div>
@@ -645,10 +642,12 @@
       }
 
       function resizeCanvas() {
-          const scale = Math.floor(Math.min(
+          let scale = Math.min(
               window.innerWidth / 360, // 30px for the border
               (0.9 * window.innerHeight - 50) / 144 // 50px for the border + padding
-          ));
+          );
+
+          scale = Math.max(scale, 2.0);
           canvas.style.width  = (160 * scale) + 'px';
           canvas.style.height = (144 * scale) + 'px';
 

@@ -13,7 +13,7 @@
 #endif
 
 #define WINDOW_TITLE "Hagemu GameBoy Emulator"
-#define SCALE_FACTOR 6
+#define SCALE_FACTOR 4
 #define WINDOW_WIDTH 160 * SCALE_FACTOR
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
