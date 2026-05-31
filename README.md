@@ -126,12 +126,11 @@ The following games have been tested:
   - [x] Figure out sprite/background priority (it's a bit messy)
   - [x] Sort sprites by OAM position instead of X position
   - [x] Pass cgb-acid test rom
-  - [ ] Verify double speed mode
-  - [ ] Verify general-purpose VRAM DMA
+  - [x] Make my own custom bootrom
   - [ ] Implement HBLANK VRAM DMA
   - [ ] Check the registers FF4C and FF6C after the boot sequence
-  - [ ] Fix the problem where some games run too fast in double speed mode
-  - [ ] Make my own custom bootrom
+  - [ ] Verify double speed mode
+  - [ ] Verify general-purpose VRAM DMA
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
   - [x] Add support for gamepads
@@ -158,13 +157,10 @@ The following games have been tested:
   - [x] Clear all APU registers when disabled
   - [x] Make the audio registers readable
   - [x] Pass Blargg's interrupt_time test
-  - [ ] Make the color palette settable instead of internal to the ppu
-  - [ ] Add support for the VIN sound channel
-  - [ ] Rewrite PPU to be more modular
-  - [ ] Add option to blend frames
   - [ ] Add support for the serial data port
   - [ ] Add support for the infrared communications port
   - [ ] Pass Blargg's APU test
+  - [ ] Pass Blargg's interrupt_time test
   - [ ] Run the Mooneye Test Suite
   - [ ] Use some profiling tools to find critical code blocks
   - [ ] Compile program using -O3 and -flto and -ffast-math
@@ -191,14 +187,14 @@ The following games have been tested:
   - [ ] Put the loading bar where the canvas is
 - [ ] Add a UI
   - [x] Drag and drop rom files onto the window
-  - [ ] Select file using a file dialog window
+  - [x] Select file using a file dialog window
   - [ ] Add custom shaders (mostly for a grid overlay)
   - [ ] Settings menu
     - [ ] Button mapping menu
     - [ ] Audio menu
     - [ ] Color palette menu
     - [ ] Save state menu
-- [ ] Future Refactoring Ideas
+- [ ] Future Ideas
   - [x] Separate the core from the interface
   - [x] Switch from Raylib to SDL3
   - [x] Change audio from uint16_t to float
@@ -210,7 +206,8 @@ The following games have been tested:
   - [x] Add dynamic audio resampling
   - [x] Using box averaging to downsample the audio
   - [x] Add a high-pass filter and a low-pass filter to the APU
-  - [ ] Organize all state into a gameboy struct
+  - [ ] Organize all state into a single gameboy struct
+  - [ ] Separate the parts of each audio channel (length, sweep, etc.)
   - [ ] Support save/load states
   - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
   - [ ] Rewrite the PPU using a pixel pusher renderer
@@ -227,5 +224,4 @@ The following games have been tested:
   - Sound info: https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
   - General info: https://github.com/Ashiepaws/GBEDG/tree/master 
   - Timing of the LYC STAT: https://gbdev.io/guides/lyc_timing.html
-  - GBC PPU tests: https://github.com/alloncm/MagenTests
 </details>
