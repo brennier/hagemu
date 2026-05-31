@@ -18,11 +18,16 @@
       }
 
       body {
+          display: flex;
 	  font-family: arial;
 	  margin: 0;
-	  padding: none;
+	  padding: 0;
 	  background-color: var(--bg-color);
 	  color: var(--font-color);
+          min-height: 100vh;
+          justify-content: center;
+          align-items: center;
+          overflow: hidden;
       }
 
       a {
@@ -37,21 +42,58 @@
       button {
           color: inherit;
           background: var(--bg-color);
-          border: 1px;
+          border-width: 1.5px;
+          border-color: var(--frame-color);
           border-radius: 5px;
           padding: 7px;
           font: inherit;
           cursor: pointer;
           outline: inherit;
           margin: 2px;
+          border-style: solid;
           box-shadow: 4px 4px 10px rgba(0,0,0,0.3);
       }
 
+      #left-side {
+          display: flex;
+          justify-content: space-between;
+          flex-direction: column;
+          align-items: center;
+          align-self: stretch;
+          flex: 1;
+      }
+
+      #right-side {
+          display: flex;
+          justify-content: space-between;
+          flex-direction: column;
+          align-items: center;
+          align-self: stretch;
+          flex: 1;
+      }
+
+      #left-side  { justify-content: flex-start; }
+      #right-side { justify-content: flex-end; }
+
       #cgb-toggle {
           display: flex;
+          justify-content: space-between;
           align-items: center;
-          padding: calc(var(--gb-scale) * 5px);
           font-size: calc(var(--gb-scale) * 6px);
+          padding-left: calc(var(--gb-scale) * 2px);
+          padding-right: calc(var(--gb-scale) * 2px);
+          margin: calc(var(--gb-scale) * 10px);
+          border-radius: 5px;
+      }
+
+      #toggle-label-left {
+          text-align: right;
+          width: calc(var(--gb-scale) * 15px);
+      }
+
+      #toggle-label-right {
+          text-align: left;
+          width: calc(var(--gb-scale) * 15px);
       }
 
       .toggle {
@@ -59,8 +101,7 @@
           display: inline-block;
           width:  calc(var(--gb-scale) * 15px);
           height: calc(var(--gb-scale) * 8.5px);
-          margin-left: calc(var(--gb-scale) * 2px);
-          margin-right: calc(var(--gb-scale) * 2px);
+          margin: calc(var(--gb-scale) * 2px);
       }
 
       .toggle input {
@@ -101,16 +142,6 @@
 
       button:hover {
           filter: brightness(0.85);
-      }
-
-      #content {
-          position: absolute;
-          background-color: var(--frame-color);
-          border: 15px var(--frame-color) solid;
-          border-radius: 15px;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
       }
 
       <!-- /* the canvas *must not* have any border or padding, or mouse coords will be wrong */ -->
@@ -159,7 +190,9 @@
           display: none;
           border-radius: 5px;
           box-sizing: border-box;
-          width: 100%;
+          width: calc(var(--gb-scale) * 160px);
+          height: calc(var(--gb-scale) * 144px);
+          font-size: calc(var(--gb-scale) * 6px);
           aspect-ratio: 160 / 144;
           border: 0;
           padding: 5px;
@@ -186,47 +219,195 @@
           pointer-events: none;
           line-height: 2;
       }
+
+      #content {
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+          min-width: 100vw;
+      }
+
+      #frame {
+          background-color: var(--frame-color);
+          border: 15px var(--frame-color) solid;
+          border-radius: 15px;
+      }
+
+      #dpad {
+          margin: auto;
+          padding: calc(var(--gb-scale) * 10px);
+          gap: calc(var(--gb-scale) * 4px);
+          display: grid;
+          grid-template-areas:
+            ".    up    ."
+            "left .     right"
+            ".    down  .";
+          grid-template-columns: 1fr 1fr 1fr;
+          grid-template-rows: 1fr 1fr 1fr;
+      }
+
+      #face-buttons {
+          margin: auto;
+          padding: calc(var(--gb-scale) * 10px);
+          gap: calc(var(--gb-scale) * 4px);
+          display: grid;
+          grid-template-areas:
+            ". a"
+            "b .";
+          grid-template-columns: 1fr 1fr;
+      }
+
+      #special-buttons {
+          padding: calc(var(--gb-scale) * 10px);
+          gap: calc(var(--gb-scale) * 4px);
+          display: grid;
+          grid-template-areas:
+            "select gbstart";
+          grid-template-columns: 1fr 1fr;
+      }
+
+      .face-btn {
+          height: calc(var(--gb-scale) * 24px);
+          width: calc(var(--gb-scale) * 24px);
+          font-weight: bold;
+      }
+
+      .dpad-btn {
+          height: calc(var(--gb-scale) * 24px);
+          width: calc(var(--gb-scale) * 24px);
+      }
+
+      .special-btn {
+          height: calc(var(--gb-scale) * 24px);
+          width: calc(var(--gb-scale) * 24px);
+          font-weight: bold;
+      }
+
+      #btn-up    { grid-area: up; }
+      #btn-left  { grid-area: left; }
+      #btn-right { grid-area: right; }
+      #btn-down  { grid-area: down; }
+
+      #btn-a { grid-area: a; }
+      #btn-b { grid-area: b; }
+      #btn-start  { grid-area: gbstart; }
+      #btn-select { grid-area: select; }
+
+      .arrow {
+          border: solid var(--font-color);
+          border-width: 0 3px 3px 0;
+          display: inline-block;
+          padding: 3px;
+      }
+
+      .arrow-right { transform: rotate(-45deg); }
+      .arrow-left { transform: rotate(135deg); }
+      .arrow-up { transform: rotate(-135deg); }
+      .arrow-down { transform: rotate(45deg); }
     </style>
   </head>
   <body>
-    <div id="cgb-toggle">
-      <span class="toggle-label left">GB</span>
-      <label class="toggle">
-        <input type="checkbox">
-        <span class="slider"></span>
-      </label>
-      <span class="toggle-label right">GBC</span>
-    </div>
-
-    <div id='spinner'></div>
-    <div id="status"></div>
-    <progress value="0" max="100" id="progress" hidden=1></progress>
     <div id="content">
-      <textarea readonly id="terminal-output"></textarea>
-      <div style="position: relative; display: inline-block;">
-        <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-        <div id="overlay">
+
+      <div id="left-side">
+        <div id='spinner'></div>
+        <div id="status"></div>
+        <progress value="0" max="100" id="progress" hidden=1></progress>
+        <div id="dpad">
+          <button class="gpad-btn dpad-btn" id="btn-up">
+            <i class="arrow arrow-up"></i>
+          </button>
+          <button class="gpad-btn dpad-btn" id="btn-left">
+            <i class="arrow arrow-left"></i>
+          </button>
+          <button class="gpad-btn dpad-btn" id="btn-right">
+            <i class="arrow arrow-right"></i>
+          </button>
+          <button class="gpad-btn dpad-btn" id="btn-down">
+            <i class="arrow arrow-down"></i>
+          </button>
+        </div>
+        <div id="cgb-toggle">
+          <span class="toggle-label" id="toggle-label-left">GB</span>
+          <label class="toggle">
+            <input type="checkbox">
+            <span class="slider"></span>
+          </label>
+          <span class="toggle-label" id="toggle-label-right">GBC</span>
         </div>
       </div>
-      <div id="logo">
-        <a href="https://github.com/brennier/hagemu">Hagemu GameBoy Emulator</a>
+
+      <div id="frame">
+        <textarea readonly id="terminal-output"></textarea>
+        <div style="position: relative; display: inline-block;">
+          <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+          <div id="overlay"> </div>
+        </div>
+        <div id="logo">
+          <a href="https://github.com/brennier/hagemu">Hagemu GameBoy Emulator</a>
+        </div>
+        <div id="under-logo">
+          <label style="cursor:pointer;">
+            <button onclick="triggerRomUpload()">Upload ROM</button>
+            <input type="file" accept=".gb,.gbc" id="romFileInput" style="display:none" />
+          </label>
+          <label style="cursor:pointer;">
+            <button onclick="triggerSaveUpload()">Upload Save File</button>
+            <input type="file" accept=".sav,.sram" id="saveFileInput" style="display:none" />
+          </label>
+          <button onclick="downloadSRAM()">Download Save File</button>
+          <button id="terminal-button">Show Terminal</button>
+          <button onclick="resetROM()">Reset ROM</button>
+        </div>
       </div>
-      <div id="under-logo">
-        <label style="cursor:pointer;">
-          <button onclick="triggerRomUpload()">Upload ROM</button>
-          <input type="file" accept=".gb,.gbc" id="romFileInput" style="display:none" />
-        </label>
-        <label style="cursor:pointer;">
-          <button onclick="triggerSaveUpload()">Upload Save File</button>
-          <input type="file" accept=".sav,.sram" id="saveFileInput" style="display:none" />
-        </label>
-        <button onclick="downloadSRAM()">Download Save File</button>
-	<button id="terminal-button">Show Terminal</button>
-        <button onclick="resetROM()">Reset ROM</button>
+
+      <div id="right-side">
+        <div id="face-buttons">
+          <button class="gpad-btn face-btn" id="btn-a">A</button>
+          <button class="gpad-btn face-btn" id="btn-b">B</button>
+        </div>
+        <div id="special-buttons">
+          <button class="gpad-btn special-btn" id="btn-start">START</button>
+          <button class="gpad-btn special-btn" id="btn-select">SELECT</button>
+        </div>
       </div>
+
     </div>
 
     <script type='text/javascript'>
+      // Map button IDs to your WASM function arguments
+      const buttonMap = {
+          'btn-right':  0,
+          'btn-left':   1,
+          'btn-up':     2,
+          'btn-down':   3,
+          'btn-a':      4,
+          'btn-b':      5,
+          'btn-start':  6,
+          'btn-select': 7,
+      };
+
+      function bindButton(id, buttonIndex) {
+          const el = document.getElementById(id);
+
+          // Touch (mobile)
+          el.addEventListener('touchstart', (e) => {
+              e.preventDefault();
+              Module._web_set_button(buttonIndex);
+          }, { passive: false }); // passive:false is required to allow preventDefault
+
+          el.addEventListener('touchend', (e) => {
+              e.preventDefault();
+              Module._web_unset_button(buttonIndex);
+          }, { passive: false });
+
+          // Mouse (desktop fallback)
+          el.addEventListener('mousedown', () => Module._web_set_button(buttonIndex));
+          el.addEventListener('mouseup',   () => Module._web_unset_button(buttonIndex));
+          el.addEventListener('mouseleave',() => Module._web_unset_button(buttonIndex)); // in case cursor leaves while held
+      }
+
       function waitForGesture() {
           return new Promise(resolve => {
               const events = ['click', 'pointerdown'];
@@ -465,7 +646,7 @@
 
       function resizeCanvas() {
           const scale = Math.floor(Math.min(
-              (window.innerWidth - 30)  / 160, // 30px for the border
+              window.innerWidth / 360, // 30px for the border
               (0.9 * window.innerHeight - 50) / 144 // 50px for the border + padding
           ));
           canvas.style.width  = (160 * scale) + 'px';
@@ -509,6 +690,10 @@
               downloadFileFromParam().catch(err => {
                   console.error("downloadFileFromParam failed:", err);
               });
+              // Bind all buttons once WASM is ready
+              for (const [id, index] of Object.entries(buttonMap)) {
+                  bindButton(id, index);
+              }
           },
           print(...args) {
               console.log(...args);

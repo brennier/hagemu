@@ -79,4 +79,15 @@ void web_rom_reset(bool is_cgb_mode) {
 	hagemu_app_reset(hagemu_app, model);
 }
 
+EMSCRIPTEN_KEEPALIVE
+void web_set_button(int button_id) {
+	hagemu_set_button(hagemu_app->gb, button_id, true);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void web_unset_button(int button_id) {
+	hagemu_set_button(hagemu_app->gb, button_id, false);
+}
+
+
 #endif // __EMSCRIPTEN__
