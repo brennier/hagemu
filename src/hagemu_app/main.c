@@ -124,8 +124,6 @@ void hagemu_app_reset(struct HagemuApp *app, enum GBModel model) {
 	app->smooth_sample_rate_adjust = 1.0;
 	app->smooth_delta_time  = 1.0 / 60.0;
 	app->old_time = SDL_GetPerformanceCounter();
-	SDL_ClearAudioStream(app->audio_stream);
-	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
 }
 
 bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
