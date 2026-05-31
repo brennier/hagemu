@@ -11,6 +11,7 @@
     <link rel="shortcut icon" href="./images/favicon.ico" />
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=block" rel="stylesheet">
     <style>
+
       :root {
           --bg-color:   #306657;
           --font-color: #8abd4c;
@@ -265,6 +266,7 @@
       }
 
       .face-btn {
+          font-size: calc(var(--gb-scale) * 8px);
           height: calc(var(--gb-scale) * 24px);
           width: calc(var(--gb-scale) * 24px);
           font-weight: bold;
@@ -276,6 +278,7 @@
       }
 
       .special-btn {
+          font-size: calc(var(--gb-scale) * 4px);
           height: calc(var(--gb-scale) * 24px);
           width: calc(var(--gb-scale) * 24px);
           font-weight: bold;
@@ -293,9 +296,9 @@
 
       .arrow {
           border: solid var(--font-color);
-          border-width: 0 3px 3px 0;
+          border-width: 0 5px 5px 0;
           display: inline-block;
-          padding: 3px;
+          padding: calc(var(--gb-scale) * 2px);
       }
 
       .arrow-right { transform: rotate(-45deg); }
@@ -642,12 +645,30 @@
       }
 
       function resizeCanvas() {
-          let scale = Math.min(
-              window.innerWidth / 360, // 30px for the border
-              (0.9 * window.innerHeight - 50) / 144 // 50px for the border + padding
-          );
+          var content = document.getElementById('content');
+          var frame = document.getElementById('frame');
+          let scale = 0;
+          if (window.innerWidth * 1.2 > window.innerHeight) {
+              content.style.flexWrap = 'nowrap';
+              frame.style.order = '';
+              frame.style.margin = '';
+              scale = Math.min(
+                  window.innerWidth / 360, // 30px for the border
+                  (0.9 * window.innerHeight - 50) / 144 // 50px for the border + padding
+              );
+              content.style.height = '';
+          } else {
+              content.style.flexWrap = 'wrap';
+              frame.style.order = '-1';
+              frame.style.margin = '0 auto';
+              content.style.height = '100vh';
+              scale = Math.min(
+                  (window.innerWidth - 50) / 160, // 30px for the border
+                  (0.50 * window.innerHeight - 50) / 144 // 50px for the border + padding
+              );
+          }
 
-          scale = Math.max(scale, 2.0);
+          // scale = Math.max(scale, 2.0);
           canvas.style.width  = (160 * scale) + 'px';
           canvas.style.height = (144 * scale) + 'px';
 
