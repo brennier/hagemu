@@ -19,14 +19,14 @@ struct HagemuJoypad {
 void joypad_set_button(HagemuButton button, bool is_down) {
 	bool *target = NULL;
 	switch (button) {
-	case HAGEMU_BUTTON_RIGHT:  target = &joypad.right; break;
-	case HAGEMU_BUTTON_LEFT:   target = &joypad.left; break;
-	case HAGEMU_BUTTON_UP:     target = &joypad.up; break;
-	case HAGEMU_BUTTON_DOWN:   target = &joypad.down; break;
-	case HAGEMU_BUTTON_A:      target = &joypad.a; break;
-	case HAGEMU_BUTTON_B:      target = &joypad.b; break;
-	case HAGEMU_BUTTON_SELECT: target = &joypad.select; break;
-	case HAGEMU_BUTTON_START:  target = &joypad.start; break;
+	case JOYPAD_BUTTON_RIGHT:  target = &joypad.right; break;
+	case JOYPAD_BUTTON_LEFT:   target = &joypad.left; break;
+	case JOYPAD_BUTTON_UP:     target = &joypad.up; break;
+	case JOYPAD_BUTTON_DOWN:   target = &joypad.down; break;
+	case JOYPAD_BUTTON_A:      target = &joypad.a; break;
+	case JOYPAD_BUTTON_B:      target = &joypad.b; break;
+	case JOYPAD_BUTTON_SELECT: target = &joypad.select; break;
+	case JOYPAD_BUTTON_START:  target = &joypad.start; break;
 	}
 
 	if (is_down && *target == false)

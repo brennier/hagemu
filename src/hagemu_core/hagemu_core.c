@@ -54,11 +54,6 @@ void hagemu_run_frame(struct HagemuGB *gb) {
 	}
 }
 
-void hagemu_set_button(struct HagemuGB *gb, HagemuButton button, bool is_down) {
-	joypad_set_button(button, is_down);
-	if (is_down) cpu_resume_if_stopped(gb->cpu);
-}
-
 const uint32_t *hagemu_get_framebuffer(void) {
 	return ppu_get_frame();
 }
@@ -90,4 +85,34 @@ unsigned hagemu_get_frame_count(void) {
 
 void hagemu_set_audio_sample_rate(unsigned new_sample_rate) {
 	apu_set_audio_sample_rate(new_sample_rate);
+}
+
+static inline void hagemu_set_button(struct HagemuGB *gb, HagemuButton button, bool is_down) {
+	joypad_set_button(button, is_down);
+	if (is_down) cpu_resume_if_stopped(gb->cpu);
+}
+
+void hagemu_set_button_a(struct HagemuGB *gb, bool is_down) {
+	hagemu_set_button(gb, JOYPAD_BUTTON_A, is_down);
+}
+void hagemu_set_button_b(struct HagemuGB *gb, bool is_down) {
+	hagemu_set_button(gb, JOYPAD_BUTTON_B, is_down);
+}
+void hagemu_set_button_up(struct HagemuGB *gb, bool is_down) {
+	hagemu_set_button(gb, JOYPAD_BUTTON_UP, is_down);
+}
+void hagemu_set_button_down(struct HagemuGB *gb, bool is_down) {
+	hagemu_set_button(gb, JOYPAD_BUTTON_DOWN, is_down);
+}
+void hagemu_set_button_left(struct HagemuGB *gb, bool is_down) {
+	hagemu_set_button(gb, JOYPAD_BUTTON_LEFT, is_down);
+}
+void hagemu_set_button_right(struct HagemuGB *gb, bool is_down) {
+	hagemu_set_button(gb, JOYPAD_BUTTON_RIGHT, is_down);
+}
+void hagemu_set_button_start(struct HagemuGB *gb, bool is_down) {
+	hagemu_set_button(gb, JOYPAD_BUTTON_START, is_down);
+}
+void hagemu_set_button_select(struct HagemuGB *gb, bool is_down) {
+	hagemu_set_button(gb, JOYPAD_BUTTON_SELECT, is_down);
 }

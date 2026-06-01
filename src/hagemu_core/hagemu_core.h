@@ -37,6 +37,13 @@ unsigned hagemu_get_frame_count(void);
 const uint32_t* hagemu_get_framebuffer(void); // Pixel format is RGBA8888
 
 // Joystick controls
-void hagemu_set_button(struct HagemuGB *gb, HagemuButton button, bool is_down);
+void hagemu_set_button_a(struct HagemuGB *gb, bool is_down);
+void hagemu_set_button_b(struct HagemuGB *gb, bool is_down);
+void hagemu_set_button_up(struct HagemuGB *gb, bool is_down);
+void hagemu_set_button_down(struct HagemuGB *gb, bool is_down);
+void hagemu_set_button_left(struct HagemuGB *gb, bool is_down);
+void hagemu_set_button_right(struct HagemuGB *gb, bool is_down);
+void hagemu_set_button_start(struct HagemuGB *gb, bool is_down);
+void hagemu_set_button_select(struct HagemuGB *gb, bool is_down);
 
 #endif

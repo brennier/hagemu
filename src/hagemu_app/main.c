@@ -181,48 +181,42 @@ void hagemu_quit_rom(struct HagemuApp *app) {
 }
 
 void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool is_pressed) {
-	HagemuButton button;
 	switch (scancode) {
 
-	case SDL_SCANCODE_K: button = HAGEMU_BUTTON_A; break;
-	case SDL_SCANCODE_J: button = HAGEMU_BUTTON_B; break;
-	case SDL_SCANCODE_X: button = HAGEMU_BUTTON_START;  break;
-	case SDL_SCANCODE_Z: button = HAGEMU_BUTTON_SELECT; break;
+	case SDL_SCANCODE_K: hagemu_set_button_a(app->gb, is_pressed); break;
+	case SDL_SCANCODE_J: hagemu_set_button_b(app->gb, is_pressed); break;
+	case SDL_SCANCODE_X: hagemu_set_button_start(app->gb, is_pressed);  break;
+	case SDL_SCANCODE_Z: hagemu_set_button_select(app->gb, is_pressed); break;
 
-	case SDL_SCANCODE_W: button = HAGEMU_BUTTON_UP;    break;
-	case SDL_SCANCODE_A: button = HAGEMU_BUTTON_LEFT;  break;
-	case SDL_SCANCODE_S: button = HAGEMU_BUTTON_DOWN;  break;
-	case SDL_SCANCODE_D: button = HAGEMU_BUTTON_RIGHT; break;
+	case SDL_SCANCODE_W: hagemu_set_button_up(app->gb, is_pressed);    break;
+	case SDL_SCANCODE_A: hagemu_set_button_left(app->gb, is_pressed);  break;
+	case SDL_SCANCODE_S: hagemu_set_button_down(app->gb, is_pressed);  break;
+	case SDL_SCANCODE_D: hagemu_set_button_right(app->gb, is_pressed); break;
 
-	case SDL_SCANCODE_UP:    button = HAGEMU_BUTTON_UP;    break;
-	case SDL_SCANCODE_LEFT:  button = HAGEMU_BUTTON_LEFT;  break;
-	case SDL_SCANCODE_RIGHT: button = HAGEMU_BUTTON_RIGHT; break;
-	case SDL_SCANCODE_DOWN:  button = HAGEMU_BUTTON_DOWN;  break;
+	case SDL_SCANCODE_UP:    hagemu_set_button_up(app->gb, is_pressed);    break;
+	case SDL_SCANCODE_LEFT:  hagemu_set_button_left(app->gb, is_pressed);  break;
+	case SDL_SCANCODE_DOWN:  hagemu_set_button_down(app->gb, is_pressed);  break;
+	case SDL_SCANCODE_RIGHT: hagemu_set_button_right(app->gb, is_pressed); break;
 
 	default: return;
 	}
-
-	hagemu_set_button(app->gb, button, is_pressed);
 }
 
 void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button, bool is_pressed) {
-	HagemuButton button;
 	switch (gpad_button) {
 
-	case SDL_GAMEPAD_BUTTON_EAST:  button = HAGEMU_BUTTON_A; break;
-	case SDL_GAMEPAD_BUTTON_SOUTH: button = HAGEMU_BUTTON_B; break;
-	case SDL_GAMEPAD_BUTTON_START: button = HAGEMU_BUTTON_START;  break;
-	case SDL_GAMEPAD_BUTTON_BACK:  button = HAGEMU_BUTTON_SELECT; break;
+	case SDL_GAMEPAD_BUTTON_EAST:  hagemu_set_button_a(app->gb, is_pressed); break;
+	case SDL_GAMEPAD_BUTTON_SOUTH: hagemu_set_button_b(app->gb, is_pressed); break;
+	case SDL_GAMEPAD_BUTTON_START: hagemu_set_button_start(app->gb, is_pressed); break;
+	case SDL_GAMEPAD_BUTTON_BACK:  hagemu_set_button_select(app->gb, is_pressed); break;
 
-	case SDL_GAMEPAD_BUTTON_DPAD_UP:    button = HAGEMU_BUTTON_UP;    break;
-	case SDL_GAMEPAD_BUTTON_DPAD_LEFT:  button = HAGEMU_BUTTON_LEFT;  break;
-	case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: button = HAGEMU_BUTTON_RIGHT; break;
-	case SDL_GAMEPAD_BUTTON_DPAD_DOWN:  button = HAGEMU_BUTTON_DOWN;  break;
+	case SDL_GAMEPAD_BUTTON_DPAD_UP:    hagemu_set_button_up(app->gb, is_pressed); break;
+	case SDL_GAMEPAD_BUTTON_DPAD_LEFT:  hagemu_set_button_left(app->gb, is_pressed); break;
+	case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: hagemu_set_button_right(app->gb, is_pressed); break;
+	case SDL_GAMEPAD_BUTTON_DPAD_DOWN:  hagemu_set_button_down(app->gb, is_pressed); break;
 
 	default: return;
 	}
-
-	hagemu_set_button(app->gb, button, is_pressed);
 }
 
 void hagemu_handle_drop_event(struct HagemuApp *app, const char *filename) {

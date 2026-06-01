@@ -8,15 +8,4 @@ enum GBModel {
 	MODEL_MGB, // Gameboy pocket
 };
 
-typedef enum HagemuButton {
-	HAGEMU_BUTTON_RIGHT,
-	HAGEMU_BUTTON_LEFT,
-	HAGEMU_BUTTON_UP,
-	HAGEMU_BUTTON_DOWN,
-	HAGEMU_BUTTON_A,
-	HAGEMU_BUTTON_B,
-	HAGEMU_BUTTON_START,
-	HAGEMU_BUTTON_SELECT,
-} HagemuButton;
-
 #endif
