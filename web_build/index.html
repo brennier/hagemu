@@ -648,15 +648,22 @@
           var content = document.getElementById('content');
           var frame = document.getElementById('frame');
           let scale = 0;
-          if (window.innerWidth * 1.2 > window.innerHeight) {
+
+          const el = document.createElement('div');
+          el.style.cssText = 'position:absolute;visibility:hidden;height:100svh;width:100svw';
+          document.body.appendChild(el);
+          const small_viewport = el.getBoundingClientRect();
+          document.body.removeChild(el);
+
+          if (small_viewport.width * 1.25 > small_viewport.height) {
               content.style.flexWrap = 'nowrap';
               content.style.height = '';
               content.style.width = '100svw';
               frame.style.order = '';
               frame.style.margin = '';
               scale = Math.min(
-                  window.innerWidth / 360, // 30px for the border
-                  (0.9 * window.innerHeight - 50) / 144 // 50px for the border + padding
+                  small_viewport.width / 360, // 30px for the border
+                  (0.9 * small_viewport.height - 50) / 144 // 50px for the border + padding
               );
               content.style.height = '';
           } else {
@@ -666,8 +673,8 @@
               frame.style.order = '-1';
               frame.style.margin = '0 auto';
               scale = Math.min(
-                  (window.innerWidth - 50) / 160, // 30px for the border
-                  (0.50 * window.innerHeight - 50) / 144 // 50px for the border + padding
+                  (small_viewport.width - 50) / 160, // 30px for the border
+                  (0.50 * small_viewport.height - 50) / 144 // 50px for the border + padding
               );
           }
 
