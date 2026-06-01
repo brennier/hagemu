@@ -149,6 +149,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	}
 
 	hagemu_set_rom(app->gb, model, rom_data, rom_size);
+	free(rom_data);
 	if (app->rom_filename)
 		free(app->rom_filename);
 	app->rom_filename = malloc(strlen(filename) + 1);
