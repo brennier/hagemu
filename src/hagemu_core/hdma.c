@@ -47,7 +47,7 @@ void hdma_hblank_start(void) {
 	}
 }
 
-void hdma_write_ff55(uint8_t value) {
+static void hdma_write_ff55(uint8_t value) {
 	bool old_mode = hdma.hblank_mode;
 	hdma.hblank_mode      = value & 0x80;
 	hdma.remaining_length = value & 0x7F;

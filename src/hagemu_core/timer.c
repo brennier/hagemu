@@ -19,7 +19,7 @@ struct HagemuTimer {
 	bool     double_speed_mode;
 } timer = { 0 };
 
-void set_clock_select(void) {
+static void set_clock_select(void) {
 	uint8_t select = timer.timer_control_raw & 0x03;
 	timer.clock_select = 1;
 	switch (select) {
@@ -32,7 +32,7 @@ void set_clock_select(void) {
 		timer.clock_select <<= 1;
 }
 
-void maybe_increment(uint16_t old_time, uint16_t new_time) {
+static void maybe_increment(uint16_t old_time, uint16_t new_time) {
 	// Return early if timer control is off
 	if (!timer.enabled)
 		return;

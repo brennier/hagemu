@@ -33,7 +33,7 @@ struct HagemuCPU {
 #include "ppu.h"
 #include "apu.h"
 #include "dma.h"
-void system_tick(struct HagemuCPU *cpu) {
+static void system_tick(struct HagemuCPU *cpu) {
 	if (!cpu->double_speed_mode) {
 		hdma_tick();
 		hdma_tick();
@@ -64,6 +64,10 @@ struct HagemuCPU *cpu_create(void) {
 	struct HagemuCPU *cpu = malloc(sizeof(struct HagemuCPU));
 	cpu_reset(cpu);
 	return cpu;
+}
+
+void cpu_reset(struct HagemuCPU *cpu) {
+	memset(cpu, 0, sizeof(struct HagemuCPU));
 }
 
 void cpu_resume_if_stopped(struct HagemuCPU *cpu) {
@@ -216,7 +220,6 @@ static inline uint8_t get_reg8(struct HagemuCPU *cpu, enum Reg8 reg) {
 	return value;
 }
 
-
 static inline void set_reg8(struct HagemuCPU *cpu, enum Reg8 reg, uint8_t value) {
 	switch (reg) {
 	case REG_A: cpu->a = value;   break;
@@ -274,10 +277,6 @@ static inline void set_reg16(struct HagemuCPU *cpu, enum Reg16 reg, uint16_t val
 	}
 }
 
-void cpu_reset(struct HagemuCPU *cpu) {
-	memset(cpu, 0, sizeof(struct HagemuCPU));
-}
-
 void cpu_print_state(struct HagemuCPU *cpu) {
 	// Inital state of registers
 	uint8_t a = get_reg8(cpu, REG_A);
@@ -293,7 +292,6 @@ void cpu_print_state(struct HagemuCPU *cpu) {
 	fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
 	       a, f, b, c, d, e, h, l, sp, pc, mmu_read(pc), mmu_read(pc+1), mmu_read(pc+2), mmu_read(pc+3));
 }
-
 
 static inline void op_rlc8(struct HagemuCPU *cpu, enum Reg8 reg) {
 	uint8_t value = get_reg8(cpu, reg);

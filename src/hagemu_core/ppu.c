@@ -14,10 +14,10 @@
 typedef uint16_t RGB555;
 typedef uint32_t ARGB8888;
 
-void ppu_draw_scanline(void);
-void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority);
-void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
-void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
+static void ppu_draw_scanline(void);
+static void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority);
+static void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
+static void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
 
 // Green color palette from lightest to darkest
 static const RGB555 dmg_palette_colors[4] = {
@@ -214,7 +214,7 @@ void ppu_tick(void) {
 	}
 }
 
-RGB555 read_pram(uint8_t palette_index, uint8_t color_index, bool is_sprite) {
+static inline RGB555 read_pram(uint8_t palette_index, uint8_t color_index, bool is_sprite) {
 	uint8_t *pram = is_sprite ? ppu.sprite_pram : ppu.bg_pram;
 	int offset = 2 * ((4 * palette_index) + color_index);
 	RGB555 color = (pram[offset+1] << 8) | pram[offset];
@@ -222,7 +222,7 @@ RGB555 read_pram(uint8_t palette_index, uint8_t color_index, bool is_sprite) {
 }
 
 // In DMG mode, palette_reg is used. In CGB mode, palette_index is used.
-RGB555 apply_color(bool dmg_palette_index, uint8_t palette_index, uint8_t color_index, bool is_sprite) {
+static RGB555 apply_color(bool dmg_palette_index, uint8_t palette_index, uint8_t color_index, bool is_sprite) {
 	if (ppu.model == MODEL_CGB)
 		return read_pram(palette_index, color_index, is_sprite);
 
@@ -249,7 +249,7 @@ RGB555 apply_color(bool dmg_palette_index, uint8_t palette_index, uint8_t color_
 	}
 }
 
-void ppu_clear_background(RGB555 *scanline) {
+static void ppu_clear_background(RGB555 *scanline) {
 	switch (ppu.model) {
 	// Draw a light green color
 	case MODEL_DMG:
@@ -265,7 +265,7 @@ void ppu_clear_background(RGB555 *scanline) {
 	}
 }
 
-void ppu_draw_scanline(void) {
+static void ppu_draw_scanline(void) {
 	RGB555 scanline[160];
 	bool   bg_nonzero[160] = { 0 };
 	bool   bg_priority[160] = { 0 };
@@ -317,7 +317,7 @@ static inline void tile_decode_row(struct Tile tile, int row, uint8_t out[8]) {
 	}
 }
 
-void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
+static void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
 	int bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
 	int bg_col = (ppu.bg_scroll_x) % 256;
 	int tile_row   = bg_row / 8;
@@ -368,7 +368,7 @@ void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) 
 	}
 }
 
-void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
+static void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
 	int win_row = ppu.current_window_line;
 	int win_col = 0;
 	int tile_row = win_row / 8;
@@ -430,7 +430,7 @@ void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
 	}
 }
 
-bool sprite_is_visible(struct Sprite *sprite) {
+static bool sprite_is_visible(struct Sprite *sprite) {
 	if (ppu.current_line < (int)sprite->y_position - 16)
 		return false;
 	else if (ppu.current_line < (int)sprite->y_position - 8)
@@ -444,7 +444,7 @@ bool sprite_is_visible(struct Sprite *sprite) {
 // I'm writing my own sorting algorithm because I need to guarantee that
 // the items are sorted in a stable manner (since they're already in OAM
 // order). I chose insertion sort since there's only at most 10 items.
-void sprite_sort_x_position(struct Sprite *sprites, unsigned sprite_count) {
+static void sprite_sort_x_position(struct Sprite *sprites, unsigned sprite_count) {
 	for (int sorted_up_to = 1; sorted_up_to < sprite_count; sorted_up_to++) {
 		struct Sprite key = sprites[sorted_up_to];
 		int i = sorted_up_to - 1;
@@ -457,7 +457,7 @@ void sprite_sort_x_position(struct Sprite *sprites, unsigned sprite_count) {
 	}
 }
 
-unsigned read_sprites(struct Sprite *sprites) {
+static unsigned read_sprites(struct Sprite *sprites) {
 	unsigned sprite_count = 0;
 	for (int i = 0; i < OAM_SPRITE_COUNT; i++) {
 		if (sprite_count >= SPRITE_LIMIT)
@@ -471,7 +471,7 @@ unsigned read_sprites(struct Sprite *sprites) {
 	return sprite_count;
 }
 
-static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority, struct Sprite sprite) {
+static void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority, struct Sprite sprite) {
 	bool background_has_priority = (sprite.attributes >> 7) & 0x01;
 	bool y_flip = (sprite.attributes >> 6) & 0x01;
 	bool x_flip = (sprite.attributes >> 5) & 0x01;
@@ -511,7 +511,7 @@ static inline void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const b
 	}
 }
 
-void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority) {
+static void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority) {
 	struct Sprite sprites[SPRITE_LIMIT];
 	unsigned sprite_count = read_sprites(sprites);
 

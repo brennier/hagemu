@@ -56,7 +56,7 @@ const size_t ram_size_table[] = {
 	[5] =  64 * 1024,
 };
 
-void cart_set_info(struct HagemuCart *cart) {
+static void cart_set_info(struct HagemuCart *cart) {
 	uint8_t mbc_info_byte = cart->rom[0][CART_TYPE_LOCATION];
 	uint8_t rom_size_byte = cart->rom[0][CART_SIZE_LOCATION];
 	uint8_t ram_size_byte = cart->rom[0][RAM_SIZE_LOCATION];

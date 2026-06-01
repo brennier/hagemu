@@ -37,29 +37,16 @@ struct AudioQueue {
 
 typedef struct AudioQueue AudioQueue;
 
-IntegerAudioFrame apu_generate_frame(void);
-IntegerAudioFrame highpass_filter(IntegerAudioFrame frame);
-IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame);
+static IntegerAudioFrame apu_generate_frame(void);
+static IntegerAudioFrame highpass_filter(IntegerAudioFrame frame);
+static IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame);
 
 void apu_set_audio_sample_rate(unsigned new_sample_rate) {
 	TARGET_SAMPLE_RATE = new_sample_rate;
 	DECIMATION_FACTOR = ((float)APU_TICK_RATE / (float)new_sample_rate);
 }
 
-void queue_clear(AudioQueue *queue) {
-	memset(queue, 0, sizeof(AudioQueue));
-	queue->capacity = AUDIO_QUEUE_FRAME_SIZE;
-}
-
-unsigned queue_size(AudioQueue *queue) {
-	return queue->size;
-}
-
-unsigned apu_audio_available(void) {
-	return queue_size(&audio_fifo);
-}
-
-void queue_push(AudioQueue *queue, AudioFrame frame) {
+static void queue_push(AudioQueue *queue, AudioFrame frame) {
 	if (queue->size == queue->capacity) {
 		printf("Audio Frame was dropped because the queue was full.\n");
 		return;
@@ -70,20 +57,7 @@ void queue_push(AudioQueue *queue, AudioFrame frame) {
 	queue->end %= queue->capacity;
 }
 
-AudioFrame queue_pop(AudioQueue *queue) {
-	if (queue->size == 0) {
-		printf("Audio Queue was popped, but returned an empty frame");
-		return (AudioFrame){ 0 };
-	}
-	AudioFrame frame = queue->frames[queue->start];
-	queue->frames[queue->end] = frame;
-	queue->size--;
-	queue->start++;
-	queue->start %= queue->capacity;
-	return frame;
-}
-
-void queue_drain(AudioQueue *queue, float* output, unsigned count) {
+static void queue_drain(AudioQueue *queue, float* output, unsigned count) {
 	unsigned bytes_per_frame = sizeof(AudioFrame);
 	if (queue->start + count > queue->capacity) {
 		unsigned until_end = queue->capacity - queue->start;
@@ -95,6 +69,10 @@ void queue_drain(AudioQueue *queue, float* output, unsigned count) {
 	queue->size -= count;
 	queue->start += count;
 	queue->start %= queue->capacity;
+}
+
+unsigned apu_audio_available(void) {
+	return audio_fifo.size;
 }
 
 unsigned apu_read_audio(float *output, unsigned max_frames) {
@@ -174,14 +152,13 @@ void apu_reset(void) {
 	memset(&apu.ch2, 0, sizeof(struct Channel));
 	memset(&apu.ch3, 0, sizeof(struct Channel));
 	memset(&apu.ch4, 0, sizeof(struct Channel));
-	queue_clear(&audio_fifo);
 }
 
-void apu_channel_reset(struct Channel *channel) {
+static void apu_channel_reset(struct Channel *channel) {
 	memset(channel, 0, sizeof(struct Channel));
 }
 
-void tick_length_timer(struct Channel *channel) {
+static void tick_length_timer(struct Channel *channel) {
 	if (!channel->length_enabled)
 		return;
 
@@ -191,7 +168,7 @@ void tick_length_timer(struct Channel *channel) {
 	}
 }
 
-unsigned sweep_calculate(struct Channel *channel) {
+static unsigned sweep_calculate(struct Channel *channel) {
 	unsigned new_period = channel->sweep_shadow_period;
 	new_period >>= channel->sweep_step;
 	if (channel->sweep_direction != 0) {
@@ -202,11 +179,11 @@ unsigned sweep_calculate(struct Channel *channel) {
 	return new_period;
 }
 
-bool sweep_overflow_check(struct Channel *ch) {
+static inline bool sweep_overflow_check(struct Channel *ch) {
 	return (sweep_calculate(ch) > 0x7FF);
 }
 
-void tick_sweep(struct Channel *channel) {
+static void tick_sweep(struct Channel *channel) {
 	if (!channel->sweep_enabled)
 		return;
 
@@ -230,7 +207,7 @@ void tick_sweep(struct Channel *channel) {
 	}
 }
 
-void tick_envelope(struct Channel *channel) {
+static void tick_envelope(struct Channel *channel) {
 	if (!channel->envelope_pace)
 		return;
 
@@ -244,7 +221,7 @@ void tick_envelope(struct Channel *channel) {
 	}
 }
 
-void tick_pulse_channel(struct Channel *channel) {
+static void tick_pulse_channel(struct Channel *channel) {
 	channel->ticks++;
 	uint32_t period = 2 * (2048 - channel->period_value);
 	if (channel->ticks >= period ) {
@@ -254,7 +231,7 @@ void tick_pulse_channel(struct Channel *channel) {
 	}
 }
 
-void tick_wave_channel(struct Channel *channel) {
+static void tick_wave_channel(struct Channel *channel) {
 	channel->ticks++;
 	uint32_t period = 2048 - channel->period_value;
 	if (channel->ticks >= period) {
@@ -264,7 +241,7 @@ void tick_wave_channel(struct Channel *channel) {
 	}
 }
 
-void tick_noise_channel(struct Channel *channel) {
+static void tick_noise_channel(struct Channel *channel) {
 	channel->ticks++;
 	uint32_t period = channel->period_value;
 	if (channel->ticks > period) {
@@ -284,14 +261,14 @@ void tick_noise_channel(struct Channel *channel) {
 	}
 }
 
-void apu_tick_channels(void) {
+static void apu_tick_channels(void) {
 	tick_pulse_channel(&apu.ch1);
 	tick_pulse_channel(&apu.ch2);
 	tick_wave_channel(&apu.ch3);
 	tick_noise_channel(&apu.ch4);
 }
 
-void apu_tick_frame_sequencer(void) {
+static void apu_tick_frame_sequencer(void) {
 	apu.frame_sequencer_clock_step++;
 	apu.frame_sequencer_clock_step %= 8;
 
@@ -320,7 +297,7 @@ void apu_tick_frame_sequencer(void) {
 }
 
 // The APU ticks twice per M-cycle (approximation 2MHz)
-void apu_tick_once(void) {
+static void apu_tick_once(void) {
 	if (apu.enabled) {
 		apu.ticks++;
 		apu_tick_channels();
@@ -367,7 +344,7 @@ void apu_tick(void) {
 	apu_tick_once();
 }
 
-uint8_t channel_output_pulse(struct Channel *channel) {
+static uint8_t channel_output_pulse(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
@@ -384,7 +361,7 @@ uint8_t channel_output_pulse(struct Channel *channel) {
 		return 0;
 }
 
-uint8_t channel_output_wave(struct Channel *channel) {
+static uint8_t channel_output_wave(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
@@ -400,7 +377,7 @@ uint8_t channel_output_wave(struct Channel *channel) {
 		return 0;
 }
 
-uint8_t channel_output_noise(struct Channel *channel) {
+static uint8_t channel_output_noise(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
@@ -410,7 +387,7 @@ uint8_t channel_output_noise(struct Channel *channel) {
 		return 0;
 }
 
-IntegerAudioFrame apu_generate_frame(void) {
+static IntegerAudioFrame apu_generate_frame(void) {
 	IntegerAudioFrame frame = { 0 };
 	if (!apu.enabled)
 		return frame;
@@ -441,7 +418,7 @@ IntegerAudioFrame apu_generate_frame(void) {
 // Alpha should be 1 - exp(-2 * pi * cutoff_freqency / sample_rate)
 /* const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff */
 /* const float alpha = 0.649f; // 48kHz sample rate, 8kHz cutoff */
-IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
+static IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 	static IntegerAudioFrame prev_frame = { 0 };
 	IntegerAudioFrame frame_diff;
 	frame_diff.left  = frame.left  - prev_frame.left;
@@ -457,7 +434,7 @@ IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 }
 
 // Emulates the DC Blocking of the gameboy
-IntegerAudioFrame highpass_filter(IntegerAudioFrame input) {
+static IntegerAudioFrame highpass_filter(IntegerAudioFrame input) {
 	static IntegerAudioFrame capacitor = { 0 };
 	IntegerAudioFrame output = { 0 };
 	bool highpass_enabled = apu.ch1.dac_enabled
@@ -513,7 +490,7 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 #define SOUND_NR51 0xFF25
 #define SOUND_NR52 0xFF26
 
-void channel_length_enable(struct Channel *ch, bool enabled) {
+static void channel_length_enable(struct Channel *ch, bool enabled) {
 	if (!enabled) {
 		ch->length_enabled = false;
 		return;
@@ -527,7 +504,7 @@ void channel_length_enable(struct Channel *ch, bool enabled) {
 	ch->length_enabled = true;
 }
 
-void channel_trigger(struct Channel *ch, int length_max) {
+static void channel_trigger(struct Channel *ch, int length_max) {
 	if (ch->length_current == 0) {
 		ch->length_current = length_max;
 		// Extra clock: trigger reloads length, and if enabled + sequencer is
@@ -543,7 +520,7 @@ void channel_trigger(struct Channel *ch, int length_max) {
 		ch->enabled = true;
 }
 
-void sweep_trigger(struct Channel *ch) {
+static void sweep_trigger(struct Channel *ch) {
 	ch->sweep_shadow_period = ch->period_value;
 	ch->sweep_negate_flag = false;
 	ch->sweep_current = ch->sweep_pace ? ch->sweep_pace : 8;
@@ -553,7 +530,7 @@ void sweep_trigger(struct Channel *ch) {
 	}
 }
 
-uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
+static uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
 	switch (address) {
 	// Can still turn the APU off/on
 	case SOUND_NR52: break;
@@ -757,7 +734,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-uint8_t apu_register_read_nr52(void) {
+static uint8_t apu_register_read_nr52(void) {
 	uint8_t value = 0;
 	value |= apu.ch1.enabled << 0;
 	value |= apu.ch2.enabled << 1;
