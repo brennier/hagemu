@@ -1,8 +1,6 @@
 #include "dma.h"
-
 #include <stdio.h>
 #include <stdlib.h>
-#include "ppu.h"
 #include "mmu.h"
 
 struct HagemuHDMA {
@@ -11,8 +9,8 @@ struct HagemuHDMA {
 	uint16_t countdown;
 	uint8_t  remaining_length;
 	bool     hblank_mode;
-	bool     active; // currently transferring data
-	bool     enabled; // currently enabled but maybe not transferring
+	bool     active;  // actively transferring data
+	bool     enabled; // enabled but maybe not transferring
 } hdma = { 0 };
 
 // Transfers 1 byte of data
@@ -20,8 +18,7 @@ void hdma_tick(void) {
 	if (!hdma.enabled || !hdma.active)
 		return;
 
-	uint8_t byte = mmu_read(hdma.source);
-	mmu_write(hdma.dest, byte);
+	mmu_write(hdma.dest, mmu_read(hdma.source));
 
 	hdma.source++;
 	hdma.dest++;
@@ -59,6 +56,7 @@ void hdma_write_ff55(uint8_t value) {
 	// value says do a GP transfer, cancel everything
 	if (hdma.enabled && old_mode && !hdma.hblank_mode) {
 		hdma.enabled = false;
+		hdma.active  = false;
 		return;
 	}
 
@@ -74,10 +72,10 @@ uint8_t hdma_read_register(uint16_t address) {
 		return 0xFF;
 	}
 
-	uint8_t value = hdma.remaining_length;
 	if (!hdma.enabled)
-		value |= 0x80;
-	return value;
+		return 0x80 | hdma.remaining_length;
+	else
+		return hdma.remaining_length;
 }
 
 void hdma_write_register(uint16_t address, uint8_t value) {
@@ -89,17 +87,20 @@ void hdma_write_register(uint16_t address, uint8_t value) {
 	case 0xFF52:
 		hdma.source &= 0xFF00;
 		hdma.source |= value;
-		hdma.source &= 0xFFF0; // last nibble is ignored
+		// last nibble is ignored
+		hdma.source &= 0xFFF0;
 		break;
 	case 0xFF53:
 		hdma.dest &= 0x00FF;
 		hdma.dest |= (value << 8);
+		// First nibble is always 0x8 or 0x9
 		hdma.dest &= 0x1FFF;
 		hdma.dest |= 0x8000;
 		break;
 	case 0xFF54:
 		hdma.dest &= 0xFF00;
 		hdma.dest |= value;
+		// last nibble is ignored
 		hdma.dest &= 0xFFF0;
 		break;
 	case 0xFF55:
