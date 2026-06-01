@@ -1,23 +1,33 @@
 <h1><img align="center" height="75" src="hagemu_logo.png">Hagemu is a GameBoy emulator</h1>
 
-This is an attempt to write a GameBoy emulator in C99. This is a personal project to learn more about computers and emulation. SDL3 is used to draw the pixels and handle input. Emscripten is used to compile the project into WebAssembly. At the moment, this project is still a work in progress.
+Hagemu is a GameBoy (and GameBoy Color!) emulator written in C99. This is a personal project to learn more about computers and emulation. SDL3 is used to draw the pixels and handle input. The whole project can be compiled into WebAssembly using Emscripten.
 
 ## You can run this emulator inside your web browser!
 You can try out this emulator in your web browser at this link: https://hagemu.dev/
 
-Disclaimers:
- - You need to use a keyboard or game controller. There is no key remapping or touch screen support at the moment.
- - To run a .gb file, please drag and drop the file directly onto the web page.
+## Supported features
+ - Switching between GB and GBC mode
+ - Touchscreen controls and gamepad support
+ - Accurate audio emulation with audio filtering and dynamic resampling
+ - Built-in custom bootroms
+ - RTC clock support (used in Pokemon Gold/Silver/Crystal)
+ - Most memory bank controllers are supported (MBC1, MBC2, MBC3, and MBC5)
 
-### Tested games (no noticable glitches)
-Most original gameboy games should run fine. If you find any glitches, please let me know.
-The following games have been tested:
-- Tetris
-- Dr. Mario
-- Super Mario Land
-- Metroid II
-- Zelda: Link's Awakening
-- Pokemon Red, Blue, and Yellow
+## Tested games
+The vast majority of gameboy games should run fine with no noticeable glitches. If you do find any glitches, please let me know. I've personally played the following games using Hagemu:
+ - Tetris
+ - Super Mario Land
+ - Super Mario Bros Deluxe
+ - Metroid II
+ - Zelda: Link's Awakening
+ - Kirby's Dream Land
+ - Pokemon Red/Blue/Yellow
+ - Pokemon Gold/Silver/Crystal
+
+This emulator also passes many roms made to test the limits of accurate GameBoy emulation, such as
+ - Blargg's test roms (cpu_instrs, instr_timing, mem_timing, mem_timing-2, and most of dmg_sound)
+ - Matt Curie's test roms (dmg-acid2 and cgb-acid2)
+ - Mooneye's test roms (all of the MBC tests and DMA tests)
 
 <details>
   <summary><h3>Progress Report (click here to expand)</h3></summary>
@@ -127,10 +137,10 @@ The following games have been tested:
   - [x] Sort sprites by OAM position instead of X position
   - [x] Pass cgb-acid test rom
   - [x] Make my own custom bootrom
-  - [ ] Implement HBLANK VRAM DMA
+  - [x] Implement HBLANK VRAM DMA
   - [ ] Check the registers FF4C and FF6C after the boot sequence
   - [ ] Verify double speed mode
-  - [ ] Verify general-purpose VRAM DMA
+  - [ ] Verify general-purpose DMA and Hblank DMA
 - [ ] Minor fixes
   - [x] Separate the joypad logic from the Raylib library
   - [x] Add support for gamepads
@@ -178,12 +188,11 @@ The following games have been tested:
   - [x] Automatically save and load .sav files using a local IndexedDB file system
   - [x] Download and upload save files
   - [x] Select file using a mobile browser
-  - [ ] Progressive Web Application support
-    - [x] Basic support
-    - [ ] Add a service worker for caching and retrieving files without the internet
+  - [x] Touchscreen support
+  - [x] Basic Progressive Web Application support
+  - [ ] Add a service worker for caching and retrieving files without the internet
   - [ ] Rewrite the html index file from scratch
   - [ ] Automatically cache and load the last played game
-  - [ ] Touchscreen support
   - [ ] Put the loading bar where the canvas is
 - [ ] Add a UI
   - [x] Drag and drop rom files onto the window
@@ -211,11 +220,6 @@ The following games have been tested:
   - [ ] Support save/load states
   - [ ] Rewrite the CPU so that it can tick 1 m-cycle per call
   - [ ] Rewrite the PPU using a pixel pusher renderer
-</details>
-
-<details>
-  <summary><h3>Links for the future (click here to expand)</h3></summary>
-
 - Links for the future
   - GBC registers and features: https://gbdev.io/pandocs/CGB_Registers.html
   - Gameboy Color differences: https://web.archive.org/web/20260120022111/https://jsgroth.dev/blog/posts/game-boy-color/ 
