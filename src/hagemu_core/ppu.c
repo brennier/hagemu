@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "interrupt.h"
+#include "hdma.h"
 
 #define PIXEL_DRAW_LENGTH 200
 #define SPRITE_LIMIT 10
@@ -196,6 +197,7 @@ void ppu_tick(void) {
 		break;
 	case HBLANK:
 		ppu_draw_scanline();
+		hdma_hblank_start();
 		if (ppu.interrupt_select_hblank)
 			interrupt_raise(LCD_INTERRUPT);
 		break;

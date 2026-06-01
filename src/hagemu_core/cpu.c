@@ -5,6 +5,7 @@
 #include <string.h>
 #include "mmu.h"
 #include "interrupt.h"
+#include "hdma.h"
 
 struct HagemuCPU {
 	// CPU Registers (except af)
@@ -34,6 +35,8 @@ struct HagemuCPU {
 #include "dma.h"
 void system_tick(struct HagemuCPU *cpu) {
 	if (!cpu->double_speed_mode) {
+		hdma_tick();
+		hdma_tick();
 		dma_tick();
 		timer_tick(4);
 		ppu_tick();
@@ -41,6 +44,7 @@ void system_tick(struct HagemuCPU *cpu) {
 		cpu->cycles_passed += 4;
 		return;
 	} else if (cpu->double_speed_mode && cpu->speed_mode_odd_cycle) {
+		hdma_tick();
 		dma_tick();
 		timer_tick(4);
 		ppu_tick();
@@ -48,6 +52,7 @@ void system_tick(struct HagemuCPU *cpu) {
 		cpu->cycles_passed += 2;
 		cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
 	} else {
+		hdma_tick();
 		dma_tick();
 		timer_tick(4);
 		cpu->cycles_passed += 2;
@@ -1080,7 +1085,7 @@ int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 	if (interrupt_pending())
 		cpu->is_halted = false;
 
-	if (cpu->is_halted) {
+	if (cpu->is_halted || hdma_is_active()) {
 		system_tick(cpu);
 		return cpu->cycles_passed; // clock only incremented once
 	}
