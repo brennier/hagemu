@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #define APU_TICK_RATE (1 << 21)
-#define AUDIO_QUEUE_FRAME_SIZE 8192
+#define AUDIO_QUEUE_SIZE 8192
 #define INITIAL_TARGET_SAMPLE_RATE 48000
 
 #define APU_REGISTER_START  0xFF10
@@ -24,63 +24,6 @@ typedef struct {
 	int left;
 	int right;
 } IntegerAudioFrame;
-
-struct AudioQueue {
-	AudioFrame frames[AUDIO_QUEUE_FRAME_SIZE];
-	unsigned start;
-	unsigned end;
-	unsigned size;
-	unsigned capacity;
-} audio_fifo = {
-	.capacity = AUDIO_QUEUE_FRAME_SIZE,
-};
-
-typedef struct AudioQueue AudioQueue;
-
-static IntegerAudioFrame apu_generate_frame(void);
-static IntegerAudioFrame highpass_filter(IntegerAudioFrame frame);
-static IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame);
-
-void apu_set_audio_sample_rate(unsigned new_sample_rate) {
-	TARGET_SAMPLE_RATE = new_sample_rate;
-	DECIMATION_FACTOR = ((float)APU_TICK_RATE / (float)new_sample_rate);
-}
-
-static void queue_push(AudioQueue *queue, AudioFrame frame) {
-	if (queue->size == queue->capacity) {
-		printf("Audio Frame was dropped because the queue was full.\n");
-		return;
-	}
-	queue->frames[queue->end] = frame;
-	queue->size++;
-	queue->end++;
-	queue->end %= queue->capacity;
-}
-
-static void queue_drain(AudioQueue *queue, float* output, unsigned count) {
-	unsigned bytes_per_frame = sizeof(AudioFrame);
-	if (queue->start + count > queue->capacity) {
-		unsigned until_end = queue->capacity - queue->start;
-		memcpy(output, queue->frames + queue->start, until_end * bytes_per_frame);
-		memcpy(output + 2 * until_end, queue->frames, (count - until_end) * bytes_per_frame);
-	} else {
-		memcpy(output, queue->frames + queue->start, count * bytes_per_frame);
-	}
-	queue->size -= count;
-	queue->start += count;
-	queue->start %= queue->capacity;
-}
-
-unsigned apu_audio_available(void) {
-	return audio_fifo.size;
-}
-
-unsigned apu_read_audio(float *output, unsigned max_frames) {
-	if (max_frames > apu_audio_available())
-		max_frames = apu_audio_available();
-	queue_drain(&audio_fifo, output, max_frames);
-	return max_frames;
-}
 
 struct Channel {
 	// All channels
@@ -125,11 +68,21 @@ struct Channel {
 	bool     lfsr_last_out;
 };
 
+struct AudioQueue {
+	AudioFrame frames[AUDIO_QUEUE_SIZE];
+	unsigned start;
+	unsigned end;
+	unsigned size;
+};
+
 struct HagemuAPU {
 	struct Channel ch1;
 	struct Channel ch2;
 	struct Channel ch3;
 	struct Channel ch4;
+	struct AudioQueue audio_queue;
+	IntegerAudioFrame highpass_capacitor;
+	IntegerAudioFrame lowpass_prev_frame;
 	unsigned ticks;
 	unsigned frame_sequencer_clock_step;
 	uint8_t wave_data[16];
@@ -146,6 +99,47 @@ struct HagemuAPU {
 	bool ch4_output_left;
 	bool enabled;
 } apu = { 0 };
+
+void apu_set_audio_sample_rate(unsigned new_sample_rate) {
+	TARGET_SAMPLE_RATE = new_sample_rate;
+	DECIMATION_FACTOR = ((float)APU_TICK_RATE / (float)new_sample_rate);
+}
+
+static void queue_push(struct AudioQueue *queue, AudioFrame frame) {
+	if (queue->size == AUDIO_QUEUE_SIZE) {
+		printf("Audio Frame was dropped because the queue was full.\n");
+		return;
+	}
+	queue->frames[queue->end] = frame;
+	queue->size++;
+	queue->end++;
+	queue->end %= AUDIO_QUEUE_SIZE;
+}
+
+static void queue_drain(struct AudioQueue *queue, float* output, unsigned count) {
+	unsigned bytes_per_frame = sizeof(AudioFrame);
+	if (queue->start + count > AUDIO_QUEUE_SIZE) {
+		unsigned until_end = AUDIO_QUEUE_SIZE - queue->start;
+		memcpy(output, queue->frames + queue->start, until_end * bytes_per_frame);
+		memcpy(output + 2 * until_end, queue->frames, (count - until_end) * bytes_per_frame);
+	} else {
+		memcpy(output, queue->frames + queue->start, count * bytes_per_frame);
+	}
+	queue->size -= count;
+	queue->start += count;
+	queue->start %= AUDIO_QUEUE_SIZE;
+}
+
+unsigned apu_audio_available(void) {
+	return apu.audio_queue.size;
+}
+
+unsigned apu_read_audio(float *output, unsigned max_frames) {
+	if (max_frames > apu_audio_available())
+		max_frames = apu_audio_available();
+	queue_drain(&apu.audio_queue, output, max_frames);
+	return max_frames;
+}
 
 void apu_reset(void) {
 	memset(&apu.ch1, 0, sizeof(struct Channel));
@@ -296,52 +290,37 @@ static void apu_tick_frame_sequencer(void) {
 	}
 }
 
-// The APU ticks twice per M-cycle (approximation 2MHz)
-static void apu_tick_once(void) {
-	if (apu.enabled) {
-		apu.ticks++;
-		apu_tick_channels();
+// Alpha should be 1 - exp(-2 * pi * cutoff_freqency / sample_rate)
+/* const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff */
+/* const float alpha = 0.649f; // 48kHz sample rate, 8kHz cutoff */
+static IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
+	IntegerAudioFrame frame_diff;
+	frame_diff.left  = frame.left  - apu.lowpass_prev_frame.left;
+	frame_diff.right = frame.right - apu.lowpass_prev_frame.right;
 
-		// The frame frequencer ticks at 512 Hz
-		if (apu.ticks == (APU_TICK_RATE / 512)) {
-			apu.ticks = 0;
-			apu_tick_frame_sequencer();
-		}
-	}
+	// This effectively multiplies by 0.6485
+	frame_diff.left  = (frame_diff.left  * 664) / 1024;
+	frame_diff.right = (frame_diff.right * 664) / 1024;
 
-	IntegerAudioFrame current_frame = apu_generate_frame();
-	static IntegerAudioFrame accumulate = { 0 };
-	decimation_counter += 1.0;
-
-	if (decimation_counter < DECIMATION_FACTOR) {
-		accumulate.left  += current_frame.left;
-		accumulate.right += current_frame.right;
-		return;
-	}
-
-	float leftover = decimation_counter - DECIMATION_FACTOR;
-	float step = 1.0 - leftover;
-	accumulate.left  += current_frame.left  * step;
-	accumulate.right += current_frame.right * step;
-	accumulate.left  *= (apu.volume_left  + 1);
-	accumulate.right *= (apu.volume_right + 1);
-	accumulate = lowpass_filter(accumulate);
-	accumulate = highpass_filter(accumulate);
-
-	// Normalize to [-1.0, 1.0]
-	AudioFrame output;
-	output.left  = accumulate.left  / (240.0 * DECIMATION_FACTOR);
-	output.right = accumulate.right / (240.0 * DECIMATION_FACTOR);
-	queue_push(&audio_fifo, output);
-
-	decimation_counter = leftover;
-	accumulate.left  = current_frame.left  * leftover;
-	accumulate.right = current_frame.right * leftover;
+	apu.lowpass_prev_frame.left  += frame_diff.left;
+	apu.lowpass_prev_frame.right += frame_diff.right;
+	return apu.lowpass_prev_frame;
 }
 
-void apu_tick(void) {
-	apu_tick_once();
-	apu_tick_once();
+// Emulates the DC Blocking of the gameboy
+static IntegerAudioFrame highpass_filter(IntegerAudioFrame input) {
+	IntegerAudioFrame output = { 0 };
+	bool highpass_enabled = apu.ch1.dac_enabled
+		|| apu.ch2.dac_enabled
+		|| apu.ch3.dac_enabled
+		|| apu.ch4.dac_enabled;
+	if (highpass_enabled) {
+		output.left  = input.left  - apu.highpass_capacitor.left;
+		output.right = input.right - apu.highpass_capacitor.right;
+		apu.highpass_capacitor.left  = input.left  - (output.left  * 4081) / 4096;
+		apu.highpass_capacitor.right = input.right - (output.right * 4081) / 4096;
+	}
+	return output;
 }
 
 static uint8_t channel_output_pulse(struct Channel *channel) {
@@ -387,6 +366,7 @@ static uint8_t channel_output_noise(struct Channel *channel) {
 		return 0;
 }
 
+
 static IntegerAudioFrame apu_generate_frame(void) {
 	IntegerAudioFrame frame = { 0 };
 	if (!apu.enabled)
@@ -415,39 +395,52 @@ static IntegerAudioFrame apu_generate_frame(void) {
 	return frame;
 }
 
-// Alpha should be 1 - exp(-2 * pi * cutoff_freqency / sample_rate)
-/* const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff */
-/* const float alpha = 0.649f; // 48kHz sample rate, 8kHz cutoff */
-static IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
-	static IntegerAudioFrame prev_frame = { 0 };
-	IntegerAudioFrame frame_diff;
-	frame_diff.left  = frame.left  - prev_frame.left;
-	frame_diff.right = frame.right - prev_frame.right;
+// The APU ticks twice per M-cycle (approximation 2MHz)
+static void apu_tick_once(void) {
+	if (apu.enabled) {
+		apu.ticks++;
+		apu_tick_channels();
 
-	// This effectively multiplies by 0.6485
-	frame_diff.left  = (frame_diff.left  * 664) / 1024;
-	frame_diff.right = (frame_diff.right * 664) / 1024;
+		// The frame frequencer ticks at 512 Hz
+		if (apu.ticks == (APU_TICK_RATE / 512)) {
+			apu.ticks = 0;
+			apu_tick_frame_sequencer();
+		}
+	}
 
-	prev_frame.left  += frame_diff.left;
-	prev_frame.right += frame_diff.right;
-	return prev_frame;
+	IntegerAudioFrame current_frame = apu_generate_frame();
+	static IntegerAudioFrame accumulate = { 0 };
+	decimation_counter += 1.0;
+
+	if (decimation_counter < DECIMATION_FACTOR) {
+		accumulate.left  += current_frame.left;
+		accumulate.right += current_frame.right;
+		return;
+	}
+
+	float leftover = decimation_counter - DECIMATION_FACTOR;
+	float step = 1.0 - leftover;
+	accumulate.left  += current_frame.left  * step;
+	accumulate.right += current_frame.right * step;
+	accumulate.left  *= (apu.volume_left  + 1);
+	accumulate.right *= (apu.volume_right + 1);
+	accumulate = lowpass_filter(accumulate);
+	accumulate = highpass_filter(accumulate);
+
+	// Normalize to [-1.0, 1.0]
+	AudioFrame output;
+	output.left  = accumulate.left  / (240.0 * DECIMATION_FACTOR);
+	output.right = accumulate.right / (240.0 * DECIMATION_FACTOR);
+	queue_push(&apu.audio_queue, output);
+
+	decimation_counter = leftover;
+	accumulate.left  = current_frame.left  * leftover;
+	accumulate.right = current_frame.right * leftover;
 }
 
-// Emulates the DC Blocking of the gameboy
-static IntegerAudioFrame highpass_filter(IntegerAudioFrame input) {
-	static IntegerAudioFrame capacitor = { 0 };
-	IntegerAudioFrame output = { 0 };
-	bool highpass_enabled = apu.ch1.dac_enabled
-		|| apu.ch2.dac_enabled
-		|| apu.ch3.dac_enabled
-		|| apu.ch4.dac_enabled;
-	if (highpass_enabled) {
-		output.left  = input.left  - capacitor.left;
-		output.right = input.right - capacitor.right;
-		capacitor.left  = input.left  - (output.left  * 4081) / 4096;
-		capacitor.right = input.right - (output.right * 4081) / 4096;
-	}
-	return output;
+void apu_tick(void) {
+	apu_tick_once();
+	apu_tick_once();
 }
 
 // Use bit shifting and bitmasks to get the value of the
