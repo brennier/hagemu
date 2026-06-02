@@ -6,6 +6,7 @@
 #include "mbc2.h"
 #include "mbc3.h"
 #include "mbc5.h"
+#include "rtc.h"
 
 #define GAME_TITLE_LOCATION 0x0134
 #define CART_TYPE_LOCATION  0x0147
