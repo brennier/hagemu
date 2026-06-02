@@ -6,6 +6,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width">
     <meta name="description" content="Hagemu is a gameboy emulator. It runs completely in your browser, has excellent compatibility, supports gamepads, and persistently retains your save data.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
     <link rel="shortcut icon" href="./images/favicon.ico" />
@@ -46,7 +47,7 @@
           border-width: 1.5px;
           border-color: var(--frame-color);
           border-radius: 5px;
-          padding: 7px;
+          padding: 5px;
           font: inherit;
           cursor: pointer;
           outline: inherit;
@@ -80,10 +81,10 @@
           display: flex;
           justify-content: space-between;
           align-items: center;
-          font-size: calc(var(--gb-scale) * 6px);
-          padding-left: calc(var(--gb-scale) * 2px);
-          padding-right: calc(var(--gb-scale) * 2px);
-          margin: calc(var(--gb-scale) * 10px);
+          font-size: calc(var(--gb-scale) * 10px);
+          padding-left: calc(var(--gb-scale) * 4px);
+          padding-right: calc(var(--gb-scale) * 4px);
+          margin-bottom: calc(var(--gb-scale) * 7px);
           border-radius: 5px;
       }
 
@@ -100,8 +101,8 @@
       .toggle {
           position: relative;
           display: inline-block;
-          width:  calc(var(--gb-scale) * 15px);
-          height: calc(var(--gb-scale) * 8.5px);
+          width:  calc(var(--gb-scale) * 30px);
+          height: calc(var(--gb-scale) * 17px);
           margin: calc(var(--gb-scale) * 2px);
       }
 
@@ -124,10 +125,10 @@
       .slider:before {
           position: absolute;
           content: "";
-          height: calc(var(--gb-scale) * 6.5px);
-          width: calc(var(--gb-scale) * 6.5px);
-          left: calc(var(--gb-scale) * 1px);
-          bottom: calc(var(--gb-scale) * 1px);
+          height: calc(var(--gb-scale) * 13px);
+          width: calc(var(--gb-scale) * 13px);
+          left: calc(var(--gb-scale) * 2px);
+          bottom: calc(var(--gb-scale) * 2px);
           background-color: #FFF;
           transition: 0.4s;
           border-radius: 50%;
@@ -138,9 +139,11 @@
       /* } */
 
       input:checked + .slider:before {
-          transform: translateX(calc(var(--gb-scale) * 6.5px));
+          transform: translateX(calc(var(--gb-scale) * 13px));
       }
 
+      button.pressed,
+      button:active,
       button:hover {
           filter: brightness(0.85);
       }
@@ -153,6 +156,7 @@
           margin: 0;
           padding: 0;
           background-color: var(--frame-color);
+          touch-action: none;
       }
 
       #logo {
@@ -163,7 +167,7 @@
       }
 
       #under-logo {
-          font-size: calc(var(--gb-scale) * 3px);
+          font-size: calc(var(--gb-scale) * 4px);
           vertical-align: middle;
           white-space: nowrap;
           text-align: center;
@@ -228,8 +232,8 @@
 
       #frame {
           background-color: var(--frame-color);
-          border: 15px var(--frame-color) solid;
-          border-radius: 15px;
+          border: calc(var(--gb-scale) * 4px) var(--frame-color) solid;
+          border-radius: calc(var(--gb-scale) * 4px);
       }
 
       #dpad {
@@ -357,7 +361,7 @@
             <input type="file" accept=".sav,.sram" id="saveFileInput" style="display:none" />
           </label>
           <button onclick="downloadSRAM()">Download Save</button>
-          <button id="terminal-button">Show Terminal</button>
+          <!-- <button id="terminal-button">Show Terminal</button> -->
           <button onclick="resetROM()">Reset ROM</button>
         </div>
       </div>
@@ -394,11 +398,16 @@
           // Touch (mobile)
           el.addEventListener('touchstart', (e) => {
               e.preventDefault();
+              el.classList.add('pressed');
+              if (navigator.vibrate) {
+                  navigator.vibrate(50);
+              }
               Module._web_set_button(buttonIndex);
           }, { passive: false }); // passive:false is required to allow preventDefault
 
           el.addEventListener('touchend', (e) => {
               e.preventDefault();
+              el.classList.remove('pressed');
               Module._web_unset_button(buttonIndex);
           }, { passive: false });
 
@@ -476,7 +485,7 @@
 
           if (!targetUrl) {
               overlay.textContent = "No ROM file loaded. Click the \"Upload ROM\" button below to get started.";
-              throw new Error(`No "rom" query parameter found.`);
+              console.log(`No rom url parameter found.`);
               return;
           }
 
@@ -685,23 +694,23 @@
       window.addEventListener('resize', resizeCanvas);
       resizeCanvas();
 
-      var button = document.getElementById('terminal-button');
-      button.onclick = function() {
-          var div = document.getElementById('terminal-output');
-          if (div.style.display == 'flex') {
-              div.style.display = 'none';
-          }
-          else {
-              div.style.display = 'flex';
-          }
-      };
+      // var button = document.getElementById('terminal-button');
+      // button.onclick = function() {
+      //     var div = document.getElementById('terminal-output');
+      //     if (div.style.display == 'flex') {
+      //         div.style.display = 'none';
+      //     }
+      //     else {
+      //         div.style.display = 'flex';
+      //     }
+      // };
 
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
       var spinnerElement = document.getElementById('spinner');
       var canvasElement = document.getElementById('canvas');
-      var outputElement = document.getElementById('terminal-output');
-      if (outputElement) outputElement.value = ''; // clear browser cache
+      // var outputElement = document.getElementById('terminal-output');
+      // if (outputElement) outputElement.value = ''; // clear browser cache
 
       // As a default initial behavior, pop up an alert when webgl context is lost. To make your
       // application robust, you may want to override this behavior before shipping!
@@ -725,11 +734,11 @@
           },
           print(...args) {
               console.log(...args);
-              if (outputElement) {
-                  var text = args.join(' ');
-                  outputElement.value += text + "\n";
-                  outputElement.scrollTop = outputElement.scrollHeight; // focus on bottom
-              }
+              // if (outputElement) {
+                  // var text = args.join(' ');
+                  // outputElement.value += text + "\n";
+                  // outputElement.scrollTop = outputElement.scrollHeight; // focus on bottom
+              // }
           },
           canvas: canvasElement,
           setStatus(text) {
