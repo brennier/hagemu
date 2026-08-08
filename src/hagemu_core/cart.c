@@ -62,7 +62,12 @@ static void cart_set_info(struct HagemuCart *cart) {
 	uint8_t rom_size_byte = cart->rom[0][CART_SIZE_LOCATION];
 	uint8_t ram_size_byte = cart->rom[0][RAM_SIZE_LOCATION];
 
+	memset(cart->title, 0, sizeof(cart->title));
 	memcpy(cart->title, &cart->rom[0][GAME_TITLE_LOCATION], 16);
+	if ((uint8_t)cart->title[15] == 0x80 ||
+	    (uint8_t)cart->title[15] == 0xC0) {
+		cart->title[15] = '\0';
+	}
 	cart->info     = cart_info_table[mbc_info_byte];
 	cart->rom_size = 32 * (1 << rom_size_byte) * 1024;
 	// The MBC2 mapper has a fixed RAM size of 256 bytes
@@ -164,7 +169,7 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 	memcpy(cart.rom, data, size);
 
 	cart_set_info(&cart);
-	printf("Rom Title is %s\n", cart.title);
+	printf("Rom title is %s\n", cart.title);
 	printf("Cartridge type is MBC%d\n", cart.info.type);
 	printf("ROM size is %zu KiB\n",  cart.rom_size / 1024);
 	if (cart.ram_size < 1024)
