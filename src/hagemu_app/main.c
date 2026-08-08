@@ -98,9 +98,13 @@ void hagemu_save_sram_file(struct HagemuApp *app) {
 	if (hagemu_sram_available()) {
 		size_t sram_size;
 		const uint8_t *sram = hagemu_get_sram(&sram_size);
-		char *sram_name = hagemu_file_sram_name(app->rom_filename);
-		hagemu_file_save(sram_name, sram, sram_size);
-		free(sram_name);
+		char *sram_filename = hagemu_file_sram_name(app->rom_filename);
+		if (!SDL_SaveFile(sram_filename, sram, sram_size)) {
+			fprintf(stderr, "[ERROR] Unable to save file '%s': %s\n", sram_filename, SDL_GetError());
+		} else {
+			printf("Saved SRAM data to '%s'\n", sram_filename);
+		}
+		free(sram_filename);
 	}
 }
 
@@ -129,27 +133,32 @@ void hagemu_app_reset(struct HagemuApp *app, enum GBModel model) {
 bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 	printf("Loading SRAM data from '%s'\n", filename);
 	size_t sram_size;
-	uint8_t *sram_data = hagemu_file_load(filename, &sram_size);
+	uint8_t *sram_data = SDL_LoadFile(filename, &sram_size);
+	if (!sram_data) {
+		fprintf(stderr, "[ERROR] Unable to load file '%s': %s\n", filename, SDL_GetError());
+		return false;
+	}
+
 	bool result = hagemu_set_sram(sram_data, sram_size);
 	if (result) {
 		app->state = HAGEMU_GAME_RUNNING;
 		hagemu_app_reset(app, app->gb_model);
 	}
-	free(sram_data);
+	SDL_free(sram_data);
 	return true;
 }
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBModel model) {
 	printf("Loading the rom file '%s'\n", filename);
 	size_t rom_size;
-	uint8_t *rom_data = hagemu_file_load(filename, &rom_size);
+	uint8_t *rom_data = SDL_LoadFile(filename, &rom_size);
 	if (!rom_data) {
-		fprintf(stderr, "[ERROR] Unable to load the file '%s'\n", filename);
+		fprintf(stderr, "[ERROR] Unable to load file '%s': %s\n", filename, SDL_GetError());
 		return false;
 	}
-
 	hagemu_set_rom(app->gb, model, rom_data, rom_size);
-	free(rom_data);
+	SDL_free(rom_data);
+
 	if (app->rom_filename)
 		free(app->rom_filename);
 	app->rom_filename = malloc(strlen(filename) + 1);

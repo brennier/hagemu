@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 
 #ifdef __EMSCRIPTEN__
 char *hagemu_file_sram_name(const char* rom_name) {
@@ -59,69 +60,3 @@ char *hagemu_file_sram_name(const char* rom_name) {
 	return sram_name;
 }
 #endif
-
-bool hagemu_file_save(const char *filename, const uint8_t *data, size_t size) {
-	FILE *file = fopen(filename, "wb");
-	if (file == NULL) {
-		printf("Error: Failed to open the file '%s' :(\n", filename);
-		return false;
-	}
-
-	size_t bytes_written = fwrite(data, 1, size, file);
-
-	if (bytes_written != size) {
-		printf("Error: Tried to write %ld bytes to '%s', but actually only wrote %ld bytes.\n", size, filename, bytes_written);
-		return false;
-	}
-
-	printf("The file '%s' was sucessfully written (%ld bytes)\n", filename, size);
-	fclose(file);
-	return true;
-}
-
-uint8_t *hagemu_file_load(const char *filename, size_t *out_size) {
-	FILE *file = fopen(filename, "rb");
-	if (!file) {
-		printf("Warning: Failed to open the file '%s'.\n", filename);
-		return NULL;
-	}
-
-	// Seek to end to determine file size
-	if (fseek(file, 0, SEEK_END) != 0) {
-		fclose(file);
-		return NULL;
-	}
-
-	long size = ftell(file);
-	if (size < 0) {
-		fclose(file);
-		return NULL;
-	}
-	size_t usize = (size_t)size;
-
-	// Go back to beginning
-	if (fseek(file, 0, SEEK_SET) != 0) {
-		fclose(file);
-		return NULL;
-	}
-
-	// Allocate (+1 for optional null terminator)
-	unsigned char *buffer = malloc(usize);
-	if (!buffer) {
-		fclose(file);
-		return NULL;
-	}
-
-	size_t read = fread(buffer, 1, usize, file);
-	if (read != usize) {
-		free(buffer);
-		fclose(file);
-		return NULL;
-	}
-
-	fclose(file);
-
-	if (out_size) *out_size = usize;
-
-	return buffer;
-}
