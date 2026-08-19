@@ -40,6 +40,11 @@ size_t web_get_sram_size(void) {
 
 EMSCRIPTEN_KEEPALIVE
 const char *web_get_sram_file_name(void) {
+	if (sram_filename) {
+		free(sram_filename);
+		sram_filename = NULL;
+	}
+
 	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available()) {
 		sram_filename = hagemu_file_sram_name(hagemu_app->rom_filename);
 		const char *basename = strrchr(sram_filename, '/');

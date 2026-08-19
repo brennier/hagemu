@@ -145,7 +145,7 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 		hagemu_app_reset(app, app->gb_model);
 	}
 	SDL_free(sram_data);
-	return true;
+	return result;
 }
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBModel model) {
@@ -162,6 +162,10 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	if (app->rom_filename)
 		free(app->rom_filename);
 	app->rom_filename = malloc(strlen(filename) + 1);
+	if (app->rom_filename == NULL) {
+		fprintf(stderr, "[ERROR] Failed to allocate memory for the filename\n");
+		return false;
+	}
 	strcpy(app->rom_filename, filename);
 
 	app->state = HAGEMU_GAME_RUNNING;
@@ -187,6 +191,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 void hagemu_quit_rom(struct HagemuApp *app) {
 	app->state = HAGEMU_NO_ROM;
 	free(app->rom_filename);
+	app->rom_filename = NULL;
 	hagemu_app_reset(app, app->gb_model);
 }
 
@@ -231,6 +236,11 @@ void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button,
 
 void hagemu_handle_drop_event(struct HagemuApp *app, const char *filename) {
 	const char *ext = strrchr(filename, '.');
+	if (ext == NULL) {
+		printf("Dropped file '%s' has no file extension. Ignoring...\n", filename);
+		return;
+	}
+
 	if (strcmp(ext, ".gbc") == 0)
 		hagemu_app_load_rom(app, filename, true);
 	else if (strcmp(ext, ".gb") == 0)
@@ -316,7 +326,7 @@ void hagemu_no_rom_screen(struct HagemuApp *app) {
 	SDL_SetRenderDrawColor(app->renderer, 138, 189, 76, 255);
 	SDL_RenderClear(app->renderer);
 	SDL_SetRenderDrawColor(app->renderer, 48, 102, 87, 255);
-#ifndef EMSCRIPTEN
+#ifndef __EMSCRIPTEN__
 	text_draw_centered(app->renderer,
 			   "Click the \"Upload ROM\" button below",
 			   WINDOW_WIDTH / 2,
@@ -370,9 +380,10 @@ void main_loop(void* arg) {
 
 bool is_gbc_file(const char *filename) {
 	const char *ext = strrchr(filename, '.');
-	if (strcmp(ext, ".gbc") == 0)
-		return true;
-	return false;
+	if (ext == NULL)
+		return false;
+
+	return (strcmp(ext, ".gbc") == 0);
 }
 
 int main(int argc, char *argv[]) {
