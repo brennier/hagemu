@@ -5,7 +5,6 @@
 #include <stdbool.h>
 
 #include "text.h"
-#include "file.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -128,6 +127,40 @@ void hagemu_app_reset(struct HagemuApp *app, enum GBModel model) {
 	app->smooth_sample_rate_adjust = 1.0;
 	app->smooth_delta_time  = 1.0 / 60.0;
 	app->old_time = SDL_GetPerformanceCounter();
+}
+
+char *hagemu_file_sram_name(const char *rom_name) {
+	const char *base = strrchr(rom_name, '/');
+	base = base ? base + 1 : rom_name;
+
+	const char *dot = strrchr(base, '.');
+	size_t base_length = dot ? (dot - base) : strlen(base);
+
+#ifdef __EMSCRIPTEN__
+	// Use a fixed save directory
+	const char *dir = "/savedata/";
+	size_t dir_length = strlen(dir);
+#else
+	// Keep the original directory of the rom name
+	const char *dir = rom_name;
+	size_t dir_length = base - rom_name;
+#endif
+
+	const char *ext = ".sav";
+	size_t ext_length = strlen(ext);
+
+	// +1 for the null terminator
+	char *sram_name = malloc(dir_length + base_length + ext_length + 1);
+	if (sram_name == NULL) {
+		printf("Warning: Failed to allocate memory for the save data file name.\n");
+		return NULL;
+	}
+
+	memcpy(sram_name, dir, dir_length);
+	memcpy(sram_name + dir_length, base, base_length);
+	memcpy(sram_name + dir_length + base_length, ext, ext_length);
+	sram_name[dir_length + base_length + ext_length] = '\0';
+	return sram_name;
 }
 
 bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {

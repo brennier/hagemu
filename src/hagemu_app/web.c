@@ -1,6 +1,5 @@
 #include "web.h"
 #include <stdio.h>
-#include "file.h"
 
 #ifdef __EMSCRIPTEN__
 
