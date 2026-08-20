@@ -238,7 +238,7 @@ static void tick_wave_channel(struct Channel *channel) {
 static void tick_noise_channel(struct Channel *channel) {
 	channel->ticks++;
 	uint32_t period = channel->period_value;
-	if (channel->ticks > period) {
+	if (channel->ticks >= period) {
 		channel->ticks -= period;
 		bool bit0 = (channel->lfsr >> 0) & 0x01;
 		bool bit1 = (channel->lfsr >> 1) & 0x01;

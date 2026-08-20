@@ -35,6 +35,7 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 void hagemu_destory(struct HagemuGB* gb) {
 	cpu_destory(gb->cpu);
 	gb->cpu = NULL;
+	free(gb);
 }
 
 unsigned hagemu_next_instruction(struct HagemuGB* gb) {
