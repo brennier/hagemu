@@ -26,6 +26,8 @@ void cart_rom_write_mbc5(struct HagemuCart *cart, uint16_t address, uint8_t valu
 
 	// Switch RAM bank
 	case 0x4000: case 0x5000:
+		if (!cart->ram)
+			return;
 		cart->ram_index = value & 0x0F;
 		cart->ram_index %= (cart->ram_size / RAM_BANK_SIZE);
 		return;

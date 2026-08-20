@@ -24,7 +24,9 @@ void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 
 	// Switch RAM bank
 	case 0x4000: case 0x5000:
-		if (value < 0x08) {
+		if (!cart->ram) {
+			return;
+		} else if (value < 0x08) {
 			cart->ram_index = value; // RAM bank
 			// cart->ram_size might include 48 bytes of RTC data
 			// but it will be truncated away

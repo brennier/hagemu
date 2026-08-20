@@ -2,9 +2,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define RAM_BANK_SIZE 0x2000
-#define ROM_BANK_SIZE 0x4000
-
 void cart_rom_write_mbc2(struct HagemuCart *cart, uint16_t address, uint8_t value) {
 	if (address >= 0x4000)
 		return;
