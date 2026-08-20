@@ -44,8 +44,8 @@ void joypad_set_byte(uint8_t byte) {
 uint8_t joypad_get_byte(void) {
 	uint8_t joypad_byte = 0x00;
 
-	joypad_byte |= (joypad.select_dpad)    << 5;
-	joypad_byte |= (joypad.select_buttons) << 4;
+	joypad_byte |= (joypad.select_buttons) << 5;
+	joypad_byte |= (joypad.select_dpad)    << 4;
 	joypad_byte |= (joypad.select_dpad    && joypad.down)   << 3;
 	joypad_byte |= (joypad.select_buttons && joypad.start)  << 3;
 	joypad_byte |= (joypad.select_dpad    && joypad.up)     << 2;
