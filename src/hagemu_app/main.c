@@ -118,7 +118,7 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 	SDL_DestroyTexture(app->screen_texture);
 	SDL_DestroyRenderer(app->renderer);
 	SDL_DestroyWindow(app->window);
-	hagemu_destory(app->gb);
+	hagemu_destroy(app->gb);
 	SDL_Quit();
 }
 

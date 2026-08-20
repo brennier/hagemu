@@ -8,5 +8,6 @@ void timer_tick(int t_cycles);
 uint8_t timer_register_read(uint16_t address);
 void timer_register_write(uint16_t address, uint8_t value);
 void timer_set_speed_mode(bool double_speed_mode);
+void timer_reset(void);
 
 #endif

@@ -1,6 +1,7 @@
 #include "timer.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "interrupt.h"
 
 #define TIMER_DIVIDER 0xFF04
@@ -95,4 +96,8 @@ void timer_set_speed_mode(bool double_speed_mode) {
 void timer_tick(int t_cycles) {
 	maybe_increment(timer.time, timer.time + t_cycles);
 	timer.time += t_cycles;
+}
+
+void timer_reset(void) {
+	memset(&timer, 0, sizeof(struct HagemuTimer));
 }

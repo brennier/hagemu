@@ -74,7 +74,7 @@ void cpu_resume_if_stopped(struct HagemuCPU *cpu) {
 	cpu->is_stopped = false;
 }
 
-void cpu_destory(struct HagemuCPU *cpu) {
+void cpu_destroy(struct HagemuCPU *cpu) {
 	free(cpu);
 }
 

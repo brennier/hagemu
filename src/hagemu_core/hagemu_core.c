@@ -8,6 +8,7 @@
 #include "dma.h"
 #include "mmu.h"
 #include "interrupt.h"
+#include "timer.h"
 
 struct HagemuGB {
 	enum GBModel model;
@@ -28,12 +29,13 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 	apu_reset();
 	interrupt_reset();
 	dma_reset();
+	timer_reset();
 	mmu_set_model(model);
 	ppu_set_model(model);
 }
 
-void hagemu_destory(struct HagemuGB* gb) {
-	cpu_destory(gb->cpu);
+void hagemu_destroy(struct HagemuGB* gb) {
+	cpu_destroy(gb->cpu);
 	gb->cpu = NULL;
 	free(gb);
 }
