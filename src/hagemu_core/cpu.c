@@ -26,6 +26,7 @@ struct HagemuCPU {
 	bool master_interrupt_pending;
 	bool is_halted;
 	bool is_stopped;
+	bool halt_bug;
 	uint8_t cycles_passed;
 };
 
@@ -716,7 +717,10 @@ static inline void op_ei(struct HagemuCPU *cpu) {
 }
 
 static inline void op_halt(struct HagemuCPU *cpu) {
-	cpu->is_halted = true;
+	if (!cpu->master_interrupt && interrupt_pending())
+		cpu->halt_bug = true;
+	else
+		cpu->is_halted = true;
 }
 
 static inline void op_load_sp_hl(struct HagemuCPU *cpu) {
@@ -1096,6 +1100,10 @@ int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 	}
 
 	uint8_t opcode_byte = fetch_immediate8(cpu);
+	if (cpu->halt_bug) {
+		cpu->halt_bug = false;
+		cpu->pc--;
+	}
 	process_opcode(cpu, opcode_byte);
 	return cpu->cycles_passed;
 }
