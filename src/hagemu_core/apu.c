@@ -142,10 +142,7 @@ unsigned apu_read_audio(float *output, unsigned max_frames) {
 }
 
 void apu_reset(void) {
-	memset(&apu.ch1, 0, sizeof(struct Channel));
-	memset(&apu.ch2, 0, sizeof(struct Channel));
-	memset(&apu.ch3, 0, sizeof(struct Channel));
-	memset(&apu.ch4, 0, sizeof(struct Channel));
+	memset(&apu, 0, sizeof(struct HagemuAPU));
 }
 
 static void apu_channel_reset(struct Channel *channel) {
@@ -153,7 +150,7 @@ static void apu_channel_reset(struct Channel *channel) {
 }
 
 static void tick_length_timer(struct Channel *channel) {
-	if (!channel->length_enabled)
+	if (!channel->length_enabled || channel->length_current == 0)
 		return;
 
 	channel->length_current--;
