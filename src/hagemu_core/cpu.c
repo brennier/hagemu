@@ -635,7 +635,7 @@ static inline void op_stop(struct HagemuCPU *cpu) {
 	cpu->double_speed_mode = !cpu->double_speed_mode;
 	printf("[INFO] CPU speed mode = %d\n", cpu->double_speed_mode);
 	cpu->set_speed_mode_pending = false;
-	timer_set_speed_mode(cpu->double_speed_mode);
+	timer_div_reset();
 	cpu->pc++;
 }
 

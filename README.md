@@ -25,7 +25,7 @@ The vast majority of gameboy games should run fine with no noticeable glitches. 
  - Pokemon Gold/Silver/Crystal
 
 This emulator also passes many roms made to test the limits of accurate GameBoy emulation, such as
- - Blargg's test roms (cpu_instrs, instr_timing, mem_timing, mem_timing-2, halt_bug, and most of dmg_sound)
+ - Blargg's test roms (cpu_instrs, instr_timing, mem_timing, mem_timing-2, halt_bug, interrupt_time, and most of dmg_sound)
  - Matt Curie's test roms (dmg-acid2 and cgb-acid2)
  - Mooneye's test roms (all of the MBC tests, timer tests, and DMA tests)
 
@@ -172,7 +172,6 @@ This emulator also passes many roms made to test the limits of accurate GameBoy 
   - [ ] Add support for the serial data port
   - [ ] Add support for the infrared communications port
   - [ ] Pass Blargg's APU test
-  - [ ] Pass Blargg's interrupt_time test
   - [ ] Run the Mooneye Test Suite
   - [ ] Use some profiling tools to find critical code blocks
   - [ ] Compile program using -O3 and -flto and -ffast-math

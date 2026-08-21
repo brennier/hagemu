@@ -17,22 +17,18 @@ struct HagemuTimer {
 	uint8_t  modulo;
 	uint8_t  counter;
 	bool     enabled;
-	bool     double_speed_mode;
 	bool     overflow_pending;
 	bool     just_reloaded;
 } timer = { 0 };
 
 static void set_clock_select(void) {
 	uint8_t select = timer.timer_control_raw & 0x03;
-	timer.clock_select = 1;
 	switch (select) {
-        case 0x00: timer.clock_select <<= 9; break;
-        case 0x01: timer.clock_select <<= 3; break;
-        case 0x02: timer.clock_select <<= 5; break;
-        case 0x03: timer.clock_select <<= 7; break;
+        case 0x00: timer.clock_select = (1 << 9); break;
+        case 0x01: timer.clock_select = (1 << 3); break;
+        case 0x02: timer.clock_select = (1 << 5); break;
+        case 0x03: timer.clock_select = (1 << 7); break;
 	}
-	if (timer.double_speed_mode)
-		timer.clock_select <<= 1;
 }
 
 static void timer_increment(void) {
@@ -68,11 +64,15 @@ uint8_t timer_register_read(uint16_t address) {
 	}
 }
 
+void timer_div_reset(void) {
+	maybe_increment(timer.time, 0);
+	timer.time = 0;
+}
+
 void timer_register_write(uint16_t address, uint8_t value) {
 	switch(address) {
 	case TIMER_DIVIDER:
-		maybe_increment(timer.time, 0);
-		timer.time = 0;
+		timer_div_reset();
 		return;
 	case TIMER_COUNTER:
 		if (timer.just_reloaded)
@@ -99,13 +99,6 @@ void timer_register_write(uint16_t address, uint8_t value) {
 		fprintf(stderr, "[ERROR] Write to illegal timer address %04X\n", address);
 		exit(EXIT_FAILURE);
 	}
-}
-
-void timer_set_speed_mode(bool double_speed_mode) {
-	timer.double_speed_mode = double_speed_mode;
-	maybe_increment(timer.time, 0);
-	timer.time = 0;
-	set_clock_select();
 }
 
 void timer_tick(int t_cycles) {
