@@ -531,6 +531,13 @@ static uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
 	case SOUND_NR31: break;
 	case SOUND_NR41: break;
 
+	// Wave RAM is writeable even when the APU is off
+	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
+	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
+	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
+	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
+		break;
+
 	// All other writes are ignored
 	default: value = 0; break;
 	}
