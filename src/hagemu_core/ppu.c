@@ -665,25 +665,35 @@ bool ppu_get_vram_bank(void) {
 }
 
 uint8_t ppu_vram_read(uint16_t address) {
-	if (ppu.enabled && ppu.mode == PIXEL_DRAW)
+	if (ppu.enabled && ppu.mode == PIXEL_DRAW) {
 		return 0xFF;
-	uint8_t *vram;
-	if (ppu.vram_bank)
-		vram = (uint8_t *)ppu.tile_data2;
-	else
-		vram = (uint8_t *)ppu.tile_data;
-	return vram[address];
+	} else if (ppu.vram_bank && address < sizeof(ppu.tile_data2)) {
+		return ((uint8_t *)ppu.tile_data2)[address];
+	} else if (ppu.vram_bank) {
+		address -= sizeof(ppu.tile_data2);
+		return ((uint8_t *)ppu.bg_attributes)[address];
+	} else if (address < sizeof(ppu.tile_data)) {
+		return ((uint8_t *)ppu.tile_data)[address];
+	} else {
+		address -= sizeof(ppu.tile_data);
+		return ((uint8_t *)ppu.tile_map)[address];
+	}
 }
 
 void ppu_vram_write(uint16_t address, uint8_t value) {
-	if (ppu.enabled && ppu.mode == PIXEL_DRAW)
+	if (ppu.enabled && ppu.mode == PIXEL_DRAW) {
 		return;
-	uint8_t *vram;
-	if (ppu.vram_bank)
-		vram = (uint8_t *)ppu.tile_data2;
-	else
-		vram = (uint8_t *)ppu.tile_data;
-	vram[address] = value;
+	} else if (ppu.vram_bank && address < sizeof(ppu.tile_data2)) {
+		((uint8_t *)ppu.tile_data2)[address] = value;
+	} else if (ppu.vram_bank) {
+		address -= sizeof(ppu.tile_data2);
+		((uint8_t *)ppu.bg_attributes)[address] = value;
+	} else if (address < sizeof(ppu.tile_data)) {
+		((uint8_t *)ppu.tile_data)[address] = value;
+	} else {
+		address -= sizeof(ppu.tile_data);
+		((uint8_t *)ppu.tile_map)[address] = value;
+	}
 }
 
 void ppu_oam_write_nonblocking(uint16_t address, uint8_t value) {
