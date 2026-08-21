@@ -27,7 +27,7 @@ The vast majority of gameboy games should run fine with no noticeable glitches. 
 This emulator also passes many roms made to test the limits of accurate GameBoy emulation, such as
  - Blargg's test roms (cpu_instrs, instr_timing, mem_timing, mem_timing-2, and most of dmg_sound)
  - Matt Curie's test roms (dmg-acid2 and cgb-acid2)
- - Mooneye's test roms (all of the MBC tests and DMA tests)
+ - Mooneye's test roms (all of the MBC tests, timer tests, and DMA tests)
 
 <details>
   <summary><h3>Progress Report (click here to expand)</h3></summary>
@@ -167,6 +167,7 @@ This emulator also passes many roms made to test the limits of accurate GameBoy 
   - [x] Clear all APU registers when disabled
   - [x] Make the audio registers readable
   - [x] Pass Blargg's interrupt_time test
+  - [x] Passes all of Mooneye's timer test roms
   - [ ] Add support for the serial data port
   - [ ] Add support for the infrared communications port
   - [ ] Pass Blargg's APU test

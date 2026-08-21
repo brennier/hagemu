@@ -18,6 +18,8 @@ struct HagemuTimer {
 	uint8_t  counter;
 	bool     enabled;
 	bool     double_speed_mode;
+	bool     overflow_pending;
+	bool     just_reloaded;
 } timer = { 0 };
 
 static void set_clock_select(void) {
@@ -33,22 +35,25 @@ static void set_clock_select(void) {
 		timer.clock_select <<= 1;
 }
 
+static void timer_increment(void) {
+	if (timer.counter == 0xFF) {
+		timer.counter = 0x00;
+		timer.overflow_pending = true;
+	} else {
+		timer.counter++;
+	}
+}
+
 static void maybe_increment(uint16_t old_time, uint16_t new_time) {
 	// Return early if timer control is off
 	if (!timer.enabled)
 		return;
-
 	if ((old_time & timer.clock_select) == 0)
 		return;
 	if ((new_time & timer.clock_select) != 0)
 		return;
 
-	if (timer.counter == 0xFF) {
-		timer.counter = timer.modulo;
-		interrupt_raise(TIMER_INTERRUPT);
-	} else {
-		timer.counter++;
-	}
+	timer_increment();
 }
 
 uint8_t timer_register_read(uint16_t address) {
@@ -70,16 +75,26 @@ void timer_register_write(uint16_t address, uint8_t value) {
 		timer.time = 0;
 		return;
 	case TIMER_COUNTER:
+		if (timer.just_reloaded)
+			return;
+		timer.overflow_pending = false;
 		timer.counter = value;
 		return;
 	case TIMER_MODULO:
 		timer.modulo = value;
+		if (timer.just_reloaded)
+			timer.counter = value;
 		return;
-	case TIMER_CONTROL:
+	case TIMER_CONTROL: {
+		bool old_signal = timer.enabled && (timer.time & timer.clock_select);
 		timer.timer_control_raw = value;
 		timer.enabled = value & (1 << 2);
 		set_clock_select();
+		bool new_signal = timer.enabled && (timer.time & timer.clock_select);
+		if (old_signal && !new_signal)
+			timer_increment();
 		return;
+	}
 	default:
 		fprintf(stderr, "[ERROR] Write to illegal timer address %04X\n", address);
 		exit(EXIT_FAILURE);
@@ -94,6 +109,13 @@ void timer_set_speed_mode(bool double_speed_mode) {
 }
 
 void timer_tick(int t_cycles) {
+	timer.just_reloaded = false;
+	if (timer.overflow_pending) {
+		timer.overflow_pending = false;
+		timer.counter = timer.modulo;
+		timer.just_reloaded = true;
+		interrupt_raise(TIMER_INTERRUPT);
+	}
 	maybe_increment(timer.time, timer.time + t_cycles);
 	timer.time += t_cycles;
 }
