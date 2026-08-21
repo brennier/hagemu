@@ -561,11 +561,14 @@ void ppu_set_lcd_status(uint8_t value) {
 }
 
 uint8_t ppu_get_lcd_status(void) {
+	// The highest bit is always 1
+	ppu.lcd_status_raw |= 0x80;
 	// Clear the lowest three bits
 	ppu.lcd_status_raw &= 0xF8;
 	// bits 0 and 1 are the PPU mode
 	if (ppu.enabled)
 		ppu.lcd_status_raw |= ppu.mode;
+	// bit 2 is the line compare bit
 	ppu.lcd_status_raw |= (ppu.current_line == ppu.line_compare) << 2;
 	return ppu.lcd_status_raw;
 }
