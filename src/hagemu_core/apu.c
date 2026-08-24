@@ -20,11 +20,6 @@ typedef struct {
 	float right;
 } AudioFrame;
 
-typedef struct {
-	int left;
-	int right;
-} IntegerAudioFrame;
-
 struct Channel {
 	// All channels
 	unsigned ticks;
@@ -81,8 +76,8 @@ struct HagemuAPU {
 	struct Channel ch3;
 	struct Channel ch4;
 	struct AudioQueue audio_queue;
-	IntegerAudioFrame highpass_capacitor;
-	IntegerAudioFrame lowpass_prev_frame;
+	AudioFrame highpass_capacitor;
+	AudioFrame lowpass_prev_frame;
 	unsigned ticks;
 	unsigned frame_sequencer_clock_step;
 	uint8_t wave_data[16];
@@ -288,16 +283,15 @@ static void apu_tick_frame_sequencer(void) {
 }
 
 // Alpha should be 1 - exp(-2 * pi * cutoff_freqency / sample_rate)
-/* const float alpha = 0.730f; // 48kHz sample rate, 10kHz cutoff */
-/* const float alpha = 0.649f; // 48kHz sample rate, 8kHz cutoff */
-static IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
-	IntegerAudioFrame frame_diff;
+/* const float alpha = 0.729909f; // 48kHz sample rate, 10kHz cutoff */
+/* const float alpha = 0.649080f; // 48kHz sample rate, 8kHz cutoff */
+static AudioFrame lowpass_filter(AudioFrame frame) {
+	AudioFrame frame_diff;
 	frame_diff.left  = frame.left  - apu.lowpass_prev_frame.left;
 	frame_diff.right = frame.right - apu.lowpass_prev_frame.right;
 
-	// This effectively multiplies by 0.6485
-	frame_diff.left  = (frame_diff.left  * 664) / 1024;
-	frame_diff.right = (frame_diff.right * 664) / 1024;
+	frame_diff.left  = frame_diff.left  * 0.649080f;
+	frame_diff.right = frame_diff.right * 0.649080f;
 
 	apu.lowpass_prev_frame.left  += frame_diff.left;
 	apu.lowpass_prev_frame.right += frame_diff.right;
@@ -305,18 +299,17 @@ static IntegerAudioFrame lowpass_filter(IntegerAudioFrame frame) {
 }
 
 // Emulates the DC Blocking of the gameboy
-static IntegerAudioFrame highpass_filter(IntegerAudioFrame input) {
-	IntegerAudioFrame output = { 0 };
-	bool highpass_enabled = apu.ch1.dac_enabled
-		|| apu.ch2.dac_enabled
-		|| apu.ch3.dac_enabled
-		|| apu.ch4.dac_enabled;
-	if (highpass_enabled) {
-		output.left  = input.left  - apu.highpass_capacitor.left;
-		output.right = input.right - apu.highpass_capacitor.right;
-		apu.highpass_capacitor.left  = input.left  - (output.left  * 4081) / 4096;
-		apu.highpass_capacitor.right = input.right - (output.right * 4081) / 4096;
-	}
+static AudioFrame highpass_filter(AudioFrame input) {
+	AudioFrame output;
+	output.left  = input.left  - apu.highpass_capacitor.left;
+	output.right = input.right - apu.highpass_capacitor.right;
+	apu.highpass_capacitor.left  = input.left  - 0.996337f * output.left;
+	apu.highpass_capacitor.right = input.right - 0.996337f * output.right;
+
+	if (apu.highpass_capacitor.left < 1e-20f && apu.highpass_capacitor.left > -1e-20f)
+		apu.highpass_capacitor.left = 0.0f;
+	if (apu.highpass_capacitor.right < 1e-20f && apu.highpass_capacitor.right > -1e-20f)
+		apu.highpass_capacitor.right = 0.0f;
 	return output;
 }
 
@@ -364,8 +357,8 @@ static uint8_t channel_output_noise(struct Channel *channel) {
 }
 
 
-static IntegerAudioFrame apu_generate_frame(void) {
-	IntegerAudioFrame frame = { 0 };
+static AudioFrame apu_generate_frame(void) {
+	AudioFrame frame = { 0 };
 	if (!apu.enabled)
 		return frame;
 
@@ -385,9 +378,12 @@ static IntegerAudioFrame apu_generate_frame(void) {
 		+ apu.ch3_output_right * ch3
 		+ apu.ch4_output_right * ch4;
 
-	// Normalize to [-30, 30]
-	frame.left  -= 30;
-	frame.right -= 30;
+	frame.left  *= (apu.volume_left  + 1);
+	frame.right *= (apu.volume_right + 1);
+
+	// Normalize from [0, 240] to [-1.0, 1.0]
+	frame.left = (frame.left - 120.0f) / 120.0f;
+	frame.right = (frame.right - 120.0f) / 120.0f;
 
 	return frame;
 }
@@ -405,10 +401,9 @@ static void apu_tick_once(void) {
 		}
 	}
 
-	IntegerAudioFrame current_frame = apu_generate_frame();
-	static IntegerAudioFrame accumulate = { 0 };
+	static AudioFrame accumulate = { 0 };
+	AudioFrame current_frame = apu_generate_frame();
 	decimation_counter += 1.0;
-
 	if (decimation_counter < DECIMATION_FACTOR) {
 		accumulate.left  += current_frame.left;
 		accumulate.right += current_frame.right;
@@ -419,16 +414,14 @@ static void apu_tick_once(void) {
 	float step = 1.0 - leftover;
 	accumulate.left  += current_frame.left  * step;
 	accumulate.right += current_frame.right * step;
-	accumulate.left  *= (apu.volume_left  + 1);
-	accumulate.right *= (apu.volume_right + 1);
+	accumulate.left  /= DECIMATION_FACTOR;
+	accumulate.right /= DECIMATION_FACTOR;
 	accumulate = lowpass_filter(accumulate);
 	accumulate = highpass_filter(accumulate);
 
-	// Normalize to [-1.0, 1.0]
-	AudioFrame output;
-	output.left  = accumulate.left  / (240.0 * DECIMATION_FACTOR);
-	output.right = accumulate.right / (240.0 * DECIMATION_FACTOR);
-	queue_push(&apu.audio_queue, output);
+	accumulate.left  /= 2.0f;
+	accumulate.right /= 2.0f;
+	queue_push(&apu.audio_queue, accumulate);
 
 	decimation_counter = leftover;
 	accumulate.left  = current_frame.left  * leftover;
