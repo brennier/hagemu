@@ -465,12 +465,14 @@
       let is_cgb_mode = false;
 
       const toggle = document.querySelector('#cgb-toggle input');
-      toggle.addEventListener('change', async () => {
+      toggle.addEventListener('change', async (event) => {
           Module._web_save_sram_file();
           const is_running = Module._web_is_rom_running();
           let should_continue = true;
 
-          if (is_running) {
+          // event.isTrusted is true if the event occured because the user pressed
+          // the cgb-toggle button. It's false it the event occured programmatically.
+          if (is_running && event.isTrusted) {
               should_continue = await myConfirm("Switching between Game Boy and Game Boy Color mode will reset the current game. Any unsaved progress will be lost. Continue?");
           }
 
@@ -593,8 +595,15 @@
 
               const ext = file.name.split(".").pop().toLowerCase();
               var type;
-              if (ext == "gb" || ext == "gbc") {
+
+              if (ext === "gb") {
                   type = "rom";
+                  toggle.checked = false;
+                  toggle.dispatchEvent(new Event('change'));
+              } else if (ext === "gbc") {
+                  type = "rom";
+                  toggle.checked = true;
+                  toggle.dispatchEvent(new Event('change'));
               } else if (ext == "sav" || ext == "sram") {
                   type = "sram";
               } else {
