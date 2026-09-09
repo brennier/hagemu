@@ -224,10 +224,9 @@ static void tick_pulse_channel(struct Channel *channel) {
 }
 
 static void tick_wave_channel(struct Channel *channel) {
-	channel->ticks++;
-	uint32_t period = 2048 - channel->period_value;
-	if (channel->ticks >= period) {
-		channel->ticks -= period;
+	channel->ticks--;
+	if (channel->ticks == 0) {
+		channel->ticks = 2048 - channel->period_value;
 		channel->wave_index++;
 		channel->wave_index %= 32;
 		channel->wave_sample_buffer = apu.wave_data[channel->wave_index / 2];
@@ -654,6 +653,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		channel_length_enable(&apu.ch3, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
 			channel_trigger(&apu.ch3, 256);
+		        apu.ch3.ticks = 2048 - apu.ch3.period_value;
 			apu.ch3.wave_index = 0;
 		}
 		return;
