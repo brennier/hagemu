@@ -54,6 +54,7 @@ struct Channel {
 	// Channel 3 only
 	unsigned volume_level;
 	unsigned wave_index;
+	uint8_t  wave_sample_buffer;
 
 	// Channel 4 only
 	unsigned lfsr;
@@ -224,6 +225,7 @@ static void tick_wave_channel(struct Channel *channel) {
 		channel->ticks -= period;
 		channel->wave_index++;
 		channel->wave_index %= 32;
+		channel->wave_sample_buffer = apu.wave_data[channel->wave_index / 2];
 	}
 }
 
@@ -334,14 +336,14 @@ static uint8_t channel_output_wave(struct Channel *channel) {
 	if (!channel->dac_enabled || !channel->enabled)
 		return 0;
 
-	uint8_t data = apu.wave_data[channel->wave_index / 2];
+	uint8_t wave_output = channel->wave_sample_buffer;
 	if (channel->wave_index % 2 == 0)
-		data >>= 4;
+		wave_output >>= 4;
 	else
-		data &= 0x0F;
+		wave_output &= 0x0F;
 
 	if (channel->volume_level)
-		return data >> (channel->volume_level - 1);
+		return wave_output >> (channel->volume_level - 1);
 	else
 		return 0;
 }
@@ -775,12 +777,7 @@ uint8_t apu_register_read(uint16_t address) {
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
 		if (apu.ch3.enabled) {
-			uint8_t data = apu.wave_data[apu.ch3.wave_index / 2];
-			if (apu.ch3.wave_index % 2 == 0)
-				data >>= 4;
-			else
-				data &= 0x0F;
-			return data;
+			return apu.ch3.wave_sample_buffer;
 		}
 		else {
 			return apu.wave_data[address - APU_WAVE_DATA_START];
