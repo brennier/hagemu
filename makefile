@@ -10,7 +10,7 @@ OBJECTS = $(patsubst $(SOURCE_DIR)/%.c, $(BUILD_DIR)/%.o, $(SOURCES))
 
 $(TARGET): $(OBJECTS)
 	@printf %s "Linking together the final executable..."
-	@$(CC) $(CFLAGS) $(LFLAGS) $^ -o $@ >/dev/null
+	@$(CC) $(CFLAGS) $^ $(LFLAGS) -o $@
 	@echo successful!
 	@echo $(TARGET) was successfully created!
 
