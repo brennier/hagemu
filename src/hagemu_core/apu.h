@@ -1,6 +1,8 @@
 #ifndef APU_H
 #define APU_H
+
 #include <stdint.h>
+#include "core_types.h"
 
 void apu_tick(void);
 void apu_reset(void);
@@ -11,5 +13,7 @@ uint8_t apu_register_read(uint16_t address);
 unsigned apu_read_audio(float *output, unsigned frame_count);
 unsigned apu_audio_available(void);
 void apu_set_audio_sample_rate(unsigned new_sample_rate);
+
+void apu_set_model(enum GBModel model);
 
 #endif

@@ -94,7 +94,12 @@ struct HagemuAPU {
 	bool ch4_output_right;
 	bool ch4_output_left;
 	bool enabled;
+        enum GBModel model;
 } apu = { 0 };
+
+void apu_set_model(enum GBModel model) {
+	apu.model = model;
+}
 
 void apu_set_audio_sample_rate(unsigned new_sample_rate) {
 	TARGET_SAMPLE_RATE = new_sample_rate;
@@ -518,26 +523,32 @@ static void sweep_trigger(struct Channel *ch) {
 static uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
 	switch (address) {
 	// Can still turn the APU off/on
-	case SOUND_NR52: break;
+	case SOUND_NR52:
+                return value;
 
 	// The length counters are still writeable on DMG model
-	case SOUND_NR11: value &= 0x3F; break;
-	case SOUND_NR21: value &= 0x3F; break;
-	case SOUND_NR31: break;
-	case SOUND_NR41: break;
+	case SOUND_NR11: case SOUND_NR21:
+                if (apu.model == MODEL_DMG)
+                        return value & 0x3F;
+                else
+                        return 0;
+	case SOUND_NR31: case SOUND_NR41:
+                if (apu.model == MODEL_DMG)
+                        return value;
+                else
+                        return 0;
 
 	// Wave RAM is writeable even when the APU is off
 	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		break;
+                return value;
 
 	// All other writes are ignored
-	default: value = 0; break;
+	default:
+                return 0;
 	}
-
-	return value;
 }
 
 void apu_register_write(uint16_t address, uint8_t value) {

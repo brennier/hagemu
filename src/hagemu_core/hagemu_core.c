@@ -32,6 +32,7 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 	timer_reset();
 	mmu_set_model(model);
 	ppu_set_model(model);
+	apu_set_model(model);
 }
 
 void hagemu_destroy(struct HagemuGB* gb) {
