@@ -55,6 +55,7 @@ struct Channel {
 	unsigned volume_level;
 	unsigned wave_index;
 	uint8_t  wave_sample_buffer;
+        bool     reading_wave_ram;
 
 	// Channel 4 only
 	unsigned lfsr;
@@ -224,8 +225,10 @@ static void tick_pulse_channel(struct Channel *channel) {
 }
 
 static void tick_wave_channel(struct Channel *channel) {
+        channel->reading_wave_ram = false;
 	channel->ticks--;
 	if (channel->ticks == 0) {
+                channel->reading_wave_ram = true;
 		channel->ticks = 2048 - channel->period_value;
 		channel->wave_index++;
 		channel->wave_index %= 32;
@@ -731,12 +734,12 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		if (apu.ch3.enabled) {
-			apu.wave_data[apu.ch3.wave_index / 2] = value;
-		} else {
-			apu.wave_data[address - APU_WAVE_DATA_START] = value;
-		}
-		return;
+                if (!apu.ch3.enabled) {
+                        apu.wave_data[address - APU_WAVE_DATA_START] = value;
+                } else if (apu.model == MODEL_CGB || apu.ch3.reading_wave_ram) {
+                        apu.wave_data[apu.ch3.wave_index / 2] = value;
+                }
+                return;
 
 	default:
 		return; // Unimplemented
@@ -793,11 +796,13 @@ uint8_t apu_register_read(uint16_t address) {
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-		if (apu.ch3.enabled) {
-			return apu.wave_data[apu.ch3.wave_index / 2];
-		} else {
-			return apu.wave_data[address - APU_WAVE_DATA_START];
-		}
+                if (!apu.ch3.enabled) {
+                        return apu.wave_data[address - APU_WAVE_DATA_START];
+                } else if (apu.model == MODEL_CGB || apu.ch3.reading_wave_ram) {
+                        return apu.wave_data[apu.ch3.wave_index / 2];
+                } else {
+                        return 0xFF;
+                }
 
 	default:
 		return 0xFF;
