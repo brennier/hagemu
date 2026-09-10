@@ -654,6 +654,8 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		if (get_bits(value, 7, 7)) {
 			channel_trigger(&apu.ch3, 256);
 		        apu.ch3.ticks = 2048 - apu.ch3.period_value;
+                        // There's a delay of 3 APU ticks when the channel is first triggered
+                        apu.ch3.ticks += 3;
 			apu.ch3.wave_index = 0;
 		}
 		return;
