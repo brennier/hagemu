@@ -523,6 +523,15 @@ static void sweep_trigger(struct Channel *ch) {
 	}
 }
 
+static void corrupt_wave_data() {
+        unsigned wave_index_aligned = apu.ch3.wave_index / 8;
+        if (wave_index_aligned == 0) {
+                apu.wave_data[0] = apu.wave_data[apu.ch3.wave_index / 2];
+        } else {
+                memcpy(&apu.wave_data[0], &apu.wave_data[wave_index_aligned * 4], 4);
+        }
+}
+
 static uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
 	switch (address) {
 	// Can still turn the APU off/on
@@ -655,6 +664,10 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		apu.ch3.period_value |= get_bits(value, 0, 2) << 8;
 		channel_length_enable(&apu.ch3, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
+                        tick_wave_channel(&apu.ch3);
+                        if (apu.model == MODEL_DMG && apu.ch3.enabled && apu.ch3.reading_wave_ram) {
+                                corrupt_wave_data();
+                        }
 			channel_trigger(&apu.ch3, 256);
 		        apu.ch3.ticks = 2048 - apu.ch3.period_value;
                         // There's a delay of 3 APU ticks when the channel is first triggered

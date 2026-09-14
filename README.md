@@ -25,7 +25,7 @@ The vast majority of gameboy games should run fine with no noticeable glitches. 
  - Pokemon Gold/Silver/Crystal
 
 This emulator also passes many roms made to test the limits of accurate GameBoy emulation, such as
- - Blargg's test roms (cpu_instrs, instr_timing, mem_timing, mem_timing-2, halt_bug, interrupt_time, cgb_sound, and most of dmg_sound)
+ - Blargg's test roms (cpu_instrs, instr_timing, mem_timing, mem_timing-2, halt_bug, interrupt_time, cgb_sound, and dmg_sound)
  - Matt Curie's test roms (dmg-acid2 and cgb-acid2)
  - Mooneye's test roms (all of the MBC tests, timer tests, and DMA tests)
 
@@ -104,10 +104,10 @@ This emulator also passes many roms made to test the limits of accurate GameBoy 
     - [x] 06 overflow on trigger
     - [x] 07 Length sweep period sync
     - [x] 08 Length counter during power
-    - [ ] 09 Wave read while on
-    - [ ] 10 Wave trigger while on
+    - [x] 09 Wave read while on
+    - [x] 10 Wave trigger while on
     - [x] 11 registers after power
-    - [ ] 12 wave write while on
+    - [x] 12 wave write while on
 - [ ] Implement support for various Memory Bank Controller (MBC) chips
   - [x] Basic support for saving and loading .sav files
   - [x] Separate MBC code into its own file
@@ -170,7 +170,7 @@ This emulator also passes many roms made to test the limits of accurate GameBoy 
   - [x] Pass Blargg's halt bug test
   - [x] Passes all of Mooneye's timer test roms
   - [x] Passes all of Blargg's cgb_sound tests
-  - [ ] Pass Blargg's dmg_sound test rom
+  - [x] Pass Blargg's dmg_sound test rom
   - [ ] Add support for the serial data port
   - [ ] Add support for the infrared communications port
   - [ ] Run the Mooneye Test Suite
