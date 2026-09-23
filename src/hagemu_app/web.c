@@ -6,7 +6,7 @@
 #include <emscripten.h>
 
 struct HagemuApp *hagemu_app = NULL;
-const char *sram_filename = NULL;
+char *sram_filename = NULL;
 
 void web_save_pointer_for_javascript(struct HagemuApp *app) {
 	hagemu_app = app;

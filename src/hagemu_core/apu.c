@@ -520,7 +520,7 @@ static void sweep_trigger(struct Channel *ch) {
 	}
 }
 
-static void corrupt_wave_data() {
+static void corrupt_wave_data(void) {
         unsigned wave_index_aligned = apu.ch3.wave_index / 8;
         if (wave_index_aligned == 0) {
                 apu.wave_data[0] = apu.wave_data[apu.ch3.wave_index / 2];
