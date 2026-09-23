@@ -215,10 +215,9 @@ static void tick_envelope(struct Channel *channel) {
 }
 
 static void tick_pulse_channel(struct Channel *channel) {
-	channel->ticks++;
-	uint32_t period = 2 * (2048 - channel->period_value);
-	if (channel->ticks >= period ) {
-		channel->ticks -= period;
+	channel->ticks--;
+	if (channel->ticks <= 0) {
+		channel->ticks = 2 * (2048 - channel->period_value);
 		channel->duty_wave_index++;
 		channel->duty_wave_index %= 8;
 	}
@@ -227,9 +226,9 @@ static void tick_pulse_channel(struct Channel *channel) {
 static void tick_wave_channel(struct Channel *channel) {
         channel->reading_wave_ram = false;
 	channel->ticks--;
-	if (channel->ticks == 0) {
-                channel->reading_wave_ram = true;
+	if (channel->ticks <= 0) {
 		channel->ticks = 2048 - channel->period_value;
+                channel->reading_wave_ram = true;
 		channel->wave_index++;
 		channel->wave_index %= 32;
 		channel->wave_sample_buffer = apu.wave_data[channel->wave_index / 2];
@@ -237,10 +236,9 @@ static void tick_wave_channel(struct Channel *channel) {
 }
 
 static void tick_noise_channel(struct Channel *channel) {
-	channel->ticks++;
-	uint32_t period = channel->period_value;
-	if (channel->ticks >= period) {
-		channel->ticks -= period;
+	channel->ticks--;
+	if (channel->ticks <= 0) {
+		channel->ticks = channel->period_value;
 		bool bit0 = (channel->lfsr >> 0) & 0x01;
 		bool bit1 = (channel->lfsr >> 1) & 0x01;
 		bool next_bit = !(bit0 ^ bit1);
@@ -505,10 +503,9 @@ static void channel_trigger(struct Channel *ch, int length_max) {
 			ch->length_current--;
 		}
 	}
-        ch->ticks = 0;
 	ch->envelope_current = 0;
 	ch->volume_current = ch->volume_initial;
-	ch->duty_wave_index = 0;
+        ch->duty_wave_index = 0;
 	if (ch->dac_enabled && ch->length_current != 0)
 		ch->enabled = true;
 }
@@ -606,11 +603,12 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		channel_length_enable(&apu.ch1, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
 			channel_trigger(&apu.ch1, 64);
+			apu.ch1.ticks = 2 * (2048 - apu.ch1.period_value);
 			sweep_trigger(&apu.ch1);
 		}
 		return;
 
-		// CHANNEL 2
+	// CHANNEL 2
 	case SOUND_NR21:
 		apu.ch2.length_current = 64 - get_bits(value, 0, 5);
 		apu.ch2.duty_wave_type = get_bits(value, 6, 7);
@@ -636,8 +634,10 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		apu.ch2.period_value &= ~(0xFF00);
 		apu.ch2.period_value |= get_bits(value, 0, 2) << 8;
 		channel_length_enable(&apu.ch2, get_bits(value, 6, 6));
-		if (get_bits(value, 7, 7))
+		if (get_bits(value, 7, 7)) {
 			channel_trigger(&apu.ch2, 64);
+			apu.ch2.ticks = 2 * (2048 - apu.ch2.period_value);
+		}
 		return;
 
 	case SOUND_NR30:
@@ -646,6 +646,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 			apu.ch3.enabled = false;
 		return;
 
+	// CHANNEL 3
 	case SOUND_NR31:
 		apu.ch3.length_current = 256 - value;
 		return;
@@ -676,6 +677,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		}
 		return;
 
+	// CHANNEL 4
 	case SOUND_NR41:
 		apu.ch4.length_current = 64 - get_bits(value, 0, 5);
 		return;
@@ -706,6 +708,7 @@ void apu_register_write(uint16_t address, uint8_t value) {
 		channel_length_enable(&apu.ch4, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
 			channel_trigger(&apu.ch4, 64);
+		        apu.ch4.ticks = apu.ch4.period_value;
 			apu.ch4.lfsr = 0;
 		}
 		return;
