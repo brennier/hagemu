@@ -81,7 +81,7 @@ static void cart_set_info(struct HagemuCart *cart) {
 }
 
 bool cart_sram_available(void) {
-	return cart.ram;
+	return cart.info.has_battery && cart.ram;
 }
 
 bool cart_set_sram(const uint8_t *data, size_t size) {
@@ -169,16 +169,22 @@ void cart_set_rom(const uint8_t *data, size_t size) {
 	memcpy(cart.rom, data, size);
 
 	cart_set_info(&cart);
-	printf("Rom title is %s\n", cart.title);
-	printf("Cartridge type is MBC%d\n", cart.info.type);
-	printf("ROM size is %zu KiB\n",  cart.rom_size / 1024);
-	if (cart.ram_size < 1024)
-		printf("RAM size is %zu bytes\n", cart.ram_size);
-	else
-		printf("RAM size is %zu KiB\n", cart.ram_size / 1024);
-
 	if (size != cart.rom_size)
 		printf("WARNING: Cartridge file is %zu bytes, but expected %zu bytes\n", size, cart.rom_size);
+
+	printf("Rom data been loaded successfully\n");
+
+	printf("***** ROM Info *****\n");
+	printf("Game Title:  %s\n", cart.title);
+	printf("ROM Type:    MBC%d\n", cart.info.type);
+	printf("ROM Size:    %zu KiB\n",  cart.rom_size / 1024);
+	if (cart.ram_size < 1024)
+		printf("SRAM Size:   %zu bytes\n", cart.ram_size);
+	else
+		printf("SRAM Size:   %zu KiB\n", cart.ram_size / 1024);
+	printf("Has Battery: %s\n", cart.info.has_battery ? "YES" : "NO");
+	printf("Has Timer:   %s\n", cart.info.has_timer ? "YES" : "NO");
+	printf("Has Rumble:  %s\n", cart.info.has_rumble ? "YES" : "NO");
 
 	if (cart.ram_size == 0) {
 		printf("Cartridge contains no SRAM or RTC\n");
