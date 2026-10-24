@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "core.h"
 #include "hagemu.h"
+
 #include "cpu.h"
 #include "apu.h"
 #include "ppu.h"
@@ -18,14 +19,14 @@ struct HagemuGB* hagemu_create(void) {
 }
 
 void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
+	gb->model = model;
 	cpu_reset(&gb->cpu);
-	mmu_reset(&gb->cpu);
+	mmu_reset(&gb->mmu);
 	ppu_reset();
 	apu_reset();
 	interrupt_reset();
 	dma_reset();
 	timer_reset();
-	mmu_set_model(model);
 	ppu_set_model(model);
 	apu_set_model(model);
 }

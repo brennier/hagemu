@@ -1,16 +1,12 @@
 #include "cpu.h"
+#include "core.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "mmu.h"
-#include "interrupt.h"
-#include "hdma.h"
-#include "timer.h"
-#include "ppu.h"
-#include "apu.h"
-#include "dma.h"
+#define CORE_FROM_CPU(cpu) ((struct HagemuGB *)((uint8_t *)(cpu) - offsetof(struct HagemuGB, cpu)))
 
 static void system_tick(struct HagemuCPU *cpu) {
 	if (!cpu->double_speed_mode) {
@@ -107,12 +103,12 @@ static inline void set_f(struct HagemuCPU *cpu, uint8_t f_value) {
 
 static inline uint8_t fetch_byte(struct HagemuCPU *cpu, uint16_t address) {
 	system_tick(cpu);
-	return mmu_read(address);
+	return mmu_read(&CORE_FROM_CPU(cpu)->mmu, address);
 }
 
 static inline void write_byte(struct HagemuCPU *cpu,uint16_t address, uint8_t value) {
 	system_tick(cpu);
-	mmu_write(address, value);
+	mmu_write(&CORE_FROM_CPU(cpu)->mmu, address, value);
 }
 
 static inline uint8_t fetch_immediate8(struct HagemuCPU *cpu) {
@@ -258,8 +254,9 @@ void cpu_print_state(struct HagemuCPU *cpu) {
 	uint8_t l = get_reg8(cpu, REG_L);
 	uint16_t sp = get_reg16(cpu, REG_SP);
 	uint16_t pc = get_reg16(cpu, REG_PC);
+	struct HagemuMMU *mmu = &CORE_FROM_CPU(cpu)->mmu;
 	fprintf(stderr, "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
-	       a, f, b, c, d, e, h, l, sp, pc, mmu_read(pc), mmu_read(pc+1), mmu_read(pc+2), mmu_read(pc+3));
+	       a, f, b, c, d, e, h, l, sp, pc, mmu_read(mmu, pc), mmu_read(mmu, pc+1), mmu_read(mmu, pc+2), mmu_read(mmu, pc+3));
 }
 
 static inline void op_rlc8(struct HagemuCPU *cpu, enum Reg8 reg) {
@@ -587,9 +584,9 @@ static inline void op_store_sp(struct HagemuCPU *cpu) {
 	uint16_t address = get_reg16(cpu, IMMEDIATE16);
 	uint16_t value   = get_reg16(cpu, REG_SP);
 	system_tick(cpu);
-	mmu_write(address, value & 0x00FF);
+	mmu_write(&CORE_FROM_CPU(cpu)->mmu, address, value & 0x00FF);
 	system_tick(cpu);
-	mmu_write(address + 1, (value & 0xFF00) >> 8);
+	mmu_write(&CORE_FROM_CPU(cpu)->mmu, address + 1, (value & 0xFF00) >> 8);
 }
 
 static inline void op_stop(struct HagemuCPU *cpu) {
