@@ -403,11 +403,11 @@ void main_loop(void* arg) {
 	SDL_RenderPresent(app->renderer);
 
 	int sample_rate = calculate_sample_rate(app);
-	hagemu_set_audio_sample_rate(sample_rate);
-	int frames_available = hagemu_audio_available();
+	hagemu_set_audio_sample_rate(app->gb, sample_rate);
+	int frames_available = hagemu_audio_available(app->gb);
 	if (frames_available > AUDIO_TARGET_FRAMES)
 		frames_available = AUDIO_TARGET_FRAMES;
-	int frames = hagemu_audio_read(app->audio_buffer, frames_available);
+	int frames = hagemu_audio_read(app->gb, app->audio_buffer, frames_available);
 	// Lower the volume (later this will be adjustable)
 	for (int i = 0; i < 2 * frames; i++)
 		app->audio_buffer[i] /= 4.0;

@@ -47,7 +47,7 @@ static uint8_t mmu_read_io(struct HagemuMMU *mmu, uint16_t address) {
 	else if (address >= 0xFF40 && address <= 0xFF4B) // Note: FF46 is DMA
 		return ppu_register_read(&gb->ppu, address);
 	else if (address >= 0xFF10 && address <= 0xFF3F)
-		return apu_register_read(address);
+		return apu_register_read(&gb->apu, address);
 	else
 		return 0xFF;
 }
@@ -98,7 +98,7 @@ static void mmu_write_io(struct HagemuMMU *mmu, uint16_t address, uint8_t value)
 	else if (address >= 0xFF40 && address <= 0xFF4B) // Note: FF46 is DMA
 		ppu_register_write(&gb->ppu, address, value);
 	else if (address >= 0xFF10 && address <= 0xFF3F)
-		apu_register_write(address, value);
+		apu_register_write(&gb->apu, address, value);
 }
 
 uint8_t mmu_read_nonblocking(struct HagemuMMU *mmu, uint16_t address) {

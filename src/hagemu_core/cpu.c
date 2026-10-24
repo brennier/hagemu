@@ -16,7 +16,7 @@ static void system_tick(struct HagemuCPU *cpu) {
 		dma_tick(&gb->dma);
 		timer_tick(&gb->timer, 4);
 		ppu_tick(&gb->ppu);
-		apu_tick();
+		apu_tick(&gb->apu);
 		cpu->cycles_passed += 4;
 		return;
 	} else if (cpu->double_speed_mode && cpu->speed_mode_odd_cycle) {
@@ -24,7 +24,7 @@ static void system_tick(struct HagemuCPU *cpu) {
 		dma_tick(&gb->dma);
 		timer_tick(&gb->timer, 4);
 		ppu_tick(&gb->ppu);
-		apu_tick();
+		apu_tick(&gb->apu);
 		cpu->cycles_passed += 2;
 		cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
 	} else {

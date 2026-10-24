@@ -1,110 +1,21 @@
-#include "mmu.h"
+#include "apu.h"
+#include "core.h"
+
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
 
+#define CORE_FROM_APU(apu_ptr) ((struct HagemuGB *)((uint8_t *)(apu_ptr) - offsetof(struct HagemuGB, apu)))
+
 #define APU_TICK_RATE (1 << 21)
-#define AUDIO_QUEUE_SIZE 8192
 #define INITIAL_TARGET_SAMPLE_RATE 48000
 
 #define APU_REGISTER_START  0xFF10
-#define APU_REGISTER_LENGTH 0x0030
 #define APU_WAVE_DATA_START 0xFF30
 
-int TARGET_SAMPLE_RATE = INITIAL_TARGET_SAMPLE_RATE;
-float DECIMATION_FACTOR = ((float)APU_TICK_RATE / (float)INITIAL_TARGET_SAMPLE_RATE);
-float decimation_counter = 0.0;
-
-typedef struct {
-	float left;
-	float right;
-} AudioFrame;
-
-struct Channel {
-	// All channels
-	unsigned ticks;
-	unsigned period_value;
-	bool     enabled;
-	bool     dac_enabled;
-
-	// All channels
-	unsigned length_current;
-	bool     length_enabled;
-
-	// Channels 1, 2, and 4
-	unsigned volume_initial;
-	unsigned volume_current;
-	unsigned envelope_current;
-	unsigned envelope_pace;
-	bool     envelope_direction;
-
-	// Channels 1 and 2
-	unsigned duty_wave_type;
-	unsigned duty_wave_index;
-
-	// Channel 1 only
-	unsigned sweep_current;
-	unsigned sweep_shadow_period;
-	unsigned sweep_step;
-	unsigned sweep_pace;
-	bool     sweep_enabled;
-	bool     sweep_direction;
-	bool     sweep_negate_flag;
-
-	// Channel 3 only
-	unsigned volume_level;
-	unsigned wave_index;
-	uint8_t  wave_sample_buffer;
-        bool     reading_wave_ram;
-
-	// Channel 4 only
-	unsigned lfsr;
-	unsigned lfsr_clock_shift;
-	unsigned lfsr_clock_divider;
-	bool     lfsr_short_mode;
-	bool     lfsr_last_out;
-};
-
-struct AudioQueue {
-	AudioFrame frames[AUDIO_QUEUE_SIZE];
-	unsigned start;
-	unsigned end;
-	unsigned size;
-};
-
-struct HagemuAPU {
-	struct Channel ch1;
-	struct Channel ch2;
-	struct Channel ch3;
-	struct Channel ch4;
-	struct AudioQueue audio_queue;
-	AudioFrame highpass_capacitor;
-	AudioFrame lowpass_prev_frame;
-	unsigned ticks;
-	unsigned frame_sequencer_clock_step;
-	uint8_t wave_data[16];
-	uint8_t raw_regs[APU_REGISTER_LENGTH];
-	uint8_t volume_left;
-	uint8_t volume_right;
-	bool ch1_output_right;
-	bool ch1_output_left;
-	bool ch2_output_right;
-	bool ch2_output_left;
-	bool ch3_output_right;
-	bool ch3_output_left;
-	bool ch4_output_right;
-	bool ch4_output_left;
-	bool enabled;
-        enum GBModel model;
-} apu = { 0 };
-
-void apu_set_model(enum GBModel model) {
-	apu.model = model;
-}
-
-void apu_set_audio_sample_rate(unsigned new_sample_rate) {
-	TARGET_SAMPLE_RATE = new_sample_rate;
-	DECIMATION_FACTOR = ((float)APU_TICK_RATE / (float)new_sample_rate);
+void apu_set_audio_sample_rate(struct HagemuAPU *apu, unsigned new_sample_rate) {
+	apu->target_sample_rate = new_sample_rate;
+	apu->decimation_factor = ((float)APU_TICK_RATE / (float)new_sample_rate);
 }
 
 static void queue_push(struct AudioQueue *queue, AudioFrame frame) {
@@ -132,19 +43,25 @@ static void queue_drain(struct AudioQueue *queue, float* output, unsigned count)
 	queue->start %= AUDIO_QUEUE_SIZE;
 }
 
-unsigned apu_audio_available(void) {
-	return apu.audio_queue.size;
+unsigned apu_audio_available(struct HagemuAPU *apu) {
+	return apu->audio_queue.size;
 }
 
-unsigned apu_read_audio(float *output, unsigned max_frames) {
-	if (max_frames > apu_audio_available())
-		max_frames = apu_audio_available();
-	queue_drain(&apu.audio_queue, output, max_frames);
+unsigned apu_read_audio(struct HagemuAPU *apu, float *output, unsigned max_frames) {
+	if (max_frames > apu_audio_available(apu))
+		max_frames = apu_audio_available(apu);
+	queue_drain(&apu->audio_queue, output, max_frames);
 	return max_frames;
 }
 
-void apu_reset(void) {
-	memset(&apu, 0, sizeof(struct HagemuAPU));
+void apu_reset(struct HagemuAPU *apu) {
+	int target_sample_rate = apu->target_sample_rate;
+	memset(apu, 0, sizeof(struct HagemuAPU));
+	if (target_sample_rate == 0) {
+		apu_set_audio_sample_rate(apu, INITIAL_TARGET_SAMPLE_RATE);
+	} else {
+		apu_set_audio_sample_rate(apu, target_sample_rate);
+	}
 }
 
 static void apu_channel_reset(struct Channel *channel) {
@@ -223,7 +140,7 @@ static void tick_pulse_channel(struct Channel *channel) {
 	}
 }
 
-static void tick_wave_channel(struct Channel *channel) {
+static void tick_wave_channel(struct Channel *channel, uint8_t *wave_data) {
         channel->reading_wave_ram = false;
 	channel->ticks--;
 	if (channel->ticks <= 0) {
@@ -231,7 +148,7 @@ static void tick_wave_channel(struct Channel *channel) {
                 channel->reading_wave_ram = true;
 		channel->wave_index++;
 		channel->wave_index %= 32;
-		channel->wave_sample_buffer = apu.wave_data[channel->wave_index / 2];
+		channel->wave_sample_buffer = wave_data[channel->wave_index / 2];
 	}
 }
 
@@ -254,37 +171,37 @@ static void tick_noise_channel(struct Channel *channel) {
 	}
 }
 
-static void apu_tick_channels(void) {
-	tick_pulse_channel(&apu.ch1);
-	tick_pulse_channel(&apu.ch2);
-	tick_wave_channel(&apu.ch3);
-	tick_noise_channel(&apu.ch4);
+static void apu_tick_channels(struct HagemuAPU *apu) {
+	tick_pulse_channel(&apu->ch1);
+	tick_pulse_channel(&apu->ch2);
+	tick_wave_channel(&apu->ch3, apu->wave_data);
+	tick_noise_channel(&apu->ch4);
 }
 
-static void apu_tick_frame_sequencer(void) {
-	apu.frame_sequencer_clock_step++;
-	apu.frame_sequencer_clock_step %= 8;
+static void apu_tick_frame_sequencer(struct HagemuAPU *apu) {
+	apu->frame_sequencer_clock_step++;
+	apu->frame_sequencer_clock_step %= 8;
 
-	switch (apu.frame_sequencer_clock_step) {
+	switch (apu->frame_sequencer_clock_step) {
 
 	case 2: case 6:
-		tick_sweep(&apu.ch1);
+		tick_sweep(&apu->ch1);
 		// FALL THROUGH ON PURPOSE
 
 	case 0: case 4:
-		tick_length_timer(&apu.ch1);
-		tick_length_timer(&apu.ch2);
-		tick_length_timer(&apu.ch3);
-		tick_length_timer(&apu.ch4);
+		tick_length_timer(&apu->ch1);
+		tick_length_timer(&apu->ch2);
+		tick_length_timer(&apu->ch3);
+		tick_length_timer(&apu->ch4);
 		break;
 
 	case 1: case 3: case 5:
 		break;
 
 	case 7:
-		tick_envelope(&apu.ch1);
-		tick_envelope(&apu.ch2);
-		tick_envelope(&apu.ch4);
+		tick_envelope(&apu->ch1);
+		tick_envelope(&apu->ch2);
+		tick_envelope(&apu->ch4);
 		break;
 	}
 }
@@ -292,31 +209,31 @@ static void apu_tick_frame_sequencer(void) {
 // Alpha should be 1 - exp(-2 * pi * cutoff_freqency / sample_rate)
 /* const float alpha = 0.729909f; // 48kHz sample rate, 10kHz cutoff */
 /* const float alpha = 0.649080f; // 48kHz sample rate, 8kHz cutoff */
-static AudioFrame lowpass_filter(AudioFrame frame) {
+static AudioFrame lowpass_filter(struct HagemuAPU *apu, AudioFrame frame) {
 	AudioFrame frame_diff;
-	frame_diff.left  = frame.left  - apu.lowpass_prev_frame.left;
-	frame_diff.right = frame.right - apu.lowpass_prev_frame.right;
+	frame_diff.left  = frame.left  - apu->lowpass_prev_frame.left;
+	frame_diff.right = frame.right - apu->lowpass_prev_frame.right;
 
 	frame_diff.left  = frame_diff.left  * 0.649080f;
 	frame_diff.right = frame_diff.right * 0.649080f;
 
-	apu.lowpass_prev_frame.left  += frame_diff.left;
-	apu.lowpass_prev_frame.right += frame_diff.right;
-	return apu.lowpass_prev_frame;
+	apu->lowpass_prev_frame.left  += frame_diff.left;
+	apu->lowpass_prev_frame.right += frame_diff.right;
+	return apu->lowpass_prev_frame;
 }
 
 // Emulates the DC Blocking of the gameboy
-static AudioFrame highpass_filter(AudioFrame input) {
+static AudioFrame highpass_filter(struct HagemuAPU *apu, AudioFrame input) {
 	AudioFrame output;
-	output.left  = input.left  - apu.highpass_capacitor.left;
-	output.right = input.right - apu.highpass_capacitor.right;
-	apu.highpass_capacitor.left  = input.left  - 0.996337f * output.left;
-	apu.highpass_capacitor.right = input.right - 0.996337f * output.right;
+	output.left  = input.left  - apu->highpass_capacitor.left;
+	output.right = input.right - apu->highpass_capacitor.right;
+	apu->highpass_capacitor.left  = input.left  - 0.996337f * output.left;
+	apu->highpass_capacitor.right = input.right - 0.996337f * output.right;
 
-	if (apu.highpass_capacitor.left < 1e-20f && apu.highpass_capacitor.left > -1e-20f)
-		apu.highpass_capacitor.left = 0.0f;
-	if (apu.highpass_capacitor.right < 1e-20f && apu.highpass_capacitor.right > -1e-20f)
-		apu.highpass_capacitor.right = 0.0f;
+	if (apu->highpass_capacitor.left < 1e-20f && apu->highpass_capacitor.left > -1e-20f)
+		apu->highpass_capacitor.left = 0.0f;
+	if (apu->highpass_capacitor.right < 1e-20f && apu->highpass_capacitor.right > -1e-20f)
+		apu->highpass_capacitor.right = 0.0f;
 	return output;
 }
 
@@ -364,29 +281,29 @@ static uint8_t channel_output_noise(struct Channel *channel) {
 }
 
 
-static AudioFrame apu_generate_frame(void) {
+static AudioFrame apu_generate_frame(struct HagemuAPU *apu) {
 	AudioFrame frame = { 0 };
-	if (!apu.enabled)
+	if (!apu->enabled)
 		return frame;
 
 	// Each channel outputs an integer in [0, 15]
-	int ch1 = channel_output_pulse(&apu.ch1);
-	int ch2 = channel_output_pulse(&apu.ch2);
-	int ch3 = channel_output_wave(&apu.ch3);
-	int ch4 = channel_output_noise(&apu.ch4);
+	int ch1 = channel_output_pulse(&apu->ch1);
+	int ch2 = channel_output_pulse(&apu->ch2);
+	int ch3 = channel_output_wave(&apu->ch3);
+	int ch4 = channel_output_noise(&apu->ch4);
 
-	frame.left = apu.ch1_output_left * ch1
-		+ apu.ch2_output_left * ch2
-		+ apu.ch3_output_left * ch3
-		+ apu.ch4_output_left * ch4;
+	frame.left = apu->ch1_output_left * ch1
+		+ apu->ch2_output_left * ch2
+		+ apu->ch3_output_left * ch3
+		+ apu->ch4_output_left * ch4;
 
-	frame.right = apu.ch1_output_right * ch1
-		+ apu.ch2_output_right * ch2
-		+ apu.ch3_output_right * ch3
-		+ apu.ch4_output_right * ch4;
+	frame.right = apu->ch1_output_right * ch1
+		+ apu->ch2_output_right * ch2
+		+ apu->ch3_output_right * ch3
+		+ apu->ch4_output_right * ch4;
 
-	frame.left  *= (apu.volume_left  + 1);
-	frame.right *= (apu.volume_right + 1);
+	frame.left  *= (apu->volume_left  + 1);
+	frame.right *= (apu->volume_right + 1);
 
 	// Normalize from [0, 240] to [-1.0, 1.0]
 	frame.left = (frame.left - 120.0f) / 120.0f;
@@ -396,48 +313,47 @@ static AudioFrame apu_generate_frame(void) {
 }
 
 // The APU ticks twice per M-cycle (approximation 2MHz)
-static void apu_tick_once(void) {
-	if (apu.enabled) {
-		apu.ticks++;
-		apu_tick_channels();
+static void apu_tick_once(struct HagemuAPU *apu) {
+	if (apu->enabled) {
+		apu->ticks++;
+		apu_tick_channels(apu);
 
 		// The frame frequencer ticks at 512 Hz
-		if (apu.ticks == (APU_TICK_RATE / 512)) {
-			apu.ticks = 0;
-			apu_tick_frame_sequencer();
+		if (apu->ticks == (APU_TICK_RATE / 512)) {
+			apu->ticks = 0;
+			apu_tick_frame_sequencer(apu);
 		}
 	}
 
-	static AudioFrame accumulate = { 0 };
-	AudioFrame current_frame = apu_generate_frame();
-	decimation_counter += 1.0;
-	if (decimation_counter < DECIMATION_FACTOR) {
-		accumulate.left  += current_frame.left;
-		accumulate.right += current_frame.right;
+	AudioFrame current_frame = apu_generate_frame(apu);
+	apu->decimation_counter += 1.0;
+	if (apu->decimation_counter < apu->decimation_factor) {
+		apu->decimation_accumulator.left  += current_frame.left;
+		apu->decimation_accumulator.right += current_frame.right;
 		return;
 	}
 
-	float leftover = decimation_counter - DECIMATION_FACTOR;
+	float leftover = apu->decimation_counter - apu->decimation_factor;
 	float step = 1.0 - leftover;
-	accumulate.left  += current_frame.left  * step;
-	accumulate.right += current_frame.right * step;
-	accumulate.left  /= DECIMATION_FACTOR;
-	accumulate.right /= DECIMATION_FACTOR;
-	accumulate = lowpass_filter(accumulate);
-	accumulate = highpass_filter(accumulate);
+	apu->decimation_accumulator.left  += current_frame.left  * step;
+	apu->decimation_accumulator.right += current_frame.right * step;
+	apu->decimation_accumulator.left  /= apu->decimation_factor;
+	apu->decimation_accumulator.right /= apu->decimation_factor;
+	apu->decimation_accumulator = lowpass_filter(apu, apu->decimation_accumulator);
+	apu->decimation_accumulator = highpass_filter(apu, apu->decimation_accumulator);
 
-	accumulate.left  /= 2.0f;
-	accumulate.right /= 2.0f;
-	queue_push(&apu.audio_queue, accumulate);
+	apu->decimation_accumulator.left  /= 2.0f;
+	apu->decimation_accumulator.right /= 2.0f;
+	queue_push(&apu->audio_queue, apu->decimation_accumulator);
 
-	decimation_counter = leftover;
-	accumulate.left  = current_frame.left  * leftover;
-	accumulate.right = current_frame.right * leftover;
+	apu->decimation_counter = leftover;
+	apu->decimation_accumulator.left  = current_frame.left  * leftover;
+	apu->decimation_accumulator.right = current_frame.right * leftover;
 }
 
-void apu_tick(void) {
-	apu_tick_once();
-	apu_tick_once();
+void apu_tick(struct HagemuAPU *apu) {
+	apu_tick_once(apu);
+	apu_tick_once(apu);
 }
 
 // Use bit shifting and bitmasks to get the value of the
@@ -480,13 +396,13 @@ static inline unsigned get_bits(unsigned value, unsigned bit_start, unsigned bit
 #define SOUND_NR51 0xFF25
 #define SOUND_NR52 0xFF26
 
-static void channel_length_enable(struct Channel *ch, bool enabled) {
+static void channel_length_enable(struct HagemuAPU *apu, struct Channel *ch, bool enabled) {
 	if (!enabled) {
 		ch->length_enabled = false;
 		return;
 	}
 
-	if (ch->length_enabled == 0 && apu.frame_sequencer_clock_step % 2 == 0 && ch->length_current != 0) {
+	if (ch->length_enabled == 0 && apu->frame_sequencer_clock_step % 2 == 0 && ch->length_current != 0) {
 		ch->length_current--;
 		if (ch->length_current == 0)
 			ch->enabled = false;
@@ -494,12 +410,12 @@ static void channel_length_enable(struct Channel *ch, bool enabled) {
 	ch->length_enabled = true;
 }
 
-static void channel_trigger(struct Channel *ch, int length_max) {
+static void channel_trigger(struct HagemuAPU *apu, struct Channel *ch, int length_max) {
 	if (ch->length_current == 0) {
 		ch->length_current = length_max;
 		// Extra clock: trigger reloads length, and if enabled + sequencer is
 		// in the "won't clock next" phase, clock it immediately
-		if (ch->length_enabled && apu.frame_sequencer_clock_step % 2 == 0) {
+		if (ch->length_enabled && apu->frame_sequencer_clock_step % 2 == 0) {
 			ch->length_current--;
 		}
 	}
@@ -520,16 +436,17 @@ static void sweep_trigger(struct Channel *ch) {
 	}
 }
 
-static void corrupt_wave_data(void) {
-        unsigned wave_index_aligned = apu.ch3.wave_index / 8;
+static void corrupt_wave_data(struct HagemuAPU *apu) {
+        unsigned wave_index_aligned = apu->ch3.wave_index / 8;
         if (wave_index_aligned == 0) {
-                apu.wave_data[0] = apu.wave_data[apu.ch3.wave_index / 2];
+                apu->wave_data[0] = apu->wave_data[apu->ch3.wave_index / 2];
         } else {
-                memcpy(&apu.wave_data[0], &apu.wave_data[wave_index_aligned * 4], 4);
+                memcpy(&apu->wave_data[0], &apu->wave_data[wave_index_aligned * 4], 4);
         }
 }
 
-static uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
+static uint8_t apu_register_write_while_off(struct HagemuAPU *apu, uint16_t address, uint8_t value) {
+	struct HagemuGB *gb = CORE_FROM_APU(apu);
 	switch (address) {
 	// Can still turn the APU off/on
 	case SOUND_NR52:
@@ -537,12 +454,12 @@ static uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
 
 	// The length counters are still writeable on DMG model
 	case SOUND_NR11: case SOUND_NR21:
-                if (apu.model == MODEL_DMG)
+                if (gb->model == MODEL_DMG)
                         return value & 0x3F;
                 else
                         return 0;
 	case SOUND_NR31: case SOUND_NR41:
-                if (apu.model == MODEL_DMG)
+                if (gb->model == MODEL_DMG)
                         return value;
                 else
                         return 0;
@@ -560,187 +477,188 @@ static uint8_t apu_register_write_while_off(uint16_t address, uint8_t value) {
 	}
 }
 
-void apu_register_write(uint16_t address, uint8_t value) {
-	if (apu.enabled == false)
-		value = apu_register_write_while_off(address, value);
+void apu_register_write(struct HagemuAPU *apu, uint16_t address, uint8_t value) {
+	struct HagemuGB *gb = CORE_FROM_APU(apu);
+	if (apu->enabled == false)
+		value = apu_register_write_while_off(apu, address, value);
 
-	apu.raw_regs[address - APU_REGISTER_START] = value;
+	apu->raw_regs[address - APU_REGISTER_START] = value;
 	switch (address) {
 
 	// CHANNEL 1
 	case SOUND_NR10:
-		apu.ch1.sweep_step = get_bits(value, 0, 2);
-		apu.ch1.sweep_direction = get_bits(value, 3, 3);
-		if (apu.ch1.sweep_direction == 0 && apu.ch1.sweep_negate_flag)
-			apu.ch1.enabled = false;
-		apu.ch1.sweep_pace = get_bits(value, 4, 6);
+		apu->ch1.sweep_step = get_bits(value, 0, 2);
+		apu->ch1.sweep_direction = get_bits(value, 3, 3);
+		if (apu->ch1.sweep_direction == 0 && apu->ch1.sweep_negate_flag)
+			apu->ch1.enabled = false;
+		apu->ch1.sweep_pace = get_bits(value, 4, 6);
 		return;
 
 	case SOUND_NR11:
-		apu.ch1.length_current = 64 - get_bits(value, 0, 5);
-		apu.ch1.duty_wave_type = get_bits(value, 6, 7);
+		apu->ch1.length_current = 64 - get_bits(value, 0, 5);
+		apu->ch1.duty_wave_type = get_bits(value, 6, 7);
 		return;
 
 	case SOUND_NR12:
-		apu.ch1.envelope_pace = get_bits(value, 0, 2);
-		apu.ch1.envelope_direction = get_bits(value, 3, 3);
-		apu.ch1.volume_initial = get_bits(value, 4, 7);
-		apu.ch1.volume_current = apu.ch1.volume_initial;
-		if (apu.ch1.volume_initial || apu.ch1.envelope_direction)
-			apu.ch1.dac_enabled = true;
+		apu->ch1.envelope_pace = get_bits(value, 0, 2);
+		apu->ch1.envelope_direction = get_bits(value, 3, 3);
+		apu->ch1.volume_initial = get_bits(value, 4, 7);
+		apu->ch1.volume_current = apu->ch1.volume_initial;
+		if (apu->ch1.volume_initial || apu->ch1.envelope_direction)
+			apu->ch1.dac_enabled = true;
 		else
-			apu.ch1.dac_enabled = apu.ch1.enabled = false;
+			apu->ch1.dac_enabled = apu->ch1.enabled = false;
 		return;
 
 	case SOUND_NR13:
-		apu.ch1.period_value &= ~(0x00FF);
-		apu.ch1.period_value |= value;
+		apu->ch1.period_value &= ~(0x00FF);
+		apu->ch1.period_value |= value;
 		return;
 
 	case SOUND_NR14:
-		apu.ch1.period_value &= ~(0xFF00);
-		apu.ch1.period_value |= get_bits(value, 0, 2) << 8;
-		channel_length_enable(&apu.ch1, get_bits(value, 6, 6));
+		apu->ch1.period_value &= ~(0xFF00);
+		apu->ch1.period_value |= get_bits(value, 0, 2) << 8;
+		channel_length_enable(apu, &apu->ch1, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
-			channel_trigger(&apu.ch1, 64);
-			apu.ch1.ticks = 2 * (2048 - apu.ch1.period_value);
-			sweep_trigger(&apu.ch1);
+			channel_trigger(apu, &apu->ch1, 64);
+			apu->ch1.ticks = 2 * (2048 - apu->ch1.period_value);
+			sweep_trigger(&apu->ch1);
 		}
 		return;
 
 	// CHANNEL 2
 	case SOUND_NR21:
-		apu.ch2.length_current = 64 - get_bits(value, 0, 5);
-		apu.ch2.duty_wave_type = get_bits(value, 6, 7);
+		apu->ch2.length_current = 64 - get_bits(value, 0, 5);
+		apu->ch2.duty_wave_type = get_bits(value, 6, 7);
 		return;
 
 	case SOUND_NR22:
-		apu.ch2.envelope_pace = get_bits(value, 0, 2);
-		apu.ch2.envelope_direction = get_bits(value, 3, 3);
-		apu.ch2.volume_initial = get_bits(value, 4, 7);
-		apu.ch2.volume_current = apu.ch2.volume_initial;
-		if (apu.ch2.volume_initial || apu.ch2.envelope_direction)
-			apu.ch2.dac_enabled = true;
+		apu->ch2.envelope_pace = get_bits(value, 0, 2);
+		apu->ch2.envelope_direction = get_bits(value, 3, 3);
+		apu->ch2.volume_initial = get_bits(value, 4, 7);
+		apu->ch2.volume_current = apu->ch2.volume_initial;
+		if (apu->ch2.volume_initial || apu->ch2.envelope_direction)
+			apu->ch2.dac_enabled = true;
 		else
-			apu.ch2.dac_enabled = apu.ch2.enabled = false;
+			apu->ch2.dac_enabled = apu->ch2.enabled = false;
 		return;
 
 	case SOUND_NR23:
-		apu.ch2.period_value &= ~(0x00FF);
-		apu.ch2.period_value |= value;
+		apu->ch2.period_value &= ~(0x00FF);
+		apu->ch2.period_value |= value;
 		return;
 
 	case SOUND_NR24:
-		apu.ch2.period_value &= ~(0xFF00);
-		apu.ch2.period_value |= get_bits(value, 0, 2) << 8;
-		channel_length_enable(&apu.ch2, get_bits(value, 6, 6));
+		apu->ch2.period_value &= ~(0xFF00);
+		apu->ch2.period_value |= get_bits(value, 0, 2) << 8;
+		channel_length_enable(apu, &apu->ch2, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
-			channel_trigger(&apu.ch2, 64);
-			apu.ch2.ticks = 2 * (2048 - apu.ch2.period_value);
+			channel_trigger(apu, &apu->ch2, 64);
+			apu->ch2.ticks = 2 * (2048 - apu->ch2.period_value);
 		}
 		return;
 
 	case SOUND_NR30:
-		apu.ch3.dac_enabled = get_bits(value, 7, 7);
-		if (!apu.ch3.dac_enabled)
-			apu.ch3.enabled = false;
+		apu->ch3.dac_enabled = get_bits(value, 7, 7);
+		if (!apu->ch3.dac_enabled)
+			apu->ch3.enabled = false;
 		return;
 
 	// CHANNEL 3
 	case SOUND_NR31:
-		apu.ch3.length_current = 256 - value;
+		apu->ch3.length_current = 256 - value;
 		return;
 
 	case SOUND_NR32:
-		apu.ch3.volume_level = get_bits(value, 5, 6);
+		apu->ch3.volume_level = get_bits(value, 5, 6);
 		return;
 
 	case SOUND_NR33:
-		apu.ch3.period_value &= ~(0x00FF);
-		apu.ch3.period_value |= value;
+		apu->ch3.period_value &= ~(0x00FF);
+		apu->ch3.period_value |= value;
 		return;
 
 	case SOUND_NR34:
-		apu.ch3.period_value &= ~(0xFF00);
-		apu.ch3.period_value |= get_bits(value, 0, 2) << 8;
-		channel_length_enable(&apu.ch3, get_bits(value, 6, 6));
+		apu->ch3.period_value &= ~(0xFF00);
+		apu->ch3.period_value |= get_bits(value, 0, 2) << 8;
+		channel_length_enable(apu, &apu->ch3, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
-                        tick_wave_channel(&apu.ch3);
-                        if (apu.model == MODEL_DMG && apu.ch3.enabled && apu.ch3.reading_wave_ram) {
-                                corrupt_wave_data();
+                        tick_wave_channel(&apu->ch3, apu->wave_data);
+                        if (gb->model == MODEL_DMG && apu->ch3.enabled && apu->ch3.reading_wave_ram) {
+                                corrupt_wave_data(apu);
                         }
-			channel_trigger(&apu.ch3, 256);
-		        apu.ch3.ticks = 2048 - apu.ch3.period_value;
+			channel_trigger(apu, &apu->ch3, 256);
+		        apu->ch3.ticks = 2048 - apu->ch3.period_value;
                         // There's a delay of 3 APU ticks when the channel is first triggered
-                        apu.ch3.ticks += 3;
-			apu.ch3.wave_index = 0;
+                        apu->ch3.ticks += 3;
+			apu->ch3.wave_index = 0;
 		}
 		return;
 
 	// CHANNEL 4
 	case SOUND_NR41:
-		apu.ch4.length_current = 64 - get_bits(value, 0, 5);
+		apu->ch4.length_current = 64 - get_bits(value, 0, 5);
 		return;
 
 	case SOUND_NR42:
-		apu.ch4.envelope_pace = get_bits(value, 0, 2);
-		apu.ch4.envelope_direction = get_bits(value, 3, 3);
-		apu.ch4.volume_initial = get_bits(value, 4, 7);
-		apu.ch4.volume_current = apu.ch4.volume_initial;
-		if (apu.ch4.volume_initial || apu.ch4.envelope_direction)
-			apu.ch4.dac_enabled = true;
+		apu->ch4.envelope_pace = get_bits(value, 0, 2);
+		apu->ch4.envelope_direction = get_bits(value, 3, 3);
+		apu->ch4.volume_initial = get_bits(value, 4, 7);
+		apu->ch4.volume_current = apu->ch4.volume_initial;
+		if (apu->ch4.volume_initial || apu->ch4.envelope_direction)
+			apu->ch4.dac_enabled = true;
 		else
-			apu.ch4.dac_enabled = apu.ch4.enabled = false;
+			apu->ch4.dac_enabled = apu->ch4.enabled = false;
 		return;
 
 	case SOUND_NR43:
-		apu.ch4.lfsr_clock_divider = get_bits(value, 0, 2);
-		apu.ch4.lfsr_short_mode = get_bits(value, 3, 3);
-		apu.ch4.lfsr_clock_shift = get_bits(value, 4, 7);
-		if (!apu.ch4.lfsr_clock_divider)
-			apu.ch4.period_value = 4;
+		apu->ch4.lfsr_clock_divider = get_bits(value, 0, 2);
+		apu->ch4.lfsr_short_mode = get_bits(value, 3, 3);
+		apu->ch4.lfsr_clock_shift = get_bits(value, 4, 7);
+		if (!apu->ch4.lfsr_clock_divider)
+			apu->ch4.period_value = 4;
 		else
-			apu.ch4.period_value = 8 * apu.ch4.lfsr_clock_divider;
-		apu.ch4.period_value <<= apu.ch4.lfsr_clock_shift;
+			apu->ch4.period_value = 8 * apu->ch4.lfsr_clock_divider;
+		apu->ch4.period_value <<= apu->ch4.lfsr_clock_shift;
 		return;
 
 	case SOUND_NR44:
-		channel_length_enable(&apu.ch4, get_bits(value, 6, 6));
+		channel_length_enable(apu, &apu->ch4, get_bits(value, 6, 6));
 		if (get_bits(value, 7, 7)) {
-			channel_trigger(&apu.ch4, 64);
-		        apu.ch4.ticks = apu.ch4.period_value;
-			apu.ch4.lfsr = 0;
+			channel_trigger(apu, &apu->ch4, 64);
+		        apu->ch4.ticks = apu->ch4.period_value;
+			apu->ch4.lfsr = 0;
 		}
 		return;
 
 	case SOUND_NR50:
-		apu.volume_right = get_bits(value, 0, 2);
-		apu.volume_left  = get_bits(value, 4, 6);
+		apu->volume_right = get_bits(value, 0, 2);
+		apu->volume_left  = get_bits(value, 4, 6);
 		return;
 
 	case SOUND_NR51:
-		apu.ch1_output_right = (value >> 0) & 0x01;
-		apu.ch2_output_right = (value >> 1) & 0x01;
-		apu.ch3_output_right = (value >> 2) & 0x01;
-		apu.ch4_output_right = (value >> 3) & 0x01;
-		apu.ch1_output_left  = (value >> 4) & 0x01;
-		apu.ch2_output_left  = (value >> 5) & 0x01;
-		apu.ch3_output_left  = (value >> 6) & 0x01;
-		apu.ch4_output_left  = (value >> 7) & 0x01;
+		apu->ch1_output_right = (value >> 0) & 0x01;
+		apu->ch2_output_right = (value >> 1) & 0x01;
+		apu->ch3_output_right = (value >> 2) & 0x01;
+		apu->ch4_output_right = (value >> 3) & 0x01;
+		apu->ch1_output_left  = (value >> 4) & 0x01;
+		apu->ch2_output_left  = (value >> 5) & 0x01;
+		apu->ch3_output_left  = (value >> 6) & 0x01;
+		apu->ch4_output_left  = (value >> 7) & 0x01;
 		return;
 
 	case SOUND_NR52: {
-		bool old_enabled = apu.enabled;
-		apu.enabled = get_bits(value, 7, 7);
-		if (old_enabled && !apu.enabled) {
-			memset(apu.raw_regs, 0, APU_REGISTER_LENGTH);
-			apu_channel_reset(&apu.ch1);
-			apu_channel_reset(&apu.ch2);
-			apu_channel_reset(&apu.ch3);
-			apu_channel_reset(&apu.ch4);
-		} else if (!old_enabled && apu.enabled) {
+		bool old_enabled = apu->enabled;
+		apu->enabled = get_bits(value, 7, 7);
+		if (old_enabled && !apu->enabled) {
+			memset(apu->raw_regs, 0, APU_REGISTER_LENGTH);
+			apu_channel_reset(&apu->ch1);
+			apu_channel_reset(&apu->ch2);
+			apu_channel_reset(&apu->ch3);
+			apu_channel_reset(&apu->ch4);
+		} else if (!old_enabled && apu->enabled) {
 			// The next step of the frame sequencer should be 0
-			apu.frame_sequencer_clock_step = 7;
+			apu->frame_sequencer_clock_step = 7;
 		}
 		return;
 	}
@@ -750,10 +668,10 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-                if (!apu.ch3.enabled) {
-                        apu.wave_data[address - APU_WAVE_DATA_START] = value;
-                } else if (apu.model == MODEL_CGB || apu.ch3.reading_wave_ram) {
-                        apu.wave_data[apu.ch3.wave_index / 2] = value;
+                if (!apu->ch3.enabled) {
+                        apu->wave_data[address - APU_WAVE_DATA_START] = value;
+                } else if (gb->model == MODEL_CGB || gb->model == MODEL_CGB_BACKCOMPAT || apu->ch3.reading_wave_ram) {
+                        apu->wave_data[apu->ch3.wave_index / 2] = value;
                 }
                 return;
 
@@ -762,18 +680,19 @@ void apu_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-static uint8_t apu_register_read_nr52(void) {
+static uint8_t apu_register_read_nr52(struct HagemuAPU *apu) {
 	uint8_t value = 0;
-	value |= apu.ch1.enabled << 0;
-	value |= apu.ch2.enabled << 1;
-	value |= apu.ch3.enabled << 2;
-	value |= apu.ch4.enabled << 3;
+	value |= apu->ch1.enabled << 0;
+	value |= apu->ch2.enabled << 1;
+	value |= apu->ch3.enabled << 2;
+	value |= apu->ch4.enabled << 3;
 	value |= 0x70;
-	value |= apu.enabled << 7;
+	value |= apu->enabled << 7;
 	return value;
 }
 
-uint8_t apu_register_read(uint16_t address) {
+uint8_t apu_register_read(struct HagemuAPU *apu, uint16_t address) {
+	struct HagemuGB *gb = CORE_FROM_APU(apu);
 	uint8_t bit_mask = 0x00;
 	switch (address) {
 
@@ -805,17 +724,17 @@ uint8_t apu_register_read(uint16_t address) {
 	case SOUND_NR51: bit_mask = 0x00; break;
 
 	// This is an exception. It should actual update with the state of the APU.
-	case SOUND_NR52: return apu_register_read_nr52();
+	case SOUND_NR52: return apu_register_read_nr52(apu);
 
 	// Channel 3 wave data
 	case 0xFF30: case 0xFF31: case 0xFF32: case 0xFF33:
 	case 0xFF34: case 0xFF35: case 0xFF36: case 0xFF37:
 	case 0xFF38: case 0xFF39: case 0xFF3A: case 0xFF3B:
 	case 0xFF3C: case 0xFF3D: case 0xFF3E: case 0xFF3F:
-                if (!apu.ch3.enabled) {
-                        return apu.wave_data[address - APU_WAVE_DATA_START];
-                } else if (apu.model == MODEL_CGB || apu.ch3.reading_wave_ram) {
-                        return apu.wave_data[apu.ch3.wave_index / 2];
+                if (!apu->ch3.enabled) {
+                        return apu->wave_data[address - APU_WAVE_DATA_START];
+                } else if (gb->model == MODEL_CGB || gb->model == MODEL_CGB_BACKCOMPAT || apu->ch3.reading_wave_ram) {
+                        return apu->wave_data[apu->ch3.wave_index / 2];
                 } else {
                         return 0xFF;
                 }
@@ -824,5 +743,5 @@ uint8_t apu_register_read(uint16_t address) {
 		return 0xFF;
 	}
 
-	return apu.raw_regs[address - APU_REGISTER_START] | bit_mask;
+	return apu->raw_regs[address - APU_REGISTER_START] | bit_mask;
 }

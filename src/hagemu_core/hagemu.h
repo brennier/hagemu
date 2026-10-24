@@ -30,13 +30,13 @@ bool hagemu_set_sram(struct HagemuGB *gb, const uint8_t *data, size_t size);
 const uint8_t *hagemu_get_sram(struct HagemuGB *gb, size_t *out_size);
 
 // Consumes buffered audio, returns number of frames actually written
-unsigned hagemu_audio_read(float *output, unsigned max_frames);
+unsigned hagemu_audio_read(struct HagemuGB* gb, float *output, unsigned max_frames);
 
 // Returns the number of audio frames currently available for reading
-unsigned hagemu_audio_available(void);
+unsigned hagemu_audio_available(struct HagemuGB* gb);
 
 // Change the audio sample rate (default is 48000Hz)
-void hagemu_set_audio_sample_rate(unsigned new_sample_rate);
+void hagemu_set_audio_sample_rate(struct HagemuGB* gb, unsigned new_sample_rate);
 
 // Video functions
 unsigned hagemu_get_frame_count(struct HagemuGB *gb);

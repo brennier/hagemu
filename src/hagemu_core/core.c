@@ -15,16 +15,15 @@ struct HagemuGB* hagemu_create(void) {
 void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 	gb->model = model;
 	cpu_reset(&gb->cpu);
-	mmu_reset(&gb->mmu);
 	ppu_reset(&gb->ppu);
+	apu_reset(&gb->apu);
+	mmu_reset(&gb->mmu);
 	dma_reset(&gb->dma);
 	hdma_reset(&gb->hdma);
 	cart_reset(&gb->cart);
 	timer_reset(&gb->timer);
 	joypad_reset(&gb->joypad);
 	interrupt_reset(&gb->interrupts);
-	apu_reset();
-	apu_set_model(model);
 }
 
 void hagemu_destroy(struct HagemuGB* gb) {
@@ -52,13 +51,13 @@ const uint32_t *hagemu_get_framebuffer(struct HagemuGB *gb) {
 	return ppu_get_frame(&gb->ppu);
 }
 
-unsigned hagemu_audio_read(float *buffer, unsigned max_frames) {
-	unsigned count = apu_read_audio(buffer, max_frames);
+unsigned hagemu_audio_read(struct HagemuGB* gb, float *buffer, unsigned max_frames) {
+	unsigned count = apu_read_audio(&gb->apu, buffer, max_frames);
  	return count;
 }
 
-unsigned hagemu_audio_available(void) {
-	return apu_audio_available();
+unsigned hagemu_audio_available(struct HagemuGB* gb) {
+	return apu_audio_available(&gb->apu);
 }
 
 bool hagemu_set_sram(struct HagemuGB *gb, const uint8_t *data, size_t size) {
@@ -77,8 +76,8 @@ unsigned hagemu_get_frame_count(struct HagemuGB *gb) {
 	return ppu_get_frame_count(&gb->ppu);
 }
 
-void hagemu_set_audio_sample_rate(unsigned new_sample_rate) {
-	apu_set_audio_sample_rate(new_sample_rate);
+void hagemu_set_audio_sample_rate(struct HagemuGB* gb, unsigned new_sample_rate) {
+	apu_set_audio_sample_rate(&gb->apu, new_sample_rate);
 }
 
 static inline void hagemu_set_button(struct HagemuGB *gb, HagemuButton button, bool is_down) {
