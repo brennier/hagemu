@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "rtc.h"
+
 #define RAM_BANK_SIZE 0x2000
 #define ROM_BANK_SIZE 0x4000
 
@@ -23,6 +25,7 @@ struct HagemuCartInfo {
 };
 
 struct HagemuCart {
+	struct HagemuRTC rtc;
 	struct HagemuCartInfo info;
 	uint8_t  (*rom)[ROM_BANK_SIZE];
 	uint8_t  (*ram)[RAM_BANK_SIZE];

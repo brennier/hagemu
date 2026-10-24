@@ -39,7 +39,7 @@ void cart_rom_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 
 	// Latch the RTC clock
 	case 0x6000: case 0x7000:
-		rtc_set_latch(value & 0x01);
+		rtc_set_latch(&cart->rtc, value & 0x01);
 		return;
 	}
 }
@@ -57,7 +57,7 @@ void cart_ram_write_mbc3(struct HagemuCart *cart, uint16_t address, uint8_t valu
 	if (cart->ram_index < 0x08)
 		cart->ram[cart->ram_index][address] = value;
 	else
-		rtc_write_register(cart->ram_index - 0x08, value);
+		rtc_write_register(&cart->rtc, cart->ram_index - 0x08, value);
 }
 
 uint8_t cart_ram_read_mbc3(struct HagemuCart *cart, uint16_t address) {
@@ -67,5 +67,5 @@ uint8_t cart_ram_read_mbc3(struct HagemuCart *cart, uint16_t address) {
 	if (cart->ram_index < 0x08)
 		return cart->ram[cart->ram_index][address];
 	else
-		return rtc_read_register(cart->ram_index - 0x08);
+		return rtc_read_register(&cart->rtc, cart->ram_index - 0x08);
 }

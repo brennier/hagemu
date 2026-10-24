@@ -9,7 +9,6 @@
 #include "mbc2.h"
 #include "mbc3.h"
 #include "mbc5.h"
-#include "rtc.h"
 
 #define GAME_TITLE_LOCATION 0x0134
 #define CART_TYPE_LOCATION  0x0147
@@ -33,6 +32,7 @@ void cart_reset(struct HagemuCart *cart) {
 	cart->ram = old_cart.ram;
 	cart->rom_size = old_cart.rom_size;
 	cart->ram_size = old_cart.ram_size;
+	cart->rtc = old_cart.rtc;
 	cart->rom_index = 1;
 	memcpy(cart->title, old_cart.title, sizeof(cart->title));
 }
@@ -131,17 +131,17 @@ bool cart_set_sram(struct HagemuCart *cart, const uint8_t *data, size_t size) {
 	case 0:
 		printf("SRAM file expected to contain RTC clock data, but does not.\n");
 		printf("Resetting internal clock registers.\n");
-		rtc_reset();
+		rtc_reset(&cart->rtc);
 		break;
 	case 44: case 48:
 		printf("SRAM file contains %zu bytes of RTC clock data.\n", rtc_size);
 		printf("Copying clock data to internal clock registers.\n");
-		rtc_deserialize(data + rtc_start, rtc_size);
+		rtc_deserialize(&cart->rtc, data + rtc_start, rtc_size);
 		break;
 	default:
 		printf("Failed to copy SRAM data. Expected %zu bytes plus "
 		       "RTC clock data, but data was actually %zu bytes\n", rtc_start, size);
-		rtc_reset();
+		rtc_reset(&cart->rtc);
 		return false;
 	}
 
@@ -157,7 +157,7 @@ const uint8_t *cart_get_sram(struct HagemuCart *cart, size_t *out_size) {
 
 	if (cart->info.has_timer) {
 		size_t rtc_size;
-		const uint8_t *rtc_data = rtc_serialize(&rtc_size);
+		const uint8_t *rtc_data = rtc_serialize(&cart->rtc, &rtc_size);
 		size_t rtc_start = cart->ram_size - RTC_SERIALIZED_SIZE;
 		memcpy((uint8_t *)cart->ram + rtc_start, rtc_data, RTC_SERIALIZED_SIZE);
 	}
@@ -166,21 +166,9 @@ const uint8_t *cart_get_sram(struct HagemuCart *cart, size_t *out_size) {
 }
 
 void cart_set_rom(struct HagemuCart *cart, const uint8_t *data, size_t size) {
-	cart->rom_index = 1;
-	cart->ram_index = 0;
-	cart->ram_enabled = false;
-
-	if (cart->rom != NULL) {
-		printf("Freeing previously read rom\n");
-		free(cart->rom);
-		cart->rom = NULL;
-	}
-
-	if (cart->ram != NULL) {
-		printf("Freeing previous SRAM data\n");
-		free(cart->ram);
-		cart->ram = NULL;
-	}
+	cart_free(cart);
+	cart_reset(cart);
+	rtc_reset(&cart->rtc);
 
 	printf("Allocating space and copying the rom data\n");
 	cart->rom = malloc(size);
@@ -225,7 +213,7 @@ void cart_sram_reset(struct HagemuCart *cart) {
 	if (!cart->ram) return;
 	memset(cart->ram, 0xFF, cart->ram_size);
 	if (cart->info.has_timer)
-		rtc_reset();
+		rtc_reset(&cart->rtc);
 }
 
 void cart_rom_write(struct HagemuCart *cart, uint16_t address, uint8_t value) {
