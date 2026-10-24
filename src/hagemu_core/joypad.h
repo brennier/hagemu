@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "core_types.h"
 
 typedef enum HagemuButton {
 	JOYPAD_BUTTON_RIGHT,

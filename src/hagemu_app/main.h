@@ -5,7 +5,7 @@
 #define AUDIO_TARGET_FRAMES 4096
 
 #include <SDL3/SDL.h>
-#include "hagemu_core.h"
+#include "hagemu.h"
 
 enum AppState {
 	HAGEMU_NO_ROM,

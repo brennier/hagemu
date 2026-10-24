@@ -2,7 +2,7 @@
 #define APU_H
 
 #include <stdint.h>
-#include "core_types.h"
+#include "hagemu.h"
 
 void apu_tick(void);
 void apu_reset(void);

@@ -4,7 +4,7 @@
 #ifdef __EMSCRIPTEN__
 
 #include "main.h"
-#include "hagemu_core.h"
+#include "hagemu.h"
 
 void web_save_pointer_for_javascript(struct HagemuApp *app);
 const uint8_t* web_get_sram_pointer(void);

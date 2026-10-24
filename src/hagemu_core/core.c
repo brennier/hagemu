@@ -1,5 +1,6 @@
 #include <stdlib.h>
-#include "hagemu_core.h"
+#include "core.h"
+#include "hagemu.h"
 #include "cpu.h"
 #include "apu.h"
 #include "ppu.h"
@@ -10,21 +11,15 @@
 #include "interrupt.h"
 #include "timer.h"
 
-struct HagemuGB {
-	enum GBModel model;
-	struct HagemuCPU *cpu;
-};
-
 struct HagemuGB* hagemu_create(void) {
 	struct HagemuGB *gb = malloc(sizeof(struct HagemuGB));
-	gb->cpu   = cpu_create();
-	gb->model = MODEL_DMG;
+	hagemu_reset(gb, MODEL_DMG);
 	return gb;
 }
 
 void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
-	cpu_reset(gb->cpu);
-	mmu_reset(gb->cpu);
+	cpu_reset(&gb->cpu);
+	mmu_reset(&gb->cpu);
 	ppu_reset();
 	apu_reset();
 	interrupt_reset();
@@ -36,13 +31,11 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 }
 
 void hagemu_destroy(struct HagemuGB* gb) {
-	cpu_destroy(gb->cpu);
-	gb->cpu = NULL;
 	free(gb);
 }
 
 unsigned hagemu_next_instruction(struct HagemuGB* gb) {
-        return cpu_do_next_instruction(gb->cpu);
+	return cpu_do_next_instruction(&gb->cpu);
 }
 
 void hagemu_set_rom(struct HagemuGB *gb, enum GBModel model, const uint8_t *data, size_t size) {
@@ -54,7 +47,7 @@ void hagemu_set_rom(struct HagemuGB *gb, enum GBModel model, const uint8_t *data
 void hagemu_run_frame(struct HagemuGB *gb) {
 	unsigned current_frame = ppu_get_frame_count();
 	while (ppu_get_frame_count() == current_frame) {
-		cpu_do_next_instruction(gb->cpu);
+		cpu_do_next_instruction(&gb->cpu);
 	}
 }
 
@@ -93,7 +86,7 @@ void hagemu_set_audio_sample_rate(unsigned new_sample_rate) {
 
 static inline void hagemu_set_button(struct HagemuGB *gb, HagemuButton button, bool is_down) {
 	joypad_set_button(button, is_down);
-	if (is_down) cpu_resume_if_stopped(gb->cpu);
+	if (is_down) cpu_resume_if_stopped(&gb->cpu);
 }
 
 void hagemu_set_button_a(struct HagemuGB *gb, bool is_down) {

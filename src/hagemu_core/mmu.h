@@ -1,7 +1,7 @@
 #ifndef MMU_H
 #define MMU_H
 #include <stdint.h>
-#include "core_types.h"
+#include "hagemu.h"
 
 #include "cpu.h"
 

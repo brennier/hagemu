@@ -2,7 +2,7 @@
 #define PPU_H
 #include <stdint.h>
 #include <stdbool.h>
-#include "core_types.h"
+#include "hagemu.h"
 
 void ppu_set_model(enum GBModel model);
 

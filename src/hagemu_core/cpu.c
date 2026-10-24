@@ -3,37 +3,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "mmu.h"
 #include "interrupt.h"
 #include "hdma.h"
-
-struct HagemuCPU {
-	// CPU Registers (except af)
-	uint16_t bc, de, hl, sp, pc;
-
-	// Registers a and f are split into a uint8_t and bool flags
-	uint8_t a;
-	bool f_carry;
-	bool f_half_carry;
-	bool f_subtract;
-	bool f_zero;
-
-	// other misc flags
-	bool double_speed_mode;
-	bool speed_mode_odd_cycle;
-	bool set_speed_mode_pending;
-	bool master_interrupt;
-	bool master_interrupt_pending;
-	bool is_halted;
-	bool is_stopped;
-	bool halt_bug;
-	uint8_t cycles_passed;
-};
-
 #include "timer.h"
 #include "ppu.h"
 #include "apu.h"
 #include "dma.h"
+
 static void system_tick(struct HagemuCPU *cpu) {
 	if (!cpu->double_speed_mode) {
 		hdma_tick();
@@ -61,22 +39,12 @@ static void system_tick(struct HagemuCPU *cpu) {
 	}
 }
 
-struct HagemuCPU *cpu_create(void) {
-	struct HagemuCPU *cpu = malloc(sizeof(struct HagemuCPU));
-	cpu_reset(cpu);
-	return cpu;
-}
-
 void cpu_reset(struct HagemuCPU *cpu) {
 	memset(cpu, 0, sizeof(struct HagemuCPU));
 }
 
 void cpu_resume_if_stopped(struct HagemuCPU *cpu) {
 	cpu->is_stopped = false;
-}
-
-void cpu_destroy(struct HagemuCPU *cpu) {
-	free(cpu);
 }
 
 bool cpu_get_speed_mode(struct HagemuCPU *cpu) {

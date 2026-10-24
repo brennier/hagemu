@@ -1,12 +1,18 @@
-#ifndef HAGEMU_CORE_H
-#define HAGEMU_CORE_H
+#ifndef HAGEMU_H
+#define HAGEMU_H
 
-#include "core_types.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
 struct HagemuGB;
+
+enum GBModel {
+	MODEL_DMG, // Original gameboy (default)
+	MODEL_CGB, // Gameboy color
+	MODEL_CGB_BACKCOMPAT, // Gameboy color in DMG mode
+	MODEL_MGB, // Gameboy pocket
+};
 
 // setup and reset
 struct HagemuGB *hagemu_create(void);
