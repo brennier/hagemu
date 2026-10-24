@@ -14,7 +14,7 @@ static void system_tick(struct HagemuCPU *cpu) {
 		hdma_tick(&gb->hdma);
 		hdma_tick(&gb->hdma);
 		dma_tick(&gb->dma);
-		timer_tick(4);
+		timer_tick(&gb->timer, 4);
 		ppu_tick(&gb->ppu);
 		apu_tick();
 		cpu->cycles_passed += 4;
@@ -22,7 +22,7 @@ static void system_tick(struct HagemuCPU *cpu) {
 	} else if (cpu->double_speed_mode && cpu->speed_mode_odd_cycle) {
 		hdma_tick(&gb->hdma);
 		dma_tick(&gb->dma);
-		timer_tick(4);
+		timer_tick(&gb->timer, 4);
 		ppu_tick(&gb->ppu);
 		apu_tick();
 		cpu->cycles_passed += 2;
@@ -30,7 +30,7 @@ static void system_tick(struct HagemuCPU *cpu) {
 	} else {
 		hdma_tick(&gb->hdma);
 		dma_tick(&gb->dma);
-		timer_tick(4);
+		timer_tick(&gb->timer, 4);
 		cpu->cycles_passed += 2;
 		cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
 	}
@@ -139,13 +139,14 @@ static inline void push_stack(struct HagemuCPU *cpu, uint16_t value) {
 }
 
 static void handle_interrupts(struct HagemuCPU *cpu) {
-	if (!interrupt_pending())
+	struct HagemuGB *gb = CORE_FROM_CPU(cpu);
+	if (!interrupt_pending(&gb->interrupts))
 		return;
 	system_tick(cpu);
 	cpu->master_interrupt = false;
 	push_stack(cpu, cpu->pc);
 
-	enum HagemuInterruptFlag flag = interrupt_get_next();
+	enum HagemuInterruptFlag flag = interrupt_get_next(&gb->interrupts);
 
 	switch (flag) {
 	case VBLANK_INTERRUPT: cpu->pc = 0x0040; break;
@@ -155,7 +156,7 @@ static void handle_interrupts(struct HagemuCPU *cpu) {
 	case JOYPAD_INTERRUPT: cpu->pc = 0x0060; break;
 	}
 
-	interrupt_clear(flag);
+	interrupt_clear(&gb->interrupts, flag);
 	system_tick(cpu);
 }
 
@@ -601,7 +602,7 @@ static inline void op_stop(struct HagemuCPU *cpu) {
 	cpu->double_speed_mode = !cpu->double_speed_mode;
 	printf("[INFO] CPU speed mode = %d\n", cpu->double_speed_mode);
 	cpu->set_speed_mode_pending = false;
-	timer_div_reset();
+	timer_div_reset(&CORE_FROM_CPU(cpu)->timer);
 	cpu->pc++;
 }
 
@@ -683,7 +684,8 @@ static inline void op_ei(struct HagemuCPU *cpu) {
 }
 
 static inline void op_halt(struct HagemuCPU *cpu) {
-	if (!cpu->master_interrupt && interrupt_pending())
+	struct HagemuGB *gb = CORE_FROM_CPU(cpu);
+	if (!cpu->master_interrupt && interrupt_pending(&gb->interrupts))
 		cpu->halt_bug = true;
 	else
 		cpu->is_halted = true;
@@ -1050,7 +1052,8 @@ int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 		return 4;
 	}
 
-	if (interrupt_pending())
+	struct HagemuGB *gb = CORE_FROM_CPU(cpu);
+	if (interrupt_pending(&gb->interrupts))
 		cpu->is_halted = false;
 
 	if (cpu->is_halted || hdma_is_active(&CORE_FROM_CPU(cpu)->hdma)) {

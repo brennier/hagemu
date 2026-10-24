@@ -1,98 +1,93 @@
 #include "timer.h"
+#include "core.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "interrupt.h"
+
+#define CORE_FROM_TIMER(timer_ptr) ((struct HagemuGB *)((uint8_t *)(timer_ptr) - offsetof(struct HagemuGB, timer)))
 
 #define TIMER_DIVIDER 0xFF04
 #define TIMER_COUNTER 0xFF05
 #define TIMER_MODULO  0xFF06
 #define TIMER_CONTROL 0xFF07
 
-struct HagemuTimer {
-	uint16_t time; // measured in t-cycles
-	uint16_t clock_select;
-	uint8_t  timer_control_raw;
-	uint8_t  divider;
-	uint8_t  modulo;
-	uint8_t  counter;
-	bool     enabled;
-	bool     overflow_pending;
-	bool     just_reloaded;
-} timer = { 0 };
+void timer_reset(struct HagemuTimer *timer) {
+	memset(timer, 0, sizeof(struct HagemuTimer));
+}
 
-static void set_clock_select(void) {
-	uint8_t select = timer.timer_control_raw & 0x03;
+static void set_clock_select(struct HagemuTimer *timer) {
+	uint8_t select = timer->timer_control_raw & 0x03;
 	switch (select) {
-        case 0x00: timer.clock_select = (1 << 9); break;
-        case 0x01: timer.clock_select = (1 << 3); break;
-        case 0x02: timer.clock_select = (1 << 5); break;
-        case 0x03: timer.clock_select = (1 << 7); break;
+        case 0x00: timer->clock_select = (1 << 9); break;
+        case 0x01: timer->clock_select = (1 << 3); break;
+        case 0x02: timer->clock_select = (1 << 5); break;
+        case 0x03: timer->clock_select = (1 << 7); break;
 	}
 }
 
-static void timer_increment(void) {
-	if (timer.counter == 0xFF) {
-		timer.counter = 0x00;
-		timer.overflow_pending = true;
+static void timer_increment(struct HagemuTimer *timer) {
+	if (timer->counter == 0xFF) {
+		timer->counter = 0x00;
+		timer->overflow_pending = true;
 	} else {
-		timer.counter++;
+		timer->counter++;
 	}
 }
 
-static void maybe_increment(uint16_t old_time, uint16_t new_time) {
+static void maybe_increment(struct HagemuTimer *timer, uint16_t old_time, uint16_t new_time) {
 	// Return early if timer control is off
-	if (!timer.enabled)
+	if (!timer->enabled)
 		return;
-	if ((old_time & timer.clock_select) == 0)
+	if ((old_time & timer->clock_select) == 0)
 		return;
-	if ((new_time & timer.clock_select) != 0)
+	if ((new_time & timer->clock_select) != 0)
 		return;
 
-	timer_increment();
+	timer_increment(timer);
 }
 
-uint8_t timer_register_read(uint16_t address) {
+uint8_t timer_register_read(struct HagemuTimer *timer, uint16_t address) {
 	switch (address) {
-	case TIMER_DIVIDER: return timer.time >> 8;
-	case TIMER_COUNTER: return timer.counter;
-	case TIMER_MODULO:  return timer.modulo;
-	case TIMER_CONTROL: return timer.timer_control_raw | 0xF8;
+	case TIMER_DIVIDER: return timer->time >> 8;
+	case TIMER_COUNTER: return timer->counter;
+	case TIMER_MODULO:  return timer->modulo;
+	case TIMER_CONTROL: return timer->timer_control_raw | 0xF8;
 	default:
 		fprintf(stderr, "[ERROR] Read from illegal timer address %04X\n", address);
 		exit(EXIT_FAILURE);
 	}
 }
 
-void timer_div_reset(void) {
-	maybe_increment(timer.time, 0);
-	timer.time = 0;
+void timer_div_reset(struct HagemuTimer *timer) {
+	maybe_increment(timer, timer->time, 0);
+	timer->time = 0;
 }
 
-void timer_register_write(uint16_t address, uint8_t value) {
+void timer_register_write(struct HagemuTimer *timer, uint16_t address, uint8_t value) {
 	switch(address) {
 	case TIMER_DIVIDER:
-		timer_div_reset();
+		timer_div_reset(timer);
 		return;
 	case TIMER_COUNTER:
-		if (timer.just_reloaded)
+		if (timer->just_reloaded)
 			return;
-		timer.overflow_pending = false;
-		timer.counter = value;
+		timer->overflow_pending = false;
+		timer->counter = value;
 		return;
 	case TIMER_MODULO:
-		timer.modulo = value;
-		if (timer.just_reloaded)
-			timer.counter = value;
+		timer->modulo = value;
+		if (timer->just_reloaded)
+			timer->counter = value;
 		return;
 	case TIMER_CONTROL: {
-		bool old_signal = timer.enabled && (timer.time & timer.clock_select);
-		timer.timer_control_raw = value;
-		timer.enabled = value & (1 << 2);
-		set_clock_select();
-		bool new_signal = timer.enabled && (timer.time & timer.clock_select);
+		bool old_signal = timer->enabled && (timer->time & timer->clock_select);
+		timer->timer_control_raw = value;
+		timer->enabled = value & (1 << 2);
+		set_clock_select(timer);
+		bool new_signal = timer->enabled && (timer->time & timer->clock_select);
 		if (old_signal && !new_signal)
-			timer_increment();
+			timer_increment(timer);
 		return;
 	}
 	default:
@@ -101,18 +96,15 @@ void timer_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-void timer_tick(int t_cycles) {
-	timer.just_reloaded = false;
-	if (timer.overflow_pending) {
-		timer.overflow_pending = false;
-		timer.counter = timer.modulo;
-		timer.just_reloaded = true;
-		interrupt_raise(TIMER_INTERRUPT);
+void timer_tick(struct HagemuTimer *timer, int t_cycles) {
+	timer->just_reloaded = false;
+	if (timer->overflow_pending) {
+		struct HagemuGB *gb = CORE_FROM_TIMER(timer);
+		timer->overflow_pending = false;
+		timer->counter = timer->modulo;
+		timer->just_reloaded = true;
+		interrupt_raise(&gb->interrupts, TIMER_INTERRUPT);
 	}
-	maybe_increment(timer.time, timer.time + t_cycles);
-	timer.time += t_cycles;
-}
-
-void timer_reset(void) {
-	memset(&timer, 0, sizeof(struct HagemuTimer));
+	maybe_increment(timer, timer->time, timer->time + t_cycles);
+	timer->time += t_cycles;
 }

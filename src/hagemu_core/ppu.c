@@ -71,6 +71,8 @@ void ppu_tick(struct HagemuPPU *ppu) {
 	if (!ppu->enabled)
 		return;
 
+	struct HagemuGB *gb = CORE_FROM_PPU(ppu);
+
 	ppu->current_cycle += 4;
 	ppu->current_cycle %= 70224;
 
@@ -80,7 +82,7 @@ void ppu_tick(struct HagemuPPU *ppu) {
 	if (ppu->current_line != scanline_line) {
 		ppu->current_line = scanline_line;
 		if (ppu->interrupt_select_LYC && ppu->current_line == ppu->line_compare)
-			interrupt_raise(LCD_INTERRUPT);
+			interrupt_raise(&gb->interrupts, LCD_INTERRUPT);
 	}
 
 	enum PPUMode old_mode = ppu->mode;
@@ -101,15 +103,15 @@ void ppu_tick(struct HagemuPPU *ppu) {
 
 	case OAM_SCAN:
 		if (ppu->interrupt_select_oam_scan)
-			interrupt_raise(LCD_INTERRUPT);
+			interrupt_raise(&gb->interrupts, LCD_INTERRUPT);
 		break;
 	case PIXEL_DRAW:
 		break;
 	case HBLANK:
 		ppu_draw_scanline(ppu);
-		hdma_hblank_start(&CORE_FROM_PPU(ppu)->hdma);
+		hdma_hblank_start(&gb->hdma);
 		if (ppu->interrupt_select_hblank)
-			interrupt_raise(LCD_INTERRUPT);
+			interrupt_raise(&gb->interrupts, LCD_INTERRUPT);
 		break;
 	case VBLANK:
 		// Swap buffers once VBLANK starts
@@ -118,8 +120,8 @@ void ppu_tick(struct HagemuPPU *ppu) {
 		ppu->current_window_line = 0;
 		ppu->window_triggered = false;
 		if (ppu->interrupt_select_vblank)
-			interrupt_raise(LCD_INTERRUPT);
-		interrupt_raise(VBLANK_INTERRUPT);
+			interrupt_raise(&gb->interrupts, LCD_INTERRUPT);
+		interrupt_raise(&gb->interrupts, VBLANK_INTERRUPT);
 		break;
 	}
 }
@@ -557,8 +559,10 @@ void ppu_register_write(struct HagemuPPU *ppu, uint16_t address, uint8_t value) 
 		break;
 	case REG_LY_COMPARE: // Setting this register could trigger an interrupt
 		ppu->line_compare = value;
-		if (ppu->interrupt_select_LYC && ppu->current_line == ppu->line_compare)
-			interrupt_raise(LCD_INTERRUPT);
+		if (ppu->interrupt_select_LYC && ppu->current_line == ppu->line_compare) {
+			struct HagemuGB *gb = CORE_FROM_PPU(ppu);
+			interrupt_raise(&gb->interrupts, LCD_INTERRUPT);
+		}
 		break;
 	default:
 		fprintf(stderr, "[ERROR] Invalid PPU register write at %04X\n", address);

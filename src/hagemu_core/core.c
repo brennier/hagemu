@@ -1,19 +1,12 @@
-#include <stdlib.h>
 #include "core.h"
 #include "hagemu.h"
 
-#include "cpu.h"
-#include "apu.h"
-#include "ppu.h"
-#include "joypad.h"
-#include "cart.h"
-#include "dma.h"
-#include "mmu.h"
-#include "interrupt.h"
-#include "timer.h"
+#include <stdlib.h>
+#include <string.h>
 
 struct HagemuGB* hagemu_create(void) {
 	struct HagemuGB *gb = malloc(sizeof(struct HagemuGB));
+	memset(gb, 0, sizeof(struct HagemuGB));
 	hagemu_reset(gb, MODEL_DMG);
 	return gb;
 }
@@ -25,9 +18,10 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 	ppu_reset(&gb->ppu);
 	dma_reset(&gb->dma);
 	hdma_reset(&gb->hdma);
+	timer_reset(&gb->timer);
+	joypad_reset(&gb->joypad);
+	interrupt_reset(&gb->interrupts);
 	apu_reset();
-	interrupt_reset();
-	timer_reset();
 	apu_set_model(model);
 }
 
@@ -85,7 +79,7 @@ void hagemu_set_audio_sample_rate(unsigned new_sample_rate) {
 }
 
 static inline void hagemu_set_button(struct HagemuGB *gb, HagemuButton button, bool is_down) {
-	joypad_set_button(button, is_down);
+	joypad_set_button(&gb->joypad, button, is_down);
 	if (is_down) cpu_resume_if_stopped(&gb->cpu);
 }
 

@@ -17,10 +17,10 @@ static uint8_t mmu_read_io(struct HagemuMMU *mmu, uint16_t address) {
 	struct HagemuGB *gb = CORE_FROM_MMU(mmu);
 
 	switch (address) {
-	case 0xFF00: return joypad_get_byte();
+	case 0xFF00: return joypad_get_byte(&gb->joypad);
 	case 0xFF01: return mmu->serial_data;    // not implemented
 	case 0xFF02: return mmu->serial_control; // not implemented
-	case 0xFF0F: return interrupt_register_read();
+	case 0xFF0F: return interrupt_register_read(&gb->interrupts);
 	case 0xFF46: return dma_read(&gb->dma);
 	}
 
@@ -43,7 +43,7 @@ static uint8_t mmu_read_io(struct HagemuMMU *mmu, uint16_t address) {
 	}
 
 	if (address >= 0xFF04 && address <= 0xFF07)
-		return timer_register_read(address);
+		return timer_register_read(&gb->timer, address);
 	else if (address >= 0xFF40 && address <= 0xFF4B) // Note: FF46 is DMA
 		return ppu_register_read(&gb->ppu, address);
 	else if (address >= 0xFF10 && address <= 0xFF3F)
@@ -56,10 +56,10 @@ static void mmu_write_io(struct HagemuMMU *mmu, uint16_t address, uint8_t value)
 	struct HagemuGB *gb = CORE_FROM_MMU(mmu);
 
 	switch (address) {
-	case 0xFF00: joypad_set_byte(value);          return;
+	case 0xFF00: joypad_set_byte(&gb->joypad, value);          return;
 	case 0xFF01: mmu->serial_data = value;         return; // not implemented
 	case 0xFF02: mmu->serial_control = value;      return; // not implemented
-	case 0xFF0F: interrupt_register_write(value); return;
+	case 0xFF0F: interrupt_register_write(&gb->interrupts, value); return;
 	case 0xFF46: dma_start(&gb->dma, value); return;
 	case 0xFF50:
 		if (gb->model == MODEL_CGB
@@ -94,7 +94,7 @@ static void mmu_write_io(struct HagemuMMU *mmu, uint16_t address, uint8_t value)
 	}
 
 	if (address >= 0xFF04 && address <= 0xFF07)
-		timer_register_write(address, value);
+		timer_register_write(&gb->timer, address, value);
 	else if (address >= 0xFF40 && address <= 0xFF4B) // Note: FF46 is DMA
 		ppu_register_write(&gb->ppu, address, value);
 	else if (address >= 0xFF10 && address <= 0xFF3F)
@@ -158,7 +158,7 @@ uint8_t mmu_read_nonblocking(struct HagemuMMU *mmu, uint16_t address) {
 			return mmu->hram[address - 0xFF80];
 		// Interrupts enabled flag
 		else
-			return interrupt_enable_register_read();
+			return interrupt_enable_register_read(&gb->interrupts);
 	}
 
 	fprintf(stderr, "Error: Illegal memory access at location `0x%04X'", address);
@@ -219,7 +219,7 @@ static void mmu_write_nonblocking(struct HagemuMMU *mmu, uint16_t address, uint8
 			mmu->hram[address - 0xFF80] = value;
 		// Interrupts enabled flag
 		else
-			interrupt_enable_register_write(value);
+			interrupt_enable_register_write(&gb->interrupts, value);
 		return;
 	}
 
