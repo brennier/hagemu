@@ -14,6 +14,7 @@ struct HagemuHDMA {
 	bool     enabled; // enabled but maybe not transferring
 };
 
+void hdma_reset(struct HagemuHDMA *hdma);
 void hdma_tick(struct HagemuHDMA *hdma);
 void hdma_write_register(struct HagemuHDMA *hdma, uint16_t address, uint8_t value);
 uint8_t hdma_read_register(struct HagemuHDMA *hdma, uint16_t address);

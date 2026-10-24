@@ -2,8 +2,13 @@
 #include "core.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CORE_FROM_HDMA(hdma_ptr) ((struct HagemuGB *)((uint8_t *)(hdma_ptr) - offsetof(struct HagemuGB, hdma)))
+
+void hdma_reset(struct HagemuHDMA *hdma) {
+	memset(hdma, 0, sizeof(struct HagemuHDMA));
+}
 
 // Transfers 1 byte of data
 void hdma_tick(struct HagemuHDMA *hdma) {

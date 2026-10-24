@@ -22,8 +22,9 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 	gb->model = model;
 	cpu_reset(&gb->cpu);
 	mmu_reset(&gb->mmu);
-	dma_reset(&gb->dma);
 	ppu_reset(&gb->ppu);
+	dma_reset(&gb->dma);
+	hdma_reset(&gb->hdma);
 	apu_reset();
 	interrupt_reset();
 	timer_reset();
@@ -39,7 +40,6 @@ unsigned hagemu_next_instruction(struct HagemuGB* gb) {
 }
 
 void hagemu_set_rom(struct HagemuGB *gb, enum GBModel model, const uint8_t *data, size_t size) {
-	gb->model = model;
 	cart_set_rom(data, size);
 	hagemu_reset(gb, model);
 }
