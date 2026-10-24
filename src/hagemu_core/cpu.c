@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CORE_FROM_CPU(cpu) ((struct HagemuGB *)((uint8_t *)(cpu) - offsetof(struct HagemuGB, cpu)))
+#define CORE_FROM_CPU(cpu_ptr) ((struct HagemuGB *)((uint8_t *)(cpu_ptr) - offsetof(struct HagemuGB, cpu)))
 
 static void system_tick(struct HagemuCPU *cpu) {
 	if (!cpu->double_speed_mode) {

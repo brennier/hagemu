@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CORE_FROM_MMU(mmu) ((struct HagemuGB *)((uint8_t *)(mmu) - offsetof(struct HagemuGB, mmu)))
+#define CORE_FROM_MMU(mmu_ptr) ((struct HagemuGB *)((uint8_t *)(mmu_ptr) - offsetof(struct HagemuGB, mmu)))
 
 void mmu_reset(struct HagemuMMU *mmu) {
 	memset(mmu, 0, sizeof(struct HagemuMMU));
@@ -19,7 +19,7 @@ static uint8_t mmu_read_io(struct HagemuMMU *mmu, uint16_t address) {
 	case 0xFF01: return mmu->serial_data;    // not implemented
 	case 0xFF02: return mmu->serial_control; // not implemented
 	case 0xFF0F: return interrupt_register_read();
-	case 0xFF46: return dma_read();
+	case 0xFF46: return dma_read(&CORE_FROM_MMU(mmu)->dma);
 	}
 
 	if (CORE_FROM_MMU(mmu)->model == MODEL_CGB) {
@@ -30,7 +30,7 @@ static uint8_t mmu_read_io(struct HagemuMMU *mmu, uint16_t address) {
 				(cpu_get_speed_mode_pending(&CORE_FROM_MMU(mmu)->cpu));
 		case 0xFF51: case 0xFF52: case 0xFF53:
 		case 0xFF54: case 0xFF55:
-			return hdma_read_register(address);
+			return hdma_read_register(&CORE_FROM_MMU(mmu)->hdma, address);
 		case 0xFF70: return mmu->wram_bank | 0xF8;
 		case 0xFF4F: return ppu_get_vram_bank() | 0xFE;
 		case 0xFF68: return ppu_register_read(address); // BG palette ram index
@@ -56,7 +56,7 @@ static void mmu_write_io(struct HagemuMMU *mmu, uint16_t address, uint8_t value)
 	case 0xFF01: mmu->serial_data = value;         return; // not implemented
 	case 0xFF02: mmu->serial_control = value;      return; // not implemented
 	case 0xFF0F: interrupt_register_write(value); return;
-	case 0xFF46: dma_start(value);                return;
+	case 0xFF46: dma_start(&CORE_FROM_MMU(mmu)->dma, value); return;
 	case 0xFF50:
 		if (CORE_FROM_MMU(mmu)->model == MODEL_CGB
 		    && cart_rom_read(0x0143) != 0x80
@@ -76,7 +76,7 @@ static void mmu_write_io(struct HagemuMMU *mmu, uint16_t address, uint8_t value)
 			return;
 		case 0xFF51: case 0xFF52: case 0xFF53:
 		case 0xFF54: case 0xFF55:
-			hdma_write_register(address, value);
+			hdma_write_register(&CORE_FROM_MMU(mmu)->hdma, address, value);
 			return;
 		case 0xFF70:
 			mmu->wram_bank = value & 0x07;
@@ -224,10 +224,10 @@ static void mmu_write_nonblocking(struct HagemuMMU *mmu, uint16_t address, uint8
 // This function is for the DMA to read directly from memory
 uint8_t mmu_read(struct HagemuMMU *mmu, uint16_t address) {
 	if (address == 0xFF46) {
-		return dma_read();
+		return dma_read(&CORE_FROM_MMU(mmu)->dma);
 	}
 	// Block if DMA is active and not accessing HRAM
-	if (dma_is_active() && address < 0xFF80) {
+	if (dma_is_active(&CORE_FROM_MMU(mmu)->dma) && address < 0xFF80) {
 		return 0xFF;
 	}
 	return mmu_read_nonblocking(mmu, address);
@@ -235,11 +235,11 @@ uint8_t mmu_read(struct HagemuMMU *mmu, uint16_t address) {
 
 void mmu_write(struct HagemuMMU *mmu, uint16_t address, uint8_t value) {
 	if (address == 0xFF46) {
-		dma_start(value);
+		dma_start(&CORE_FROM_MMU(mmu)->dma, value);
 		return;
 	}
 	// Block if DMA is active and not accessing HRAM
-	if (dma_is_active() && address < 0xFF80) {
+	if (dma_is_active(&CORE_FROM_MMU(mmu)->dma) && address < 0xFF80) {
 		return;
 	}
 	mmu_write_nonblocking(mmu, address, value);

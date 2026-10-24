@@ -22,10 +22,10 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 	gb->model = model;
 	cpu_reset(&gb->cpu);
 	mmu_reset(&gb->mmu);
+	dma_reset(&gb->dma);
 	ppu_reset();
 	apu_reset();
 	interrupt_reset();
-	dma_reset();
 	timer_reset();
 	ppu_set_model(model);
 	apu_set_model(model);

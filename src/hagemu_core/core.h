@@ -20,8 +20,10 @@
 
 struct HagemuGB {
 	enum GBModel model;
-	struct HagemuCPU cpu;
-	struct HagemuMMU mmu;
+	struct HagemuCPU  cpu;
+	struct HagemuMMU  mmu;
+	struct HagemuDMA  dma;
+	struct HagemuHDMA hdma;
 };
 
 #endif
