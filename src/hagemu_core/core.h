@@ -21,6 +21,7 @@
 struct HagemuGB {
 	enum GBModel model;
 	struct HagemuCPU  cpu;
+	struct HagemuPPU  ppu;
 	struct HagemuMMU  mmu;
 	struct HagemuDMA  dma;
 	struct HagemuHDMA hdma;

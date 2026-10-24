@@ -9,26 +9,27 @@
 #define CORE_FROM_CPU(cpu_ptr) ((struct HagemuGB *)((uint8_t *)(cpu_ptr) - offsetof(struct HagemuGB, cpu)))
 
 static void system_tick(struct HagemuCPU *cpu) {
+	struct HagemuGB *gb = CORE_FROM_CPU(cpu);
 	if (!cpu->double_speed_mode) {
-		hdma_tick();
-		hdma_tick();
-		dma_tick();
+		hdma_tick(&gb->hdma);
+		hdma_tick(&gb->hdma);
+		dma_tick(&gb->dma);
 		timer_tick(4);
-		ppu_tick();
+		ppu_tick(&gb->ppu);
 		apu_tick();
 		cpu->cycles_passed += 4;
 		return;
 	} else if (cpu->double_speed_mode && cpu->speed_mode_odd_cycle) {
-		hdma_tick();
-		dma_tick();
+		hdma_tick(&gb->hdma);
+		dma_tick(&gb->dma);
 		timer_tick(4);
-		ppu_tick();
+		ppu_tick(&gb->ppu);
 		apu_tick();
 		cpu->cycles_passed += 2;
 		cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
 	} else {
-		hdma_tick();
-		dma_tick();
+		hdma_tick(&gb->hdma);
+		dma_tick(&gb->dma);
 		timer_tick(4);
 		cpu->cycles_passed += 2;
 		cpu->speed_mode_odd_cycle = !cpu->speed_mode_odd_cycle;
@@ -1052,7 +1053,7 @@ int cpu_do_next_instruction(struct HagemuCPU *cpu) {
 	if (interrupt_pending())
 		cpu->is_halted = false;
 
-	if (cpu->is_halted || hdma_is_active()) {
+	if (cpu->is_halted || hdma_is_active(&CORE_FROM_CPU(cpu)->hdma)) {
 		system_tick(cpu);
 		return cpu->cycles_passed; // clock only incremented once
 	}

@@ -39,8 +39,8 @@ unsigned hagemu_audio_available(void);
 void hagemu_set_audio_sample_rate(unsigned new_sample_rate);
 
 // Video functions
-unsigned hagemu_get_frame_count(void);
-const uint32_t* hagemu_get_framebuffer(void); // Pixel format is RGBA8888
+unsigned hagemu_get_frame_count(struct HagemuGB *gb);
+const uint32_t* hagemu_get_framebuffer(struct HagemuGB *gb); // Pixel format is RGBA8888
 
 // Joystick controls
 void hagemu_set_button_a(struct HagemuGB *gb, bool is_down);

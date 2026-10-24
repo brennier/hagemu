@@ -1,23 +1,20 @@
 #include "ppu.h"
+#include "core.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "interrupt.h"
-#include "hdma.h"
+
+#define CORE_FROM_PPU(ppu_ptr) ((struct HagemuGB *)((uint8_t *)(ppu_ptr) - offsetof(struct HagemuGB, ppu)))
 
 #define PIXEL_DRAW_LENGTH 200
 #define SPRITE_LIMIT 10
-#define OAM_SPRITE_COUNT 40 // The number of sprites in OAM
 
-typedef uint16_t RGB555;
-typedef uint32_t ARGB8888;
-
-static void ppu_draw_scanline(void);
-static void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority);
-static void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
-static void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
+static void ppu_draw_scanline(struct HagemuPPU *ppu);
+static void ppu_draw_sprites(struct HagemuPPU *ppu, RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority);
+static void ppu_draw_background(struct HagemuPPU *ppu, RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
+static void ppu_draw_window(struct HagemuPPU *ppu, RGB555 *scanline, bool *bg_nonzero, bool *bg_priority);
 
 // Green color palette from lightest to darkest
 static const RGB555 dmg_palette_colors[4] = {
@@ -62,182 +59,96 @@ static inline ARGB8888 correct_color(ARGB8888 c) {
 	return 0xFF000000 | (b << 16) | (g << 8) | r;
 }
 
-enum PPUMode {
-	HBLANK     = 0, // also referred to as MODE 0
-	VBLANK     = 1, // also referred to as MODE 1
-	OAM_SCAN   = 2, // also referred to as MODE 2
-	PIXEL_DRAW = 3, // also referred to as MODE 3
-};
-
-struct Sprite {
-	// This is the same order as in memory
-	uint8_t y_position;
-	uint8_t x_position;
-	uint8_t tile_index;
-	uint8_t attributes;
-};
-
-struct Tile {
-	uint8_t data[8][2];
-};
-
-struct HagemuPPU {
-	enum PPUMode mode;
-	enum GBModel model;
-	unsigned frames_completed;
-	unsigned current_cycle;
-
-	ARGB8888 screen_buffer[2][144][160];
-
-	bool vram_bank;
-	// This corresponds exactly to the 8 kilobytes of VRAM
-	struct Tile tile_data[384];  // 384 tiles of 16 bytes each
-	uint8_t tile_map[2][32][32]; // Two 32x32 maps of 1 byte indices
-
-	// This corresponds to the second bank of VRAM
-	struct Tile tile_data2[384];  // 384 tiles of 16 bytes each
-	uint8_t bg_attributes[2][32][32]; // Two 32x32 maps of 1 byte attributes
-
-	uint8_t bg_pram_index;
-	uint8_t bg_pram[64]; // Background palette RAM
-
-	uint8_t sprite_pram_index;
-	uint8_t sprite_pram[64]; // Sprite palette RAM
-
-	// This correponds exactly to the 160 bytes of OAM RAM
-	struct Sprite sprites[OAM_SPRITE_COUNT];
-
-	// Used during scanline processing
-	uint8_t current_window_line;
-
-	// These correspond to various PPU registers
-	uint8_t bg_scroll_y;
-	uint8_t bg_scroll_x;
-	uint8_t current_line;
-	uint8_t line_compare;
-	uint8_t bg_palette;
-	uint8_t obj0_palette;
-	uint8_t obj1_palette;
-	uint8_t win_scroll_y;
-	uint8_t win_scroll_x;
-
-	// Bools used during processing
-	bool buffer_index;
-	bool window_triggered;
-
-	// These correspond to the bits of the LCD_CONTROL register
-	uint8_t lcd_control_raw;
-	bool bg_enabled;           // bit 0
-	bool objects_enabled;      // bit 1
-	bool use_tall_sprites;     // bit 2
-	bool bg_tile_map;          // bit 3
-	bool bg_tile_data_area;    // bit 4
-	bool window_enabled;       // bit 5
-	bool window_tile_map;      // bit 6
-	bool enabled;              // bit 7
-
-	// These correspond to the bits of the LCD_STATUS register
-	uint8_t lcd_status_raw;
-	bool interrupt_select_hblank;   // bit 3
-	bool interrupt_select_vblank;   // bit 4
-	bool interrupt_select_oam_scan; // bit 5
-	bool interrupt_select_LYC;      // bit 6
-} ppu = { 0 };
-
-void ppu_set_model(enum GBModel model) {
-	ppu.model = model;
+void ppu_reset(struct HagemuPPU *ppu) {
+	memset(ppu, 0, sizeof(struct HagemuPPU));
 }
 
-void ppu_reset(void) {
-	memset(&ppu, 0, sizeof(struct HagemuPPU));
+unsigned ppu_get_frame_count(struct HagemuPPU *ppu) {
+	return ppu->frames_completed;
 }
 
-unsigned ppu_get_frame_count(void) {
-	return ppu.frames_completed;
-}
-
-void ppu_tick(void) {
-	if (!ppu.enabled)
+void ppu_tick(struct HagemuPPU *ppu) {
+	if (!ppu->enabled)
 		return;
 
-	ppu.current_cycle += 4;
-	ppu.current_cycle %= 70224;
+	ppu->current_cycle += 4;
+	ppu->current_cycle %= 70224;
 
-	int scanline_line  = ppu.current_cycle / 456;
-	int scanline_cycle = ppu.current_cycle % 456;
+	int scanline_line  = ppu->current_cycle / 456;
+	int scanline_cycle = ppu->current_cycle % 456;
 
-	if (ppu.current_line != scanline_line) {
-		ppu.current_line = scanline_line;
-		if (ppu.interrupt_select_LYC && ppu.current_line == ppu.line_compare)
+	if (ppu->current_line != scanline_line) {
+		ppu->current_line = scanline_line;
+		if (ppu->interrupt_select_LYC && ppu->current_line == ppu->line_compare)
 			interrupt_raise(LCD_INTERRUPT);
 	}
 
-	enum PPUMode old_mode = ppu.mode;
+	enum PPUMode old_mode = ppu->mode;
 
-	if (ppu.current_line >= 144)
-		ppu.mode = VBLANK;
+	if (ppu->current_line >= 144)
+		ppu->mode = VBLANK;
 	else if (scanline_cycle < 80)
-		ppu.mode = OAM_SCAN;
+		ppu->mode = OAM_SCAN;
 	else if (scanline_cycle < 80 + PIXEL_DRAW_LENGTH)
-		ppu.mode = PIXEL_DRAW;
+		ppu->mode = PIXEL_DRAW;
 	else
-		ppu.mode = HBLANK;
+		ppu->mode = HBLANK;
 
-	if (ppu.mode == old_mode)
+	if (ppu->mode == old_mode)
 		return;
 
-	switch (ppu.mode) {
+	switch (ppu->mode) {
 
 	case OAM_SCAN:
-		if (ppu.interrupt_select_oam_scan)
+		if (ppu->interrupt_select_oam_scan)
 			interrupt_raise(LCD_INTERRUPT);
 		break;
 	case PIXEL_DRAW:
 		break;
 	case HBLANK:
-		ppu_draw_scanline();
-		hdma_hblank_start();
-		if (ppu.interrupt_select_hblank)
+		ppu_draw_scanline(ppu);
+		hdma_hblank_start(&CORE_FROM_PPU(ppu)->hdma);
+		if (ppu->interrupt_select_hblank)
 			interrupt_raise(LCD_INTERRUPT);
 		break;
 	case VBLANK:
 		// Swap buffers once VBLANK starts
-		ppu.buffer_index = !ppu.buffer_index;
-		ppu.frames_completed++;
-		ppu.current_window_line = 0;
-		ppu.window_triggered = false;
-		if (ppu.interrupt_select_vblank)
+		ppu->buffer_index = !ppu->buffer_index;
+		ppu->frames_completed++;
+		ppu->current_window_line = 0;
+		ppu->window_triggered = false;
+		if (ppu->interrupt_select_vblank)
 			interrupt_raise(LCD_INTERRUPT);
 		interrupt_raise(VBLANK_INTERRUPT);
 		break;
 	}
 }
 
-static inline RGB555 read_pram(uint8_t palette_index, uint8_t color_index, bool is_sprite) {
-	uint8_t *pram = is_sprite ? ppu.sprite_pram : ppu.bg_pram;
+static inline RGB555 read_pram(struct HagemuPPU *ppu, uint8_t palette_index, uint8_t color_index, bool is_sprite) {
+	uint8_t *pram = is_sprite ? ppu->sprite_pram : ppu->bg_pram;
 	int offset = 2 * ((4 * palette_index) + color_index);
 	RGB555 color = (pram[offset+1] << 8) | pram[offset];
 	return color;
 }
 
 // In DMG mode, palette_reg is used. In CGB mode, palette_index is used.
-static RGB555 apply_color(bool dmg_palette_index, uint8_t palette_index, uint8_t color_index, bool is_sprite) {
-	if (ppu.model == MODEL_CGB)
-		return read_pram(palette_index, color_index, is_sprite);
+static RGB555 apply_color(struct HagemuPPU *ppu, bool dmg_palette_index, uint8_t palette_index, uint8_t color_index, bool is_sprite) {
+	if (CORE_FROM_PPU(ppu)->model == MODEL_CGB)
+		return read_pram(ppu, palette_index, color_index, is_sprite);
 
 	uint8_t dmg_palette_reg;
 	if (!is_sprite)
-		dmg_palette_reg = ppu.bg_palette;
+		dmg_palette_reg = ppu->bg_palette;
 	else if (dmg_palette_index == 0)
-		dmg_palette_reg = ppu.obj0_palette;
+		dmg_palette_reg = ppu->obj0_palette;
 	else
-		dmg_palette_reg = ppu.obj1_palette;
+		dmg_palette_reg = ppu->obj1_palette;
 
 	uint8_t shade = (dmg_palette_reg >> (2 * color_index)) & 0x03;
 
-	switch (ppu.model) {
+	switch (CORE_FROM_PPU(ppu)->model) {
 	case MODEL_CGB_BACKCOMPAT:
-		return read_pram(dmg_palette_index, shade, is_sprite);
+		return read_pram(ppu, dmg_palette_index, shade, is_sprite);
 	case MODEL_DMG:
 		return dmg_palette_colors[shade];
 	case MODEL_MGB:
@@ -248,8 +159,8 @@ static RGB555 apply_color(bool dmg_palette_index, uint8_t palette_index, uint8_t
 	}
 }
 
-static void ppu_clear_background(RGB555 *scanline) {
-	switch (ppu.model) {
+static void ppu_clear_background(struct HagemuPPU *ppu, RGB555 *scanline) {
+	switch (CORE_FROM_PPU(ppu)->model) {
 	// Draw a light green color
 	case MODEL_DMG:
 	for (int i = 0; i < 160; i++)
@@ -264,22 +175,22 @@ static void ppu_clear_background(RGB555 *scanline) {
 	}
 }
 
-static void ppu_draw_scanline(void) {
+static void ppu_draw_scanline(struct HagemuPPU *ppu) {
 	RGB555 scanline[160];
 	bool   bg_nonzero[160] = { 0 };
 	bool   bg_priority[160] = { 0 };
 
-	if (ppu.win_scroll_y == ppu.current_line)
-		ppu.window_triggered = true;
+	if (ppu->win_scroll_y == ppu->current_line)
+		ppu->window_triggered = true;
 
-	ppu_draw_background(scanline, bg_nonzero, bg_priority);
-	if (ppu.window_enabled && ppu.window_triggered)
-		ppu_draw_window(scanline, bg_nonzero, bg_priority);
+	ppu_draw_background(ppu, scanline, bg_nonzero, bg_priority);
+	if (ppu->window_enabled && ppu->window_triggered)
+		ppu_draw_window(ppu, scanline, bg_nonzero, bg_priority);
 
-	if (!ppu.bg_enabled) {
+	if (!ppu->bg_enabled) {
 		// The background doesn't clear on the CGB model
-		if (ppu.model != MODEL_CGB)
-			ppu_clear_background(scanline);
+		if (CORE_FROM_PPU(ppu)->model != MODEL_CGB)
+			ppu_clear_background(ppu, scanline);
 
 		for (int i = 0; i < 160; i++) {
 			bg_nonzero[i]  = 0;
@@ -287,19 +198,19 @@ static void ppu_draw_scanline(void) {
 		}
 	}
 
-	if (ppu.objects_enabled)
-		ppu_draw_sprites(scanline, bg_nonzero, bg_priority);
+	if (ppu->objects_enabled)
+		ppu_draw_sprites(ppu, scanline, bg_nonzero, bg_priority);
 
 	for (int i = 0; i < 160; i++) {
 		ARGB8888 color32 = convert_color(scanline[i]);
-		if (ppu.model == MODEL_CGB || ppu.model == MODEL_CGB_BACKCOMPAT)
+		if (CORE_FROM_PPU(ppu)->model == MODEL_CGB || CORE_FROM_PPU(ppu)->model == MODEL_CGB_BACKCOMPAT)
 			color32 = correct_color(color32);
-		ppu.screen_buffer[ppu.buffer_index][ppu.current_line][i] = color32;
+		ppu->screen_buffer[ppu->buffer_index][ppu->current_line][i] = color32;
 	}
 }
 
-static inline struct Tile tile_get(uint8_t tile_index, bool unsigned_addressing_mode, bool bank_select) {
-	struct Tile *tile_data = bank_select ? ppu.tile_data2 : ppu.tile_data;
+static inline struct Tile tile_get(struct HagemuPPU *ppu, uint8_t tile_index, bool unsigned_addressing_mode, bool bank_select) {
+	struct Tile *tile_data = bank_select ? ppu->tile_data2 : ppu->tile_data;
 	if (unsigned_addressing_mode)
 	        return tile_data[tile_index];
 	int8_t signed_index = (int8_t)tile_index;
@@ -316,9 +227,9 @@ static inline void tile_decode_row(struct Tile tile, int row, uint8_t out[8]) {
 	}
 }
 
-static void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
-	int bg_row = (ppu.current_line + ppu.bg_scroll_y) % 256;
-	int bg_col = (ppu.bg_scroll_x) % 256;
+static void ppu_draw_background(struct HagemuPPU *ppu, RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
+	int bg_row = (ppu->current_line + ppu->bg_scroll_y) % 256;
+	int bg_col = (ppu->bg_scroll_x) % 256;
 	int tile_row   = bg_row / 8;
 	int screen_col = 0;
 
@@ -331,15 +242,15 @@ static void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_pri
 		if (screen_col + pixels_to_draw > 160)
 			pixels_to_draw = 160 - screen_col;
 
-		uint8_t tile_index = ppu.tile_map[ppu.bg_tile_map][tile_row][tile_col];
-		uint8_t tile_attributes = ppu.bg_attributes[ppu.bg_tile_map][tile_row][tile_col];
+		uint8_t tile_index = ppu->tile_map[ppu->bg_tile_map][tile_row][tile_col];
+		uint8_t tile_attributes = ppu->bg_attributes[ppu->bg_tile_map][tile_row][tile_col];
 		bool priority = (tile_attributes >> 7) & 0x01;
 		bool y_flip = (tile_attributes >> 6) & 0x01;
 		bool x_flip = (tile_attributes >> 5) & 0x01;
 		bool bank_select = (tile_attributes >> 3) & 0x01;
 		uint8_t palette_index = tile_attributes & 0x07;
 
-		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area, bank_select);
+		struct Tile tile = tile_get(ppu, tile_index, ppu->bg_tile_data_area, bank_select);
 
 		if (y_flip)
 			pixel_row = 7 - pixel_row;
@@ -357,7 +268,7 @@ static void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_pri
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
-			scanline[screen_col] = apply_color(0, palette_index, color_index, false);
+			scanline[screen_col] = apply_color(ppu, 0, palette_index, color_index, false);
 			bg_priority[screen_col] = priority;
 			bg_nonzero[screen_col]  = (color_index != 0);
 			screen_col++;
@@ -367,17 +278,17 @@ static void ppu_draw_background(RGB555 *scanline, bool *bg_nonzero, bool *bg_pri
 	}
 }
 
-static void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
-	int win_row = ppu.current_window_line;
+static void ppu_draw_window(struct HagemuPPU *ppu, RGB555 *scanline, bool *bg_nonzero, bool *bg_priority) {
+	int win_row = ppu->current_window_line;
 	int win_col = 0;
 	int tile_row = win_row / 8;
-	int screen_col = ppu.win_scroll_x - 7;
+	int screen_col = ppu->win_scroll_x - 7;
 
 	// If the window isn't visible, exit early
 	if (screen_col >= 160)
 		return;
 
-	ppu.current_window_line++;
+	ppu->current_window_line++;
 
 	if (screen_col < 0) {
 		win_col    = -screen_col;
@@ -393,15 +304,15 @@ static void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priorit
 		if (screen_col + pixels_to_draw > 160)
 			pixels_to_draw = 160 - screen_col;
 
-		uint8_t tile_index = ppu.tile_map[ppu.window_tile_map][tile_row][tile_col];
-		uint8_t tile_attributes = ppu.bg_attributes[ppu.window_tile_map][tile_row][tile_col];
+		uint8_t tile_index = ppu->tile_map[ppu->window_tile_map][tile_row][tile_col];
+		uint8_t tile_attributes = ppu->bg_attributes[ppu->window_tile_map][tile_row][tile_col];
 		bool priority = (tile_attributes >> 7) & 0x01;
 		bool y_flip = (tile_attributes >> 6) & 0x01;
 		bool x_flip = (tile_attributes >> 5) & 0x01;
 		bool bank_select = (tile_attributes >> 3) & 0x01;
 		uint8_t palette_index = tile_attributes & 0x07;
 
-		struct Tile tile = tile_get(tile_index, ppu.bg_tile_data_area, bank_select);
+		struct Tile tile = tile_get(ppu, tile_index, ppu->bg_tile_data_area, bank_select);
 
 		if (y_flip)
 			pixel_row = 7 - pixel_row;
@@ -419,7 +330,7 @@ static void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priorit
 
 		for (int p = 0; p < pixels_to_draw; p++) {
 			uint8_t color_index = color_indices[pixel_col + p];
-			scanline[screen_col] = apply_color(0, palette_index, color_index, false);
+			scanline[screen_col] = apply_color(ppu, 0, palette_index, color_index, false);
 			bg_priority[screen_col] = priority;
 			bg_nonzero[screen_col] = (color_index != 0);
 			screen_col++;
@@ -429,12 +340,12 @@ static void ppu_draw_window(RGB555 *scanline, bool *bg_nonzero, bool *bg_priorit
 	}
 }
 
-static bool sprite_is_visible(struct Sprite *sprite) {
-	if (ppu.current_line < (int)sprite->y_position - 16)
+static bool sprite_is_visible(struct HagemuPPU *ppu, struct Sprite *sprite) {
+	if (ppu->current_line < (int)sprite->y_position - 16)
 		return false;
-	else if (ppu.current_line < (int)sprite->y_position - 8)
+	else if (ppu->current_line < (int)sprite->y_position - 8)
 		return true;
-	else if (ppu.use_tall_sprites && ppu.current_line < (int)sprite->y_position)
+	else if (ppu->use_tall_sprites && ppu->current_line < (int)sprite->y_position)
 		return true;
 	else
 		return false;
@@ -456,13 +367,13 @@ static void sprite_sort_x_position(struct Sprite *sprites, unsigned sprite_count
 	}
 }
 
-static unsigned read_sprites(struct Sprite *sprites) {
+static unsigned read_sprites(struct HagemuPPU *ppu, struct Sprite *sprites) {
 	unsigned sprite_count = 0;
 	for (int i = 0; i < OAM_SPRITE_COUNT; i++) {
 		if (sprite_count >= SPRITE_LIMIT)
 			break;
-		struct Sprite *sprite = &ppu.sprites[i];
-		if (sprite_is_visible(sprite)) {
+		struct Sprite *sprite = &ppu->sprites[i];
+		if (sprite_is_visible(ppu, sprite)) {
 			sprites[sprite_count] = *sprite;
 			sprite_count++;
 		}
@@ -470,7 +381,7 @@ static unsigned read_sprites(struct Sprite *sprites) {
 	return sprite_count;
 }
 
-static void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority, struct Sprite sprite) {
+static void draw_sprite(struct HagemuPPU *ppu, RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority, struct Sprite sprite) {
 	bool background_has_priority = (sprite.attributes >> 7) & 0x01;
 	bool y_flip = (sprite.attributes >> 6) & 0x01;
 	bool x_flip = (sprite.attributes >> 5) & 0x01;
@@ -479,21 +390,21 @@ static void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const bool *bg
 	uint8_t tile_index  = sprite.tile_index;
 	uint8_t palette_index = sprite.attributes & 0x07;
 
-	int sprite_row = ppu.current_line - (int)sprite.y_position + 16;
-	if (y_flip && ppu.use_tall_sprites)
+	int sprite_row = ppu->current_line - (int)sprite.y_position + 16;
+	if (y_flip && ppu->use_tall_sprites)
 		sprite_row = 15 - sprite_row;
 	else if (y_flip)
 		sprite_row = 7 - sprite_row;
 
-	if (ppu.use_tall_sprites && sprite_row < 8)
+	if (ppu->use_tall_sprites && sprite_row < 8)
 		tile_index &= ~(0x01);
-	else if (ppu.use_tall_sprites && sprite_row < 16) {
+	else if (ppu->use_tall_sprites && sprite_row < 16) {
 		tile_index |= 0x01;
 		sprite_row -= 8;
 	}
 
 	uint8_t color_indices[8];
-	struct Tile tile = tile_get(tile_index, true, bank_select);
+	struct Tile tile = tile_get(ppu, tile_index, true, bank_select);
 	tile_decode_row(tile, sprite_row, color_indices);
 	for (int i = 0; i < 8; i++) {
 		int col = (int)sprite.x_position + i - 8;
@@ -506,70 +417,70 @@ static void draw_sprite(RGB555 *scanline, const bool *bg_nonzero, const bool *bg
 		else if (color_indices[sprite_col] == 0)
 			continue;
 
-		scanline[col] = apply_color(palette_select, palette_index, color_indices[sprite_col], true);
+		scanline[col] = apply_color(ppu, palette_select, palette_index, color_indices[sprite_col], true);
 	}
 }
 
-static void ppu_draw_sprites(RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority) {
+static void ppu_draw_sprites(struct HagemuPPU *ppu, RGB555 *scanline, const bool *bg_nonzero, const bool *bg_priority) {
 	struct Sprite sprites[SPRITE_LIMIT];
-	unsigned sprite_count = read_sprites(sprites);
+	unsigned sprite_count = read_sprites(ppu, sprites);
 
-	if (ppu.model != MODEL_CGB) {
+	if (CORE_FROM_PPU(ppu)->model != MODEL_CGB) {
 		sprite_sort_x_position(sprites, sprite_count);
 	}
 
 	// Draw the sprites backwards so that earlier sprites have higher priority
 	for (int i = sprite_count - 1; i >= 0; i--) {
-		draw_sprite(scanline, bg_nonzero, bg_priority, sprites[i]);
+		draw_sprite(ppu, scanline, bg_nonzero, bg_priority, sprites[i]);
 	}
 }
 
-const uint32_t* ppu_get_frame(void) {
-	return (const uint32_t*)ppu.screen_buffer[!ppu.buffer_index];
+const uint32_t* ppu_get_frame(struct HagemuPPU *ppu) {
+	return (const uint32_t*)ppu->screen_buffer[!ppu->buffer_index];
 }
 
 /*** Below is code for reading and writing to registers ***/
 
-void ppu_set_lcd_control(uint8_t value) {
-	ppu.lcd_control_raw = value;
-	bool old_ppu_state = ppu.enabled;
+void ppu_set_lcd_control(struct HagemuPPU *ppu, uint8_t value) {
+	ppu->lcd_control_raw = value;
+	bool old_ppu_state = ppu->enabled;
 
-	ppu.bg_enabled        = value & (1u << 0);
-	ppu.objects_enabled   = value & (1u << 1);
-	ppu.use_tall_sprites  = value & (1u << 2);
-	ppu.bg_tile_map       = value & (1u << 3);
-	ppu.bg_tile_data_area = value & (1u << 4);
-	ppu.window_enabled    = value & (1u << 5);
-	ppu.window_tile_map   = value & (1u << 6);
-	ppu.enabled           = value & (1u << 7);
+	ppu->bg_enabled        = value & (1u << 0);
+	ppu->objects_enabled   = value & (1u << 1);
+	ppu->use_tall_sprites  = value & (1u << 2);
+	ppu->bg_tile_map       = value & (1u << 3);
+	ppu->bg_tile_data_area = value & (1u << 4);
+	ppu->window_enabled    = value & (1u << 5);
+	ppu->window_tile_map   = value & (1u << 6);
+	ppu->enabled           = value & (1u << 7);
 
-	if (old_ppu_state == ppu.enabled)
+	if (old_ppu_state == ppu->enabled)
 		return;
 
-	ppu.current_line  = 0;
-	ppu.current_cycle = 0;
+	ppu->current_line  = 0;
+	ppu->current_cycle = 0;
 }
 
-void ppu_set_lcd_status(uint8_t value) {
-	ppu.lcd_status_raw = value;
+void ppu_set_lcd_status(struct HagemuPPU *ppu, uint8_t value) {
+	ppu->lcd_status_raw = value;
 	// bits 0, 1, 2, and 7 are read-only and thus ignored
-	ppu.interrupt_select_hblank   = value & (1u << 3);
-	ppu.interrupt_select_vblank   = value & (1u << 4);
-	ppu.interrupt_select_oam_scan = value & (1u << 5);
-	ppu.interrupt_select_LYC      = value & (1u << 6);
+	ppu->interrupt_select_hblank   = value & (1u << 3);
+	ppu->interrupt_select_vblank   = value & (1u << 4);
+	ppu->interrupt_select_oam_scan = value & (1u << 5);
+	ppu->interrupt_select_LYC      = value & (1u << 6);
 }
 
-uint8_t ppu_get_lcd_status(void) {
+uint8_t ppu_get_lcd_status(struct HagemuPPU *ppu) {
 	// The highest bit is always 1
-	ppu.lcd_status_raw |= 0x80;
+	ppu->lcd_status_raw |= 0x80;
 	// Clear the lowest three bits
-	ppu.lcd_status_raw &= 0xF8;
+	ppu->lcd_status_raw &= 0xF8;
 	// bits 0 and 1 are the PPU mode
-	if (ppu.enabled)
-		ppu.lcd_status_raw |= ppu.mode;
+	if (ppu->enabled)
+		ppu->lcd_status_raw |= ppu->mode;
 	// bit 2 is the line compare bit
-	ppu.lcd_status_raw |= (ppu.current_line == ppu.line_compare) << 2;
-	return ppu.lcd_status_raw;
+	ppu->lcd_status_raw |= (ppu->current_line == ppu->line_compare) << 2;
+	return ppu->lcd_status_raw;
 }
 
 #define REG_LCD_CONTROL   0xFF40
@@ -589,64 +500,64 @@ uint8_t ppu_get_lcd_status(void) {
 #define REG_SPRITE_PRAM_INDEX 0xFF6A
 #define REG_SPRITE_PRAM_DATA  0xFF6B
 
-uint8_t ppu_register_read(uint16_t address) {
+uint8_t ppu_register_read(struct HagemuPPU *ppu, uint16_t address) {
 	switch (address) {
-	case REG_LCD_CONTROL:  return ppu.lcd_control_raw;
-	case REG_LCD_STATUS:   return ppu_get_lcd_status();
-	case REG_BG_SCROLL_Y:  return ppu.bg_scroll_y;
-	case REG_BG_SCROLL_X:  return ppu.bg_scroll_x;
-	case REG_LCD_Y_COORD:  return ppu.current_line;
-	case REG_LY_COMPARE:   return ppu.line_compare;
-	case REG_BG_PALETTE:   return ppu.bg_palette;
-	case REG_OBJ0_PALETTE: return ppu.obj0_palette;
-	case REG_OBJ1_PALETTE: return ppu.obj1_palette;
-	case REG_WIN_SCROLL_Y: return ppu.win_scroll_y;
-	case REG_WIN_SCROLL_X: return ppu.win_scroll_x;
-	case REG_BG_PRAM_INDEX: return ppu.bg_pram_index;
-	case REG_BG_PRAM_DATA: return ppu.bg_pram[ppu.bg_pram_index & 0x3F];
-	case REG_SPRITE_PRAM_INDEX: return ppu.sprite_pram_index;
-	case REG_SPRITE_PRAM_DATA: return ppu.sprite_pram[ppu.sprite_pram_index & 0x3F];
+	case REG_LCD_CONTROL:  return ppu->lcd_control_raw;
+	case REG_LCD_STATUS:   return ppu_get_lcd_status(ppu);
+	case REG_BG_SCROLL_Y:  return ppu->bg_scroll_y;
+	case REG_BG_SCROLL_X:  return ppu->bg_scroll_x;
+	case REG_LCD_Y_COORD:  return ppu->current_line;
+	case REG_LY_COMPARE:   return ppu->line_compare;
+	case REG_BG_PALETTE:   return ppu->bg_palette;
+	case REG_OBJ0_PALETTE: return ppu->obj0_palette;
+	case REG_OBJ1_PALETTE: return ppu->obj1_palette;
+	case REG_WIN_SCROLL_Y: return ppu->win_scroll_y;
+	case REG_WIN_SCROLL_X: return ppu->win_scroll_x;
+	case REG_BG_PRAM_INDEX: return ppu->bg_pram_index;
+	case REG_BG_PRAM_DATA: return ppu->bg_pram[ppu->bg_pram_index & 0x3F];
+	case REG_SPRITE_PRAM_INDEX: return ppu->sprite_pram_index;
+	case REG_SPRITE_PRAM_DATA: return ppu->sprite_pram[ppu->sprite_pram_index & 0x3F];
 	default:
 		fprintf(stderr, "[ERROR] Invalid PPU register read at %04X\n", address);
 		exit(EXIT_FAILURE);
 	}
 }
 
-void ppu_register_write(uint16_t address, uint8_t value) {
+void ppu_register_write(struct HagemuPPU *ppu, uint16_t address, uint8_t value) {
 	switch (address) {
-	case REG_LCD_CONTROL:  ppu_set_lcd_control(value); break;
-	case REG_LCD_STATUS:   ppu_set_lcd_status(value);  break;
-	case REG_BG_SCROLL_Y:  ppu.bg_scroll_y  = value;   break;
-	case REG_BG_SCROLL_X:  ppu.bg_scroll_x  = value;   break;
+	case REG_LCD_CONTROL:  ppu_set_lcd_control(ppu, value); break;
+	case REG_LCD_STATUS:   ppu_set_lcd_status(ppu, value);  break;
+	case REG_BG_SCROLL_Y:  ppu->bg_scroll_y  = value;   break;
+	case REG_BG_SCROLL_X:  ppu->bg_scroll_x  = value;   break;
 	case REG_LCD_Y_COORD:  break; // this register is read-only
-	case REG_BG_PALETTE:   ppu.bg_palette   = value;   break;
-	case REG_OBJ0_PALETTE: ppu.obj0_palette = value;   break;
-	case REG_OBJ1_PALETTE: ppu.obj1_palette = value;   break;
-	case REG_WIN_SCROLL_Y: ppu.win_scroll_y = value;   break;
-	case REG_WIN_SCROLL_X: ppu.win_scroll_x = value;   break;
-	case REG_BG_PRAM_INDEX: ppu.bg_pram_index = value | 0x40; break;
+	case REG_BG_PALETTE:   ppu->bg_palette   = value;   break;
+	case REG_OBJ0_PALETTE: ppu->obj0_palette = value;   break;
+	case REG_OBJ1_PALETTE: ppu->obj1_palette = value;   break;
+	case REG_WIN_SCROLL_Y: ppu->win_scroll_y = value;   break;
+	case REG_WIN_SCROLL_X: ppu->win_scroll_x = value;   break;
+	case REG_BG_PRAM_INDEX: ppu->bg_pram_index = value | 0x40; break;
 	case REG_BG_PRAM_DATA:
-		ppu.bg_pram[ppu.bg_pram_index & 0x3F] = value;
-		if (ppu.bg_pram_index & 0x80) {
-			if ((ppu.bg_pram_index & 0x3F) == 0x3F)
-				ppu.bg_pram_index &= 0xC0;
+		ppu->bg_pram[ppu->bg_pram_index & 0x3F] = value;
+		if (ppu->bg_pram_index & 0x80) {
+			if ((ppu->bg_pram_index & 0x3F) == 0x3F)
+				ppu->bg_pram_index &= 0xC0;
 			else
-				ppu.bg_pram_index++;
+				ppu->bg_pram_index++;
 		}
 		break;
-	case REG_SPRITE_PRAM_INDEX: ppu.sprite_pram_index = value | 0x40; break;
+	case REG_SPRITE_PRAM_INDEX: ppu->sprite_pram_index = value | 0x40; break;
 	case REG_SPRITE_PRAM_DATA:
-		ppu.sprite_pram[ppu.sprite_pram_index & 0x3F] = value;
-		if (ppu.sprite_pram_index & 0x80) {
-			if ((ppu.sprite_pram_index & 0x3F) == 0x3F)
-				ppu.sprite_pram_index &= 0xC0;
+		ppu->sprite_pram[ppu->sprite_pram_index & 0x3F] = value;
+		if (ppu->sprite_pram_index & 0x80) {
+			if ((ppu->sprite_pram_index & 0x3F) == 0x3F)
+				ppu->sprite_pram_index &= 0xC0;
 			else
-				ppu.sprite_pram_index++;
+				ppu->sprite_pram_index++;
 		}
 		break;
 	case REG_LY_COMPARE: // Setting this register could trigger an interrupt
-		ppu.line_compare = value;
-		if (ppu.interrupt_select_LYC && ppu.current_line == ppu.line_compare)
+		ppu->line_compare = value;
+		if (ppu->interrupt_select_LYC && ppu->current_line == ppu->line_compare)
 			interrupt_raise(LCD_INTERRUPT);
 		break;
 	default:
@@ -655,58 +566,58 @@ void ppu_register_write(uint16_t address, uint8_t value) {
 	}
 }
 
-void ppu_set_vram_bank(bool vram_bank) {
-	ppu.vram_bank = vram_bank;
+void ppu_set_vram_bank(struct HagemuPPU *ppu, bool vram_bank) {
+	ppu->vram_bank = vram_bank;
 }
 
-bool ppu_get_vram_bank(void) {
-	return ppu.vram_bank;
+bool ppu_get_vram_bank(struct HagemuPPU *ppu) {
+	return ppu->vram_bank;
 }
 
-uint8_t ppu_vram_read(uint16_t address) {
-	if (ppu.enabled && ppu.mode == PIXEL_DRAW) {
+uint8_t ppu_vram_read(struct HagemuPPU *ppu, uint16_t address) {
+	if (ppu->enabled && ppu->mode == PIXEL_DRAW) {
 		return 0xFF;
-	} else if (ppu.vram_bank && address < sizeof(ppu.tile_data2)) {
-		return ((uint8_t *)ppu.tile_data2)[address];
-	} else if (ppu.vram_bank) {
-		address -= sizeof(ppu.tile_data2);
-		return ((uint8_t *)ppu.bg_attributes)[address];
-	} else if (address < sizeof(ppu.tile_data)) {
-		return ((uint8_t *)ppu.tile_data)[address];
+	} else if (ppu->vram_bank && address < sizeof(ppu->tile_data2)) {
+		return ((uint8_t *)ppu->tile_data2)[address];
+	} else if (ppu->vram_bank) {
+		address -= sizeof(ppu->tile_data2);
+		return ((uint8_t *)ppu->bg_attributes)[address];
+	} else if (address < sizeof(ppu->tile_data)) {
+		return ((uint8_t *)ppu->tile_data)[address];
 	} else {
-		address -= sizeof(ppu.tile_data);
-		return ((uint8_t *)ppu.tile_map)[address];
+		address -= sizeof(ppu->tile_data);
+		return ((uint8_t *)ppu->tile_map)[address];
 	}
 }
 
-void ppu_vram_write(uint16_t address, uint8_t value) {
-	if (ppu.enabled && ppu.mode == PIXEL_DRAW) {
+void ppu_vram_write(struct HagemuPPU *ppu, uint16_t address, uint8_t value) {
+	if (ppu->enabled && ppu->mode == PIXEL_DRAW) {
 		return;
-	} else if (ppu.vram_bank && address < sizeof(ppu.tile_data2)) {
-		((uint8_t *)ppu.tile_data2)[address] = value;
-	} else if (ppu.vram_bank) {
-		address -= sizeof(ppu.tile_data2);
-		((uint8_t *)ppu.bg_attributes)[address] = value;
-	} else if (address < sizeof(ppu.tile_data)) {
-		((uint8_t *)ppu.tile_data)[address] = value;
+	} else if (ppu->vram_bank && address < sizeof(ppu->tile_data2)) {
+		((uint8_t *)ppu->tile_data2)[address] = value;
+	} else if (ppu->vram_bank) {
+		address -= sizeof(ppu->tile_data2);
+		((uint8_t *)ppu->bg_attributes)[address] = value;
+	} else if (address < sizeof(ppu->tile_data)) {
+		((uint8_t *)ppu->tile_data)[address] = value;
 	} else {
-		address -= sizeof(ppu.tile_data);
-		((uint8_t *)ppu.tile_map)[address] = value;
+		address -= sizeof(ppu->tile_data);
+		((uint8_t *)ppu->tile_map)[address] = value;
 	}
 }
 
-void ppu_oam_write_nonblocking(uint16_t address, uint8_t value) {
-	((uint8_t *)ppu.sprites)[address] = value;
+void ppu_oam_write_nonblocking(struct HagemuPPU *ppu, uint16_t address, uint8_t value) {
+	((uint8_t *)ppu->sprites)[address] = value;
 }
 
-uint8_t ppu_oam_read(uint16_t address) {
-	if (ppu.enabled && (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN))
+uint8_t ppu_oam_read(struct HagemuPPU *ppu, uint16_t address) {
+	if (ppu->enabled && (ppu->mode == PIXEL_DRAW || ppu->mode == OAM_SCAN))
 		return 0xFF;
-	return ((uint8_t *)ppu.sprites)[address];
+	return ((uint8_t *)ppu->sprites)[address];
 }
 
-void ppu_oam_write(uint16_t address, uint8_t value) {
-	if (ppu.enabled && (ppu.mode == PIXEL_DRAW || ppu.mode == OAM_SCAN))
+void ppu_oam_write(struct HagemuPPU *ppu, uint16_t address, uint8_t value) {
+	if (ppu->enabled && (ppu->mode == PIXEL_DRAW || ppu->mode == OAM_SCAN))
 		return;
-	((uint8_t *)ppu.sprites)[address] = value;
+	((uint8_t *)ppu->sprites)[address] = value;
 }

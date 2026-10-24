@@ -20,9 +20,9 @@ void dma_start(struct HagemuDMA *dma, uint8_t value) {
 
 void dma_tick(struct HagemuDMA *dma) {
 	if (dma->active) {
-		struct HagemuMMU *mmu = &CORE_FROM_DMA(dma)->mmu;
-		dma->last_transferred = mmu_read_nonblocking(mmu, dma->source + dma->index);
-		ppu_oam_write_nonblocking(dma->index, dma->last_transferred);
+		struct HagemuGB *gb = CORE_FROM_DMA(dma);
+		dma->last_transferred = mmu_read_nonblocking(&gb->mmu, dma->source + dma->index);
+		ppu_oam_write_nonblocking(&gb->ppu, dma->index, dma->last_transferred);
 		dma->index++;
 		if (dma->index == 160)
 			dma->active = false;

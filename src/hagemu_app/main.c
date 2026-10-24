@@ -395,7 +395,7 @@ void main_loop(void* arg) {
 
 	// Even if there's not a new frame, updating the texture every loop
 	// iteration makes the workload smoother and more consistent
-	SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(), sizeof(uint32_t) * 160);
+	SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(app->gb), sizeof(uint32_t) * 160);
 	SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
 	SDL_RenderPresent(app->renderer);
 

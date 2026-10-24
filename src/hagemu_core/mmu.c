@@ -14,36 +14,38 @@ void mmu_reset(struct HagemuMMU *mmu) {
 }
 
 static uint8_t mmu_read_io(struct HagemuMMU *mmu, uint16_t address) {
+	struct HagemuGB *gb = CORE_FROM_MMU(mmu);
+
 	switch (address) {
 	case 0xFF00: return joypad_get_byte();
 	case 0xFF01: return mmu->serial_data;    // not implemented
 	case 0xFF02: return mmu->serial_control; // not implemented
 	case 0xFF0F: return interrupt_register_read();
-	case 0xFF46: return dma_read(&CORE_FROM_MMU(mmu)->dma);
+	case 0xFF46: return dma_read(&gb->dma);
 	}
 
-	if (CORE_FROM_MMU(mmu)->model == MODEL_CGB) {
+	if (gb->model == MODEL_CGB) {
 		switch (address) {
 		case 0xFF4D:
-			return (cpu_get_speed_mode(&CORE_FROM_MMU(mmu)->cpu) << 7) |
+			return (cpu_get_speed_mode(&gb->cpu) << 7) |
 				0x7E |
-				(cpu_get_speed_mode_pending(&CORE_FROM_MMU(mmu)->cpu));
+				(cpu_get_speed_mode_pending(&gb->cpu));
 		case 0xFF51: case 0xFF52: case 0xFF53:
 		case 0xFF54: case 0xFF55:
-			return hdma_read_register(&CORE_FROM_MMU(mmu)->hdma, address);
+			return hdma_read_register(&gb->hdma, address);
 		case 0xFF70: return mmu->wram_bank | 0xF8;
-		case 0xFF4F: return ppu_get_vram_bank() | 0xFE;
-		case 0xFF68: return ppu_register_read(address); // BG palette ram index
-		case 0xFF69: return ppu_register_read(address); // BG palette ram data
-		case 0xFF6A: return ppu_register_read(address); // Sprite palette ram index
-		case 0xFF6B: return ppu_register_read(address); // Sprite palette ram data
+		case 0xFF4F: return ppu_get_vram_bank(&gb->ppu) | 0xFE;
+		case 0xFF68: return ppu_register_read(&gb->ppu, address); // BG palette ram index
+		case 0xFF69: return ppu_register_read(&gb->ppu, address); // BG palette ram data
+		case 0xFF6A: return ppu_register_read(&gb->ppu, address); // Sprite palette ram index
+		case 0xFF6B: return ppu_register_read(&gb->ppu, address); // Sprite palette ram data
 		}
 	}
 
 	if (address >= 0xFF04 && address <= 0xFF07)
 		return timer_register_read(address);
 	else if (address >= 0xFF40 && address <= 0xFF4B) // Note: FF46 is DMA
-		return ppu_register_read(address);
+		return ppu_register_read(&gb->ppu, address);
 	else if (address >= 0xFF10 && address <= 0xFF3F)
 		return apu_register_read(address);
 	else
@@ -51,61 +53,64 @@ static uint8_t mmu_read_io(struct HagemuMMU *mmu, uint16_t address) {
 }
 
 static void mmu_write_io(struct HagemuMMU *mmu, uint16_t address, uint8_t value) {
+	struct HagemuGB *gb = CORE_FROM_MMU(mmu);
+
 	switch (address) {
 	case 0xFF00: joypad_set_byte(value);          return;
 	case 0xFF01: mmu->serial_data = value;         return; // not implemented
 	case 0xFF02: mmu->serial_control = value;      return; // not implemented
 	case 0xFF0F: interrupt_register_write(value); return;
-	case 0xFF46: dma_start(&CORE_FROM_MMU(mmu)->dma, value); return;
+	case 0xFF46: dma_start(&gb->dma, value); return;
 	case 0xFF50:
-		if (CORE_FROM_MMU(mmu)->model == MODEL_CGB
+		if (gb->model == MODEL_CGB
 		    && cart_rom_read(0x0143) != 0x80
 		    && cart_rom_read(0x0143) != 0xC0) {
-			CORE_FROM_MMU(mmu)->model = MODEL_CGB_BACKCOMPAT;
-			ppu_set_model(MODEL_CGB_BACKCOMPAT);
+			gb->model = MODEL_CGB_BACKCOMPAT;
 		}
 		mmu->boot_rom_ignore = true;
 		return;
 	}
 
-	if (CORE_FROM_MMU(mmu)->model == MODEL_CGB) {
+	if (gb->model == MODEL_CGB) {
 		switch (address) {
 		case 0xFF4D:
 			printf("CPU speed mode register write: %02X\n", value);
-			cpu_set_speed_mode_pending(&CORE_FROM_MMU(mmu)->cpu, value & 0x01);
+			cpu_set_speed_mode_pending(&gb->cpu, value & 0x01);
 			return;
 		case 0xFF51: case 0xFF52: case 0xFF53:
 		case 0xFF54: case 0xFF55:
-			hdma_write_register(&CORE_FROM_MMU(mmu)->hdma, address, value);
+			hdma_write_register(&gb->hdma, address, value);
 			return;
 		case 0xFF70:
 			mmu->wram_bank = value & 0x07;
 			if (!mmu->wram_bank) mmu->wram_bank = 1;
 			return;
-		case 0xFF4F: ppu_set_vram_bank(value & 0x01); return;
-		case 0xFF68: ppu_register_write(address, value); return; // BG palette ram index
-		case 0xFF69: ppu_register_write(address, value); return; // BG palette ram data
-		case 0xFF6A: ppu_register_write(address, value); return; // Sprite palette ram index
-		case 0xFF6B: ppu_register_write(address, value); return; // Sprite palette ram data
+		case 0xFF4F: ppu_set_vram_bank(&gb->ppu, value & 0x01); return;
+		case 0xFF68: ppu_register_write(&gb->ppu, address, value); return; // BG palette ram index
+		case 0xFF69: ppu_register_write(&gb->ppu, address, value); return; // BG palette ram data
+		case 0xFF6A: ppu_register_write(&gb->ppu, address, value); return; // Sprite palette ram index
+		case 0xFF6B: ppu_register_write(&gb->ppu, address, value); return; // Sprite palette ram data
 		}
 	}
 
 	if (address >= 0xFF04 && address <= 0xFF07)
 		timer_register_write(address, value);
 	else if (address >= 0xFF40 && address <= 0xFF4B) // Note: FF46 is DMA
-		ppu_register_write(address, value);
+		ppu_register_write(&gb->ppu, address, value);
 	else if (address >= 0xFF10 && address <= 0xFF3F)
 		apu_register_write(address, value);
 }
 
 uint8_t mmu_read_nonblocking(struct HagemuMMU *mmu, uint16_t address) {
+	struct HagemuGB *gb = CORE_FROM_MMU(mmu);
+
 	if (!mmu->boot_rom_ignore && address < 0x100) {
-		return boot_read(address, CORE_FROM_MMU(mmu)->model);
+		return boot_read(address, gb->model);
 	}
 	else if (!mmu->boot_rom_ignore
-		 && CORE_FROM_MMU(mmu)->model == MODEL_CGB
+		 && gb->model == MODEL_CGB
 		 && address >= 0x200 && address < 0x900) {
-		return boot_read(address, CORE_FROM_MMU(mmu)->model);
+		return boot_read(address, gb->model);
 	}
 
 	switch (address & 0xF000) {
@@ -117,7 +122,7 @@ uint8_t mmu_read_nonblocking(struct HagemuMMU *mmu, uint16_t address) {
 
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
-		return ppu_vram_read(address - 0x8000);
+		return ppu_vram_read(&gb->ppu, address - 0x8000);
 
 	// External switchable RAM from cartridge (8 KiB)
 	case 0xA000: case 0xB000:
@@ -141,7 +146,7 @@ uint8_t mmu_read_nonblocking(struct HagemuMMU *mmu, uint16_t address) {
 			return mmu->wram[mmu->wram_bank][address - 0xF000];
 		// Object Attribute Memory
 		else if (address < 0xFEA0)
-			return ppu_oam_read(address - 0xFE00);
+			return ppu_oam_read(&gb->ppu, address - 0xFE00);
 		// Unusable forbidden memory
 		else if (address < 0xFF00)
 			return 0xFF;
@@ -161,6 +166,8 @@ uint8_t mmu_read_nonblocking(struct HagemuMMU *mmu, uint16_t address) {
 }
 
 static void mmu_write_nonblocking(struct HagemuMMU *mmu, uint16_t address, uint8_t value) {
+	struct HagemuGB *gb = CORE_FROM_MMU(mmu);
+
 	switch (address & 0xF000) {
 
 	// Disable/Enable cartridge RAM
@@ -171,7 +178,7 @@ static void mmu_write_nonblocking(struct HagemuMMU *mmu, uint16_t address, uint8
 
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
-		ppu_vram_write(address - 0x8000, value);
+		ppu_vram_write(&gb->ppu, address - 0x8000, value);
 		return;
 
 	// Cartridge RAM (8 KiB slot)
@@ -200,7 +207,7 @@ static void mmu_write_nonblocking(struct HagemuMMU *mmu, uint16_t address, uint8
 			mmu->wram[mmu->wram_bank][address - 0xF000] = value;
 		// Object Attribute Memory
 		else if (address < 0xFEA0)
-			ppu_oam_write(address - 0xFE00, value);
+			ppu_oam_write(&gb->ppu, address - 0xFE00, value);
 		// Unusable forbidden memory
 		else if (address < 0xFF00)
 			return;
@@ -223,23 +230,25 @@ static void mmu_write_nonblocking(struct HagemuMMU *mmu, uint16_t address, uint8
 // mmu_read blocks when the DMA is active
 // This function is for the DMA to read directly from memory
 uint8_t mmu_read(struct HagemuMMU *mmu, uint16_t address) {
+	struct HagemuGB *gb = CORE_FROM_MMU(mmu);
 	if (address == 0xFF46) {
-		return dma_read(&CORE_FROM_MMU(mmu)->dma);
+		return dma_read(&gb->dma);
 	}
 	// Block if DMA is active and not accessing HRAM
-	if (dma_is_active(&CORE_FROM_MMU(mmu)->dma) && address < 0xFF80) {
+	if (dma_is_active(&gb->dma) && address < 0xFF80) {
 		return 0xFF;
 	}
 	return mmu_read_nonblocking(mmu, address);
 }
 
 void mmu_write(struct HagemuMMU *mmu, uint16_t address, uint8_t value) {
+	struct HagemuGB *gb = CORE_FROM_MMU(mmu);
 	if (address == 0xFF46) {
-		dma_start(&CORE_FROM_MMU(mmu)->dma, value);
+		dma_start(&gb->dma, value);
 		return;
 	}
 	// Block if DMA is active and not accessing HRAM
-	if (dma_is_active(&CORE_FROM_MMU(mmu)->dma) && address < 0xFF80) {
+	if (dma_is_active(&gb->dma) && address < 0xFF80) {
 		return;
 	}
 	mmu_write_nonblocking(mmu, address, value);
