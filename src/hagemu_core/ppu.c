@@ -35,12 +35,11 @@ static const RGB555 mgb_palette_colors[4] = {
 
 // This function is used a lot, so I optimized it a bit
 static inline ARGB8888 convert_color(RGB555 c) {
-	uint32_t result =
-		((c << 9) & 0x00F80000) |
-		((c << 6) & 0x0000F800) |
-		((c << 3) & 0x000000F8);
-	result |= (result >> 5) & 0x00070707;
-	return result | 0xFF000000;
+	uint32_t c32 = (uint32_t)c;
+	uint32_t rb = ((c32 << 9) | (c32 << 3)) & 0x00F800F8u;
+	uint32_t g  = (c32 << 6) & 0x0000F800u;
+	uint32_t result = 0xFF000000u | rb | g;
+	return result | ((result >> 5) & 0x00070707u);
 }
 
 static inline ARGB8888 correct_color(ARGB8888 c) {
