@@ -26,6 +26,9 @@
 
 bool hagemu_app_setup(struct HagemuApp *app) {
 	app->gb = hagemu_create();
+	if (!app->gb) {
+		fprintf(stderr, "Failed to start the Hagemu emulator core");
+	}
 	app->state = HAGEMU_NO_ROM;
 	memset(app->audio_buffer, 0, sizeof(app->audio_buffer));
 	app->smooth_sample_rate_adjust = 1.0;
@@ -94,9 +97,9 @@ bool hagemu_app_setup(struct HagemuApp *app) {
 }
 
 void hagemu_save_sram_file(struct HagemuApp *app) {
-	if (hagemu_sram_available()) {
+	if (hagemu_sram_available(app->gb)) {
 		size_t sram_size;
-		const uint8_t *sram = hagemu_get_sram(&sram_size);
+		const uint8_t *sram = hagemu_get_sram(app->gb, &sram_size);
 		char *sram_filename = hagemu_file_sram_name(app->rom_filename);
 		if (!SDL_SaveFile(sram_filename, sram, sram_size)) {
 			fprintf(stderr, "[ERROR] Unable to save file '%s': %s\n", sram_filename, SDL_GetError());
@@ -172,7 +175,7 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 		return false;
 	}
 
-	bool result = hagemu_set_sram(sram_data, sram_size);
+	bool result = hagemu_set_sram(app->gb, sram_data, sram_size);
 	if (result) {
 		app->state = HAGEMU_GAME_RUNNING;
 		hagemu_app_reset(app, app->gb_model);
@@ -205,7 +208,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	app->gb_model = model;
 	hagemu_app_reset(app, app->gb_model);
 
-	if (!hagemu_sram_available())
+	if (!hagemu_sram_available(app->gb))
 		return true;
 
 	// Load the SRAM
@@ -421,7 +424,9 @@ bool is_gbc_file(const char *filename) {
 
 int main(int argc, char *argv[]) {
 	struct HagemuApp app = { 0 };
-	hagemu_app_setup(&app);
+	if (!hagemu_app_setup(&app)) {
+		fprintf(stderr, "The Hagemu app failed to start\n");
+	}
 
 #ifdef __EMSCRIPTEN__
 	web_save_pointer_for_javascript(&app);

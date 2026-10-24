@@ -25,6 +25,7 @@ struct HagemuGB {
 	struct HagemuMMU   mmu;
 	struct HagemuDMA   dma;
 	struct HagemuHDMA  hdma;
+	struct HagemuCart  cart;
 	struct HagemuTimer timer;
 	struct HagemuJoypad joypad;
 	struct HagemuInterrupts interrupts;

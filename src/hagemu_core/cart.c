@@ -1,7 +1,10 @@
 #include "cart.h"
+#include "core.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
 #include "mbc1.h"
 #include "mbc2.h"
 #include "mbc3.h"
@@ -13,7 +16,26 @@
 #define CART_SIZE_LOCATION  0x0148
 #define RAM_SIZE_LOCATION   0x0149
 
-struct HagemuCart cart = { .rom_index = 1 };
+void cart_free(struct HagemuCart *cart) {
+	free(cart->rom);
+	free(cart->ram);
+	cart->rom = NULL;
+	cart->ram = NULL;
+}
+
+void cart_reset(struct HagemuCart *cart) {
+	// Zero out the cart, but restore the pointers and cart info afterwards
+	struct HagemuCart old_cart;
+	memcpy(&old_cart, cart, sizeof(struct HagemuCart));
+	memset(cart, 0, sizeof(struct HagemuCart));
+	cart->info = old_cart.info;
+	cart->rom = old_cart.rom;
+	cart->ram = old_cart.ram;
+	cart->rom_size = old_cart.rom_size;
+	cart->ram_size = old_cart.ram_size;
+	cart->rom_index = 1;
+	memcpy(cart->title, old_cart.title, sizeof(cart->title));
+}
 
 const struct HagemuCartInfo cart_info_table[] = {
 	[0x00] = { .type = NO_MBC, },
@@ -80,29 +102,29 @@ static void cart_set_info(struct HagemuCart *cart) {
 		cart->ram_size += RTC_SERIALIZED_SIZE;
 }
 
-bool cart_sram_available(void) {
-	return cart.info.has_battery && cart.ram;
+bool cart_sram_available(struct HagemuCart *cart) {
+	return cart->info.has_battery && cart->ram;
 }
 
-bool cart_set_sram(const uint8_t *data, size_t size) {
-	if (!cart.rom) {
+bool cart_set_sram(struct HagemuCart *cart, const uint8_t *data, size_t size) {
+	if (!cart->rom) {
 		printf("Error: Unable to load SRAM data before loading a rom file\n");
 		return false;
-	} else if (cart.ram_size == 0 || !cart.info.has_battery) {
+	} else if (cart->ram_size == 0 || !cart->info.has_battery) {
 		printf("Failed to load SRAM data. This cartridge doesn't support battery-backed RAM.\n");
 		return false;
-	} else if (!cart.info.has_timer && size != cart.ram_size) {
-		printf("Failed to copy SRAM data. Expected %zu bytes, but data was %zu bytes\n", cart.ram_size, size);
+	} else if (!cart->info.has_timer && size != cart->ram_size) {
+		printf("Failed to copy SRAM data. Expected %zu bytes, but data was %zu bytes\n", cart->ram_size, size);
 		return false;
 	}
 
 	printf("Copying SRAM data to emulator core\n");
-	memcpy(cart.ram, data, size);
+	memcpy(cart->ram, data, size);
 
-	if (!cart.info.has_timer)
+	if (!cart->info.has_timer)
 		return true;
 
-	size_t rtc_start = cart.ram_size - RTC_SERIALIZED_SIZE;
+	size_t rtc_start = cart->ram_size - RTC_SERIALIZED_SIZE;
 	size_t rtc_size  = size - rtc_start;
 
 	switch (rtc_size) {
@@ -126,144 +148,144 @@ bool cart_set_sram(const uint8_t *data, size_t size) {
 	return true;
 }
 
-const uint8_t *cart_get_sram(size_t *out_size) {
-	if (!cart.ram) {
+const uint8_t *cart_get_sram(struct HagemuCart *cart, size_t *out_size) {
+	if (!cart->ram) {
 		printf("This game has no sram or RTC for saving\n");
 		*out_size = 0;
 		return NULL;
 	}
 
-	if (cart.info.has_timer) {
+	if (cart->info.has_timer) {
 		size_t rtc_size;
 		const uint8_t *rtc_data = rtc_serialize(&rtc_size);
-		size_t rtc_start = cart.ram_size - RTC_SERIALIZED_SIZE;
-		memcpy((uint8_t *)cart.ram + rtc_start, rtc_data, RTC_SERIALIZED_SIZE);
+		size_t rtc_start = cart->ram_size - RTC_SERIALIZED_SIZE;
+		memcpy((uint8_t *)cart->ram + rtc_start, rtc_data, RTC_SERIALIZED_SIZE);
 	}
-	*out_size = cart.ram_size;
-	return (const uint8_t *)cart.ram;
+	*out_size = cart->ram_size;
+	return (const uint8_t *)cart->ram;
 }
 
-void cart_set_rom(const uint8_t *data, size_t size) {
-	cart.rom_index = 1;
-	cart.ram_index = 0;
-	cart.ram_enabled = false;
+void cart_set_rom(struct HagemuCart *cart, const uint8_t *data, size_t size) {
+	cart->rom_index = 1;
+	cart->ram_index = 0;
+	cart->ram_enabled = false;
 
-	if (cart.rom != NULL) {
+	if (cart->rom != NULL) {
 		printf("Freeing previously read rom\n");
-		free(cart.rom);
-		cart.rom = NULL;
+		free(cart->rom);
+		cart->rom = NULL;
 	}
 
-	if (cart.ram != NULL) {
+	if (cart->ram != NULL) {
 		printf("Freeing previous SRAM data\n");
-		free(cart.ram);
-		cart.ram = NULL;
+		free(cart->ram);
+		cart->ram = NULL;
 	}
 
 	printf("Allocating space and copying the rom data\n");
-	cart.rom = malloc(size);
-	if (!cart.rom) {
+	cart->rom = malloc(size);
+	if (!cart->rom) {
 		fprintf(stderr, "Error: Failed to allocated the rom data\n");
 		exit(EXIT_FAILURE);
 	}
-	memcpy(cart.rom, data, size);
+	memcpy(cart->rom, data, size);
 
-	cart_set_info(&cart);
-	if (size != cart.rom_size)
-		printf("WARNING: Cartridge file is %zu bytes, but expected %zu bytes\n", size, cart.rom_size);
+	cart_set_info(cart);
+	if (size != cart->rom_size)
+		printf("WARNING: Cartridge file is %zu bytes, but expected %zu bytes\n", size, cart->rom_size);
 
 	printf("Rom data been loaded successfully\n");
 
 	printf("***** ROM Info *****\n");
-	printf("Game Title:  %s\n", cart.title);
-	printf("ROM Type:    MBC%d\n", cart.info.type);
-	printf("ROM Size:    %zu KiB\n",  cart.rom_size / 1024);
-	if (cart.ram_size < 1024)
-		printf("SRAM Size:   %zu bytes\n", cart.ram_size);
+	printf("Game Title:  %s\n", cart->title);
+	printf("ROM Type:    MBC%d\n", cart->info.type);
+	printf("ROM Size:    %zu KiB\n",  cart->rom_size / 1024);
+	if (cart->ram_size < 1024)
+		printf("SRAM Size:   %zu bytes\n", cart->ram_size);
 	else
-		printf("SRAM Size:   %zu KiB\n", cart.ram_size / 1024);
-	printf("Has Battery: %s\n", cart.info.has_battery ? "YES" : "NO");
-	printf("Has Timer:   %s\n", cart.info.has_timer ? "YES" : "NO");
-	printf("Has Rumble:  %s\n", cart.info.has_rumble ? "YES" : "NO");
+		printf("SRAM Size:   %zu KiB\n", cart->ram_size / 1024);
+	printf("Has Battery: %s\n", cart->info.has_battery ? "YES" : "NO");
+	printf("Has Timer:   %s\n", cart->info.has_timer ? "YES" : "NO");
+	printf("Has Rumble:  %s\n", cart->info.has_rumble ? "YES" : "NO");
 
-	if (cart.ram_size == 0) {
+	if (cart->ram_size == 0) {
 		printf("Cartridge contains no SRAM or RTC\n");
 		return;
 	}
 
-	cart.ram = malloc(cart.ram_size);
-	if (!cart.ram) {
+	cart->ram = malloc(cart->ram_size);
+	if (!cart->ram) {
 		fprintf(stderr, "Error: Failed to allocate the SRAM data\n");
 		exit(EXIT_FAILURE);
 	}
-	memset(cart.ram, 0xFF, cart.ram_size);
+	memset(cart->ram, 0xFF, cart->ram_size);
 }
 
-void cart_sram_reset(void) {
-	if (!cart.ram) return;
-	memset(cart.ram, 0xFF, cart.ram_size);
-	if (cart.info.has_timer)
+void cart_sram_reset(struct HagemuCart *cart) {
+	if (!cart->ram) return;
+	memset(cart->ram, 0xFF, cart->ram_size);
+	if (cart->info.has_timer)
 		rtc_reset();
 }
 
-void cart_rom_write(uint16_t address, uint8_t value) {
-	switch (cart.info.type) {
+void cart_rom_write(struct HagemuCart *cart, uint16_t address, uint8_t value) {
+	switch (cart->info.type) {
 
 	case NO_MBC: break;
-	case MBC1:   cart_rom_write_mbc1(&cart, address, value); break;
-	case MBC2:   cart_rom_write_mbc2(&cart, address, value); break;
-	case MBC3:   cart_rom_write_mbc3(&cart, address, value); break;
-	case MBC5:   cart_rom_write_mbc5(&cart, address, value); break;
+	case MBC1:   cart_rom_write_mbc1(cart, address, value); break;
+	case MBC2:   cart_rom_write_mbc2(cart, address, value); break;
+	case MBC3:   cart_rom_write_mbc3(cart, address, value); break;
+	case MBC5:   cart_rom_write_mbc5(cart, address, value); break;
 	default:
-		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart.info.type);
+		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart->info.type);
 		exit(EXIT_FAILURE);
 	}
 }
 
-uint8_t cart_rom_read(uint16_t address) {
-	switch (cart.info.type) {
+uint8_t cart_rom_read(struct HagemuCart *cart, uint16_t address) {
+	switch (cart->info.type) {
 	case NO_MBC:
 		if (address < ROM_BANK_SIZE)
-			return cart.rom[0][address];
+			return cart->rom[0][address];
 		else
-			return cart.rom[1][address - ROM_BANK_SIZE];
+			return cart->rom[1][address - ROM_BANK_SIZE];
 		break;
-	case MBC1:   return cart_rom_read_mbc1(&cart, address); break;
-	case MBC2:   return cart_rom_read_mbc2(&cart, address); break;
-	case MBC3:   return cart_rom_read_mbc3(&cart, address); break;
-	case MBC5:   return cart_rom_read_mbc5(&cart, address); break;
+	case MBC1:   return cart_rom_read_mbc1(cart, address); break;
+	case MBC2:   return cart_rom_read_mbc2(cart, address); break;
+	case MBC3:   return cart_rom_read_mbc3(cart, address); break;
+	case MBC5:   return cart_rom_read_mbc5(cart, address); break;
 	default:
-		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart.info.type);
+		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart->info.type);
 		exit(EXIT_FAILURE);
 	}
 }
 
-void cart_ram_write(uint16_t address, uint8_t value) {
-	if (!cart.ram && !cart.info.has_timer) return;
+void cart_ram_write(struct HagemuCart *cart, uint16_t address, uint8_t value) {
+	if (!cart->ram && !cart->info.has_timer) return;
 
-	switch (cart.info.type) {
-	case NO_MBC: cart.ram[0][address] = value; break;
-	case MBC1:   cart_ram_write_mbc1(&cart, address, value); break;
-	case MBC2:   cart_ram_write_mbc2(&cart, address, value); break;
-	case MBC3:   cart_ram_write_mbc3(&cart, address, value); break;
-	case MBC5:   cart_ram_write_mbc5(&cart, address, value); break;
+	switch (cart->info.type) {
+	case NO_MBC: cart->ram[0][address] = value; break;
+	case MBC1:   cart_ram_write_mbc1(cart, address, value); break;
+	case MBC2:   cart_ram_write_mbc2(cart, address, value); break;
+	case MBC3:   cart_ram_write_mbc3(cart, address, value); break;
+	case MBC5:   cart_ram_write_mbc5(cart, address, value); break;
 	default:
-		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart.info.type);
+		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart->info.type);
 		exit(EXIT_FAILURE);
 	}
 }
 
-uint8_t cart_ram_read(uint16_t address) {
-	if (!cart.ram && !cart.info.has_timer) return 0xFF;
+uint8_t cart_ram_read(struct HagemuCart *cart, uint16_t address) {
+	if (!cart->ram && !cart->info.has_timer) return 0xFF;
 
-	switch (cart.info.type) {
-	case NO_MBC: return cart.ram[0][address]; break;
-	case MBC1:   return cart_ram_read_mbc1(&cart, address); break;
-	case MBC2:   return cart_ram_read_mbc2(&cart, address); break;
-	case MBC3:   return cart_ram_read_mbc3(&cart, address); break;
-	case MBC5:   return cart_ram_read_mbc5(&cart, address); break;
+	switch (cart->info.type) {
+	case NO_MBC: return cart->ram[0][address]; break;
+	case MBC1:   return cart_ram_read_mbc1(cart, address); break;
+	case MBC2:   return cart_ram_read_mbc2(cart, address); break;
+	case MBC3:   return cart_ram_read_mbc3(cart, address); break;
+	case MBC5:   return cart_ram_read_mbc5(cart, address); break;
 	default:
-		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart.info.type);
+		printf("This ROM type (MBC%d?) isn't supported yet. Aborting.\n", cart->info.type);
 		exit(EXIT_FAILURE);
 	}
 }

@@ -36,17 +36,19 @@ struct HagemuCart {
 	bool     rtc_latched;
 };
 
-void cart_set_rom(const uint8_t *data, size_t size);
-bool cart_set_sram(const uint8_t *data, size_t size);
+void cart_reset(struct HagemuCart *cart);
+void cart_free(struct HagemuCart *cart);
+void cart_set_rom(struct HagemuCart *cart, const uint8_t *data, size_t size);
+bool cart_set_sram(struct HagemuCart *cart, const uint8_t *data, size_t size);
 
-void cart_rom_write(uint16_t address, uint8_t value);
-void cart_ram_write(uint16_t address, uint8_t value);
+void cart_rom_write(struct HagemuCart *cart, uint16_t address, uint8_t value);
+void cart_ram_write(struct HagemuCart *cart, uint16_t address, uint8_t value);
 
-uint8_t cart_ram_read(uint16_t address);
-uint8_t cart_rom_read(uint16_t address);
+uint8_t cart_ram_read(struct HagemuCart *cart, uint16_t address);
+uint8_t cart_rom_read(struct HagemuCart *cart, uint16_t address);
 
-const uint8_t *cart_get_sram(size_t *out_size);
-bool cart_sram_available(void);
-void cart_sram_reset(void);
+const uint8_t *cart_get_sram(struct HagemuCart *cart, size_t *out_size);
+bool cart_sram_available(struct HagemuCart *cart);
+void cart_sram_reset(struct HagemuCart *cart);
 
 #endif // HAGEMU_CART_H

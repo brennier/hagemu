@@ -6,6 +6,7 @@
 
 struct HagemuGB* hagemu_create(void) {
 	struct HagemuGB *gb = malloc(sizeof(struct HagemuGB));
+	if (!gb) return NULL;
 	memset(gb, 0, sizeof(struct HagemuGB));
 	hagemu_reset(gb, MODEL_DMG);
 	return gb;
@@ -18,6 +19,7 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 	ppu_reset(&gb->ppu);
 	dma_reset(&gb->dma);
 	hdma_reset(&gb->hdma);
+	cart_reset(&gb->cart);
 	timer_reset(&gb->timer);
 	joypad_reset(&gb->joypad);
 	interrupt_reset(&gb->interrupts);
@@ -26,6 +28,7 @@ void hagemu_reset(struct HagemuGB* gb, enum GBModel model) {
 }
 
 void hagemu_destroy(struct HagemuGB* gb) {
+	cart_free(&gb->cart);
 	free(gb);
 }
 
@@ -34,7 +37,7 @@ unsigned hagemu_next_instruction(struct HagemuGB* gb) {
 }
 
 void hagemu_set_rom(struct HagemuGB *gb, enum GBModel model, const uint8_t *data, size_t size) {
-	cart_set_rom(data, size);
+	cart_set_rom(&gb->cart, data, size);
 	hagemu_reset(gb, model);
 }
 
@@ -58,16 +61,16 @@ unsigned hagemu_audio_available(void) {
 	return apu_audio_available();
 }
 
-bool hagemu_set_sram(const uint8_t *data, size_t size) {
-	return cart_set_sram(data, size);
+bool hagemu_set_sram(struct HagemuGB *gb, const uint8_t *data, size_t size) {
+	return cart_set_sram(&gb->cart, data, size);
 }
 
-bool hagemu_sram_available(void) {
-	return cart_sram_available();
+bool hagemu_sram_available(struct HagemuGB *gb) {
+	return cart_sram_available(&gb->cart);
 }
 
-const uint8_t *hagemu_get_sram(size_t *out_size) {
-	return cart_get_sram(out_size);
+const uint8_t *hagemu_get_sram(struct HagemuGB *gb, size_t *out_size) {
+	return cart_get_sram(&gb->cart, out_size);
 }
 
 unsigned hagemu_get_frame_count(struct HagemuGB *gb) {

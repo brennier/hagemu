@@ -14,9 +14,9 @@ void web_save_pointer_for_javascript(struct HagemuApp *app) {
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* web_get_sram_pointer(void) {
-	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available()) {
+	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available(hagemu_app->gb)) {
 		size_t out_size;
-		return hagemu_get_sram(&out_size);
+		return hagemu_get_sram(hagemu_app->gb, &out_size);
 	}
 	return NULL;
 }
@@ -29,9 +29,9 @@ void web_save_sram_file(void) {
 
 EMSCRIPTEN_KEEPALIVE
 size_t web_get_sram_size(void) {
-	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available()) {
+	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available(hagemu_app->gb)) {
 		size_t out_size;
-		hagemu_get_sram(&out_size);
+		hagemu_get_sram(hagemu_app->gb, &out_size);
 		return out_size;
 	}
 	return 0;
@@ -44,7 +44,7 @@ const char *web_get_sram_file_name(void) {
 		sram_filename = NULL;
 	}
 
-	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available()) {
+	if (hagemu_app && hagemu_app->rom_filename && hagemu_sram_available(hagemu_app->gb)) {
 		sram_filename = hagemu_file_sram_name(hagemu_app->rom_filename);
 		const char *basename = strrchr(sram_filename, '/');
 		if (basename)

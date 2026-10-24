@@ -63,8 +63,8 @@ static void mmu_write_io(struct HagemuMMU *mmu, uint16_t address, uint8_t value)
 	case 0xFF46: dma_start(&gb->dma, value); return;
 	case 0xFF50:
 		if (gb->model == MODEL_CGB
-		    && cart_rom_read(0x0143) != 0x80
-		    && cart_rom_read(0x0143) != 0xC0) {
+		    && cart_rom_read(&gb->cart, 0x0143) != 0x80
+		    && cart_rom_read(&gb->cart, 0x0143) != 0xC0) {
 			gb->model = MODEL_CGB_BACKCOMPAT;
 		}
 		mmu->boot_rom_ignore = true;
@@ -118,7 +118,7 @@ uint8_t mmu_read_nonblocking(struct HagemuMMU *mmu, uint16_t address) {
 	// Read from cartridge (32 KiB)
 	case 0x0000: case 0x1000: case 0x2000: case 0x3000:
 	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
-		return cart_rom_read(address);
+		return cart_rom_read(&gb->cart, address);
 
 	// Video Ram (8 KiB)
 	case 0x8000: case 0x9000:
@@ -126,7 +126,7 @@ uint8_t mmu_read_nonblocking(struct HagemuMMU *mmu, uint16_t address) {
 
 	// External switchable RAM from cartridge (8 KiB)
 	case 0xA000: case 0xB000:
-		return cart_ram_read(address - 0xA000);
+		return cart_ram_read(&gb->cart, address - 0xA000);
 
 	// Work RAM (Bank 0) (4 KiB)
 	case 0xC000:
@@ -173,7 +173,7 @@ static void mmu_write_nonblocking(struct HagemuMMU *mmu, uint16_t address, uint8
 	// Disable/Enable cartridge RAM
 	case 0x0000: case 0x1000: case 0x2000: case 0x3000:
 	case 0x4000: case 0x5000: case 0x6000: case 0x7000:
-		cart_rom_write(address, value);
+		cart_rom_write(&gb->cart, address, value);
 		return;
 
 	// Video Ram (8 KiB)
@@ -183,7 +183,7 @@ static void mmu_write_nonblocking(struct HagemuMMU *mmu, uint16_t address, uint8
 
 	// Cartridge RAM (8 KiB slot)
 	case 0xA000: case 0xB000:
-		cart_ram_write(address - 0xA000, value);
+		cart_ram_write(&gb->cart, address - 0xA000, value);
 		return;
 
 	// Work RAM (Bank 0) (4 KiB)
