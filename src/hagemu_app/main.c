@@ -17,6 +17,7 @@
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
 #define GB_CLOCK_FREQUENCY (1 << 22)
+#define SNAPSHOT_CAPACITY 100
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76,  255 }
@@ -115,6 +116,9 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 
 	hagemu_save_sram_file(app);
 
+	free(app->rewind_queue.data);
+	memset(&app->rewind_queue, 0, sizeof(app->rewind_queue));
+
 	text_cleanup();
 	free(app->rom_filename);
 	SDL_DestroyAudioStream(app->audio_stream);
@@ -167,6 +171,9 @@ char *hagemu_file_sram_name(const char *rom_name) {
 }
 
 bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
+	free(app->rewind_queue.data);
+	memset(&app->rewind_queue, 0, sizeof(app->rewind_queue));
+
 	printf("Loading SRAM data from '%s'\n", filename);
 	size_t sram_size;
 	uint8_t *sram_data = SDL_LoadFile(filename, &sram_size);
@@ -185,6 +192,9 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 }
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBModel model) {
+	free(app->rewind_queue.data);
+	memset(&app->rewind_queue, 0, sizeof(app->rewind_queue));
+
 	printf("Loading the rom file '%s'\n", filename);
 	size_t rom_size;
 	uint8_t *rom_data = SDL_LoadFile(filename, &rom_size);
@@ -194,6 +204,17 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	}
 	hagemu_set_rom(app->gb, model, rom_data, rom_size);
 	SDL_free(rom_data);
+
+	size_t snapshot_size = hagemu_snapshot_size(app->gb);
+	app->rewind_queue = (struct RewindQueue){
+		.data = malloc(SNAPSHOT_CAPACITY * snapshot_size),
+		.item_size = snapshot_size,
+		.capacity = SNAPSHOT_CAPACITY,
+	};
+	if (app->rewind_queue.data == NULL) {
+		fprintf(stderr, "[ERROR] Failed to allocate memory for the rewind queue\n");
+		return false;
+	}
 
 	if (app->rom_filename)
 		free(app->rom_filename);
@@ -225,6 +246,9 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 }
 
 void hagemu_quit_rom(struct HagemuApp *app) {
+	free(app->rewind_queue.data);
+	memset(&app->rewind_queue, 0, sizeof(app->rewind_queue));
+
 	app->state = HAGEMU_NO_ROM;
 	free(app->rom_filename);
 	app->rom_filename = NULL;
@@ -395,6 +419,16 @@ void main_loop(void* arg) {
 	int cycles = smooth_delta_time * GB_CLOCK_FREQUENCY;
 	while (cycles > 0)
 		cycles -= hagemu_next_instruction(app->gb);
+
+	if (app->rewind_queue.capacity > 0) {
+		hagemu_snapshot_record(
+			app->gb,
+			app->rewind_queue.data + app->rewind_queue.item_size * app->rewind_queue.head);
+		app->rewind_queue.head++;
+		app->rewind_queue.head %= app->rewind_queue.capacity;
+		if (app->rewind_queue.length < app->rewind_queue.capacity)
+			app->rewind_queue.length++;
+	}
 
 	// Even if there's not a new frame, updating the texture every loop
 	// iteration makes the workload smoother and more consistent

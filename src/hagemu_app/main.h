@@ -14,8 +14,17 @@ enum AppState {
 	HAGEMU_QUIT,
 };
 
+struct RewindQueue {
+	uint8_t *data;
+	size_t item_size;
+	size_t head;
+	size_t length;
+	size_t capacity;
+};
+
 struct HagemuApp {
 	struct HagemuGB *gb;
+	struct RewindQueue rewind_queue;
 	enum GBModel gb_model;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
