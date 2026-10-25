@@ -116,9 +116,7 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 
 	hagemu_save_sram_file(app);
 
-	free(app->rewind_queue.data);
-	memset(&app->rewind_queue, 0, sizeof(app->rewind_queue));
-
+	rewind_queue_free(&app->rewind_queue);
 	text_cleanup();
 	free(app->rom_filename);
 	SDL_DestroyAudioStream(app->audio_stream);
@@ -171,8 +169,7 @@ char *hagemu_file_sram_name(const char *rom_name) {
 }
 
 bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
-	app->rewind_queue.head = 0;
-	app->rewind_queue.length = 0;
+	rewind_queue_reset(&app->rewind_queue);
 
 	printf("Loading SRAM data from '%s'\n", filename);
 	size_t sram_size;
@@ -192,8 +189,7 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 }
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBModel model) {
-	free(app->rewind_queue.data);
-	memset(&app->rewind_queue, 0, sizeof(app->rewind_queue));
+	rewind_queue_free(&app->rewind_queue);
 
 	printf("Loading the rom file '%s'\n", filename);
 	size_t rom_size;
@@ -206,15 +202,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	SDL_free(rom_data);
 
 	size_t snapshot_size = hagemu_snapshot_size(app->gb);
-	app->rewind_queue = (struct RewindQueue){
-		.data = malloc(SNAPSHOT_CAPACITY * snapshot_size),
-		.item_size = snapshot_size,
-		.capacity = SNAPSHOT_CAPACITY,
-	};
-	if (app->rewind_queue.data == NULL) {
-		fprintf(stderr, "[ERROR] Failed to allocate memory for the rewind queue\n");
-		return false;
-	}
+	rewind_queue_create(&app->rewind_queue, snapshot_size, SNAPSHOT_CAPACITY);
 
 	if (app->rom_filename)
 		free(app->rom_filename);
@@ -246,13 +234,11 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 }
 
 void hagemu_quit_rom(struct HagemuApp *app) {
-	free(app->rewind_queue.data);
-	memset(&app->rewind_queue, 0, sizeof(app->rewind_queue));
-
 	app->state = HAGEMU_NO_ROM;
 	free(app->rom_filename);
 	app->rom_filename = NULL;
 	hagemu_app_reset(app, app->gb_model);
+	rewind_queue_free(&app->rewind_queue);
 }
 
 void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool is_pressed) {
@@ -274,10 +260,12 @@ void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool i
 	case SDL_SCANCODE_RIGHT: hagemu_set_button_right(app->gb, is_pressed); break;
 
 	case SDL_SCANCODE_BACKSPACE:
-		if (app->state == HAGEMU_GAME_RUNNING && is_pressed)
+		if (app->state == HAGEMU_GAME_RUNNING && is_pressed) {
 			app->state = HAGEMU_GAME_REWINDING;
-		else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed)
+			rewind_queue_pop(&app->rewind_queue, app->gb);
+		} else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed) {
 			app->state = HAGEMU_GAME_RUNNING;
+		}
 		break;
 
 	default: return;
@@ -297,10 +285,12 @@ void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button,
 	case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: hagemu_set_button_right(app->gb, is_pressed); break;
 	case SDL_GAMEPAD_BUTTON_DPAD_DOWN:  hagemu_set_button_down(app->gb, is_pressed); break;
 	case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
-		if (app->state == HAGEMU_GAME_RUNNING && is_pressed)
+		if (app->state == HAGEMU_GAME_RUNNING && is_pressed) {
 			app->state = HAGEMU_GAME_REWINDING;
-		else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed)
+			rewind_queue_pop(&app->rewind_queue, app->gb);
+		} else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed) {
 			app->state = HAGEMU_GAME_RUNNING;
+		}
 		break;
 
 	default: return;
@@ -430,14 +420,7 @@ void main_loop(void* arg) {
 	}
 
 	if (app->state == HAGEMU_GAME_REWINDING) {
-		if (app->rewind_queue.data == NULL || app->rewind_queue.length == 0)
-			return;
-		if (app->rewind_queue.head == 0)
-			app->rewind_queue.head = app->rewind_queue.capacity - 1;
-		else
-			app->rewind_queue.head--;
-		app->rewind_queue.length--;
-		hagemu_snapshot_restore(app->gb, app->rewind_queue.data + app->rewind_queue.item_size * app->rewind_queue.head);
+		rewind_queue_pop(&app->rewind_queue, app->gb);
 
 		SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(app->gb), sizeof(uint32_t) * 160);
 		SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
@@ -449,15 +432,7 @@ void main_loop(void* arg) {
 	while (cycles > 0)
 		cycles -= hagemu_next_instruction(app->gb);
 
-	if (app->rewind_queue.capacity > 0) {
-		hagemu_snapshot_record(
-			app->gb,
-			app->rewind_queue.data + app->rewind_queue.item_size * app->rewind_queue.head);
-		app->rewind_queue.head++;
-		app->rewind_queue.head %= app->rewind_queue.capacity;
-		if (app->rewind_queue.length < app->rewind_queue.capacity)
-			app->rewind_queue.length++;
-	}
+	rewind_queue_push(&app->rewind_queue, app->gb);
 
 	// Even if there's not a new frame, updating the texture every loop
 	// iteration makes the workload smoother and more consistent

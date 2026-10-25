@@ -74,7 +74,12 @@ void web_quit_rom(void) {
 
 EMSCRIPTEN_KEEPALIVE
 bool web_is_rom_running(void) {
-	return (hagemu_app->state == HAGEMU_GAME_RUNNING);
+	switch (hagemu_app->state) {
+	case HAGEMU_GAME_RUNNING: case HAGEMU_GAME_REWINDING:
+		return true;
+	default:
+		return false;
+	}
 }
 
 EMSCRIPTEN_KEEPALIVE

@@ -6,6 +6,7 @@
 
 #include <SDL3/SDL.h>
 #include "hagemu.h"
+#include "rewind_queue.h"
 
 enum AppState {
 	HAGEMU_NO_ROM,
@@ -13,14 +14,6 @@ enum AppState {
 	HAGEMU_GAME_RUNNING,
 	HAGEMU_GAME_REWINDING,
 	HAGEMU_QUIT,
-};
-
-struct RewindQueue {
-	uint8_t *data;
-	size_t item_size;
-	size_t head;
-	size_t length;
-	size_t capacity;
 };
 
 struct HagemuApp {
