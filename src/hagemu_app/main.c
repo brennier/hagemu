@@ -17,7 +17,7 @@
 #define WINDOW_HEIGHT 144 * SCALE_FACTOR
 #define APP_VERSION "0.1"
 #define GB_CLOCK_FREQUENCY (1 << 22)
-#define SNAPSHOT_CAPACITY 100
+#define SNAPSHOT_CAPACITY 600
 
 // Green color palatte from lighest to darkest
 #define GREEN1 (Color){ 138, 189, 76,  255 }
@@ -171,8 +171,8 @@ char *hagemu_file_sram_name(const char *rom_name) {
 }
 
 bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
-	free(app->rewind_queue.data);
-	memset(&app->rewind_queue, 0, sizeof(app->rewind_queue));
+	app->rewind_queue.head = 0;
+	app->rewind_queue.length = 0;
 
 	printf("Loading SRAM data from '%s'\n", filename);
 	size_t sram_size;
@@ -273,6 +273,13 @@ void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool i
 	case SDL_SCANCODE_DOWN:  hagemu_set_button_down(app->gb, is_pressed);  break;
 	case SDL_SCANCODE_RIGHT: hagemu_set_button_right(app->gb, is_pressed); break;
 
+	case SDL_SCANCODE_BACKSPACE:
+		if (app->state == HAGEMU_GAME_RUNNING && is_pressed)
+			app->state = HAGEMU_GAME_REWINDING;
+		else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed)
+			app->state = HAGEMU_GAME_RUNNING;
+		break;
+
 	default: return;
 	}
 }
@@ -289,6 +296,12 @@ void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button,
 	case SDL_GAMEPAD_BUTTON_DPAD_LEFT:  hagemu_set_button_left(app->gb, is_pressed); break;
 	case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: hagemu_set_button_right(app->gb, is_pressed); break;
 	case SDL_GAMEPAD_BUTTON_DPAD_DOWN:  hagemu_set_button_down(app->gb, is_pressed); break;
+	case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+		if (app->state == HAGEMU_GAME_RUNNING && is_pressed)
+			app->state = HAGEMU_GAME_REWINDING;
+		else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed)
+			app->state = HAGEMU_GAME_RUNNING;
+		break;
 
 	default: return;
 	}
@@ -408,6 +421,7 @@ void hagemu_no_rom_screen(struct HagemuApp *app) {
 
 void main_loop(void* arg) {
 	struct HagemuApp *app = (struct HagemuApp *)arg;
+	double smooth_delta_time = get_smooth_delta_time(app);
 	hagemu_handle_events(app);
 
 	if (app->state == HAGEMU_NO_ROM) {
@@ -415,7 +429,22 @@ void main_loop(void* arg) {
 		return;
 	}
 
-	double smooth_delta_time = get_smooth_delta_time(app);
+	if (app->state == HAGEMU_GAME_REWINDING) {
+		if (app->rewind_queue.data == NULL || app->rewind_queue.length == 0)
+			return;
+		if (app->rewind_queue.head == 0)
+			app->rewind_queue.head = app->rewind_queue.capacity - 1;
+		else
+			app->rewind_queue.head--;
+		app->rewind_queue.length--;
+		hagemu_snapshot_restore(app->gb, app->rewind_queue.data + app->rewind_queue.item_size * app->rewind_queue.head);
+
+		SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(app->gb), sizeof(uint32_t) * 160);
+		SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
+		SDL_RenderPresent(app->renderer);
+		return;
+	}
+
 	int cycles = smooth_delta_time * GB_CLOCK_FREQUENCY;
 	while (cycles > 0)
 		cycles -= hagemu_next_instruction(app->gb);
