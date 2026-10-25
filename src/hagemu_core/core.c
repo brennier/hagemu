@@ -71,7 +71,7 @@ size_t hagemu_run_frame(struct HagemuGB *gb, float *audio_out, size_t audio_capa
 	return written;
 }
 
-const uint32_t *hagemu_get_framebuffer(struct HagemuGB *gb) {
+const uint16_t *hagemu_get_framebuffer(struct HagemuGB *gb) {
 	return ppu_get_frame(&gb->ppu);
 }
 
@@ -146,4 +146,44 @@ void hagemu_snapshot_restore(struct HagemuGB *gb, const uint8_t *buffer) {
 		memcpy(gb->cart.ram, buffer + sizeof(*gb), sram_size);
 	}
 	gb->joypad = joypad;
+}
+
+static inline uint32_t color_correct(uint32_t c) {
+	// Extract each color channel
+	uint32_t red   = (c >> 0)  & 0xFF;
+	uint32_t green = (c >> 8)  & 0xFF;
+	uint32_t blue  = (c >> 16) & 0xFF;
+
+	// Apply GBC color correction
+	uint32_t r = (13 * red +  2 * green +  1 * blue) >> 4;
+	uint32_t g = ( 0 * red + 13 * green +  3 * blue) >> 4;
+	uint32_t b = ( 3 * red +  2 * green + 11 * blue) >> 4;
+
+	// Darken the colors slightly
+	r -= (r >> 2);
+	g -= (g >> 2);
+	b -= (b >> 2);
+
+	// Convert to ABGR8888 value
+	return 0xFF000000 | (b << 16) | (g << 8) | r;
+}
+
+void hagemu_color_correct(uint32_t *color, size_t length) {
+	for (size_t i = 0; i < length; i++) {
+		color[i] = color_correct(color[i]);
+	}
+}
+
+static inline uint32_t color_convert(uint16_t c) {
+	uint32_t c32 = (uint32_t)c;
+	uint32_t rb = ((c32 << 9) | (c32 << 3)) & 0x00F800F8u;
+	uint32_t g  = (c32 << 6) & 0x0000F800u;
+	uint32_t result = 0xFF000000u | rb | g;
+	return result | ((result >> 5) & 0x00070707u);
+}
+
+void hagemu_color_BGR15_to_BGR32(uint32_t *output, const uint16_t *input, size_t length) {
+	for (size_t i = 0; i < length; i++) {
+		output[i] = color_convert(input[i]);
+	}
 }

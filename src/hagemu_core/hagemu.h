@@ -33,9 +33,11 @@ const uint8_t *hagemu_get_sram(struct HagemuGB *gb, size_t *out_size);
 // Change the audio sample rate (default is 48000Hz)
 void hagemu_set_audio_sample_rate(struct HagemuGB* gb, unsigned new_sample_rate);
 
-// Video functions
+// Video functions. Pixel format is 15bit BGR (i.e. the lowest 5 bits are red).
+// You can easily convert it to 32bit color using the function
+// hagemu_color_BGR15_to_BGR32() below.
 unsigned hagemu_get_frame_count(struct HagemuGB *gb);
-const uint32_t* hagemu_get_framebuffer(struct HagemuGB *gb); // Pixel format is RGBA8888
+const uint16_t* hagemu_get_framebuffer(struct HagemuGB *gb);
 
 // Joystick controls
 void hagemu_set_button_a(struct HagemuGB *gb, bool is_down);
@@ -51,5 +53,12 @@ void hagemu_set_button_select(struct HagemuGB *gb, bool is_down);
 size_t hagemu_snapshot_size(const struct HagemuGB *gb);
 size_t hagemu_snapshot_record(const struct HagemuGB *gb, uint8_t *out_buffer);
 void hagemu_snapshot_restore(struct HagemuGB *gb, const uint8_t *buffer);
+
+// Converts 15-bit color to 32-bit color for frontends that don't support 15-bit
+// color. The output is BGR32 (i.e. bits 0-7 are red). The upper 8 bits are 0xFF.
+void hagemu_color_BGR15_to_BGR32(uint32_t *output, const uint16_t *input, size_t length);
+
+// Adds color correction to GBC games. The color format should be BGR32 format.
+void hagemu_color_correct(uint32_t *color, size_t length);
 
 #endif

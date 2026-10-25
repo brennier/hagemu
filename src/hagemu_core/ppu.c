@@ -24,40 +24,11 @@ static const RGB555 dmg_palette_colors[4] = {
 
 // BW color palette from lightest to darkest
 static const RGB555 mgb_palette_colors[4] = {
-    0x7FFF, // White        (0 11111 11111 11111)
-    0x56B5, // Light grey   (0 10101 10101 10101)
-    0x294A, // Dark grey    (0 01010 01010 01010)
-    0x0000, // Black        (0 00000 00000 00000)
+	0x7FFF, // White        (0 11111 11111 11111)
+	0x56B5, // Light grey   (0 10101 10101 10101)
+	0x294A, // Dark grey    (0 01010 01010 01010)
+	0x0000, // Black        (0 00000 00000 00000)
 };
-
-// This function is used a lot, so I optimized it a bit
-static inline ARGB8888 convert_color(RGB555 c) {
-	uint32_t c32 = (uint32_t)c;
-	uint32_t rb = ((c32 << 9) | (c32 << 3)) & 0x00F800F8u;
-	uint32_t g  = (c32 << 6) & 0x0000F800u;
-	uint32_t result = 0xFF000000u | rb | g;
-	return result | ((result >> 5) & 0x00070707u);
-}
-
-static inline ARGB8888 correct_color(ARGB8888 c) {
-	// Extract each color channel
-	uint32_t red   = (c >> 0)  & 0xFF;
-	uint32_t green = (c >> 8)  & 0xFF;
-	uint32_t blue  = (c >> 16) & 0xFF;
-
-	// Apply GBC color correction
-	uint32_t r = (13 * red +  2 * green +  1 * blue) >> 4;
-	uint32_t g = ( 0 * red + 13 * green +  3 * blue) >> 4;
-	uint32_t b = ( 3 * red +  2 * green + 11 * blue) >> 4;
-
-	// Darken the colors slightly
-	r -= (r >> 2);
-	g -= (g >> 2);
-	b -= (b >> 2);
-
-	// Convert to ABGR8888 value
-	return 0xFF000000 | (b << 16) | (g << 8) | r;
-}
 
 void ppu_reset(struct HagemuPPU *ppu) {
 	memset(ppu, 0, sizeof(struct HagemuPPU));
@@ -203,12 +174,7 @@ static void ppu_draw_scanline(struct HagemuPPU *ppu) {
 	if (ppu->objects_enabled)
 		ppu_draw_sprites(ppu, scanline, bg_nonzero, bg_priority);
 
-	for (int i = 0; i < 160; i++) {
-		ARGB8888 color32 = convert_color(scanline[i]);
-		if (CORE_FROM_PPU(ppu)->model == MODEL_CGB || CORE_FROM_PPU(ppu)->model == MODEL_CGB_BACKCOMPAT)
-			color32 = correct_color(color32);
-		ppu->screen_buffer[ppu->buffer_index][ppu->current_line][i] = color32;
-	}
+	memcpy(ppu->screen_buffer[ppu->buffer_index][ppu->current_line], scanline, sizeof(scanline));
 }
 
 static inline struct Tile tile_get(struct HagemuPPU *ppu, uint8_t tile_index, bool unsigned_addressing_mode, bool bank_select) {
@@ -437,8 +403,8 @@ static void ppu_draw_sprites(struct HagemuPPU *ppu, RGB555 *scanline, const bool
 	}
 }
 
-const uint32_t* ppu_get_frame(struct HagemuPPU *ppu) {
-	return (const uint32_t*)ppu->screen_buffer[!ppu->buffer_index];
+const uint16_t* ppu_get_frame(struct HagemuPPU *ppu) {
+	return (const uint16_t*)ppu->screen_buffer[!ppu->buffer_index];
 }
 
 /*** Below is code for reading and writing to registers ***/

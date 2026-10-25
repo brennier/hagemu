@@ -409,6 +409,17 @@ void hagemu_no_rom_screen(struct HagemuApp *app) {
 	SDL_RenderPresent(app->renderer);
 }
 
+void hagemu_update_screen(struct HagemuApp *app) {
+	const uint16_t *framebuffer = hagemu_get_framebuffer(app->gb);
+	hagemu_color_BGR15_to_BGR32(app->framebuffer, framebuffer, 160 * 144);
+	if (app->gb_model == MODEL_CGB || app->gb_model == MODEL_CGB_BACKCOMPAT) {
+		hagemu_color_correct(app->framebuffer, 160 * 144);
+	}
+	SDL_UpdateTexture(app->screen_texture, NULL, app->framebuffer, sizeof(uint32_t) * 160);
+	SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
+	SDL_RenderPresent(app->renderer);
+}
+
 void main_loop(void* arg) {
 	struct HagemuApp *app = (struct HagemuApp *)arg;
 	double smooth_delta_time = get_smooth_delta_time(app);
@@ -421,10 +432,7 @@ void main_loop(void* arg) {
 
 	if (app->state == HAGEMU_GAME_REWINDING) {
 		rewind_queue_pop(&app->rewind_queue, app->gb);
-
-		SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(app->gb), sizeof(uint32_t) * 160);
-		SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
-		SDL_RenderPresent(app->renderer);
+		hagemu_update_screen(app);
 		return;
 	}
 
@@ -432,11 +440,7 @@ void main_loop(void* arg) {
 	int audio_written = hagemu_run_cycles(app->gb, cycles, app->audio_buffer, 2 * AUDIO_TARGET_FRAMES);
 	rewind_queue_push(&app->rewind_queue, app->gb);
 
-	// Even if there's not a new frame, updating the texture every loop
-	// iteration makes the workload smoother and more consistent
-	SDL_UpdateTexture(app->screen_texture, NULL, hagemu_get_framebuffer(app->gb), sizeof(uint32_t) * 160);
-	SDL_RenderTexture(app->renderer, app->screen_texture, NULL, NULL);
-	SDL_RenderPresent(app->renderer);
+	hagemu_update_screen(app);
 
 	int sample_rate = calculate_sample_rate(app);
 	hagemu_set_audio_sample_rate(app->gb, sample_rate);

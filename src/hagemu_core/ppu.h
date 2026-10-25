@@ -34,7 +34,7 @@ struct HagemuPPU {
 	unsigned frames_completed;
 	unsigned current_cycle;
 
-	ARGB8888 screen_buffer[2][144][160];
+	RGB555 screen_buffer[2][144][160];
 
 	bool vram_bank;
 	// This corresponds exactly to the 8 kilobytes of VRAM
@@ -92,7 +92,7 @@ struct HagemuPPU {
 };
 
 void ppu_tick(struct HagemuPPU *ppu);
-const uint32_t* ppu_get_frame(struct HagemuPPU *ppu);
+const uint16_t* ppu_get_frame(struct HagemuPPU *ppu);
 int ppu_get_current_line(struct HagemuPPU *ppu);
 unsigned ppu_get_frame_count(struct HagemuPPU *ppu);
 void ppu_reset(struct HagemuPPU *ppu);

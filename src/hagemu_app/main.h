@@ -18,6 +18,7 @@ enum AppState {
 
 struct HagemuApp {
 	struct HagemuGB *gb;
+	uint32_t framebuffer[144 * 160];
 	struct RewindQueue rewind_queue;
 	enum GBModel gb_model;
 	SDL_Window *window;
