@@ -18,42 +18,6 @@ void apu_set_audio_sample_rate(struct HagemuAPU *apu, unsigned new_sample_rate) 
 	apu->decimation_factor = ((float)APU_TICK_RATE / (float)new_sample_rate);
 }
 
-static void queue_push(struct AudioQueue *queue, AudioFrame frame) {
-	if (queue->size == AUDIO_QUEUE_SIZE) {
-		printf("Audio Frame was dropped because the queue was full.\n");
-		return;
-	}
-	queue->frames[queue->end] = frame;
-	queue->size++;
-	queue->end++;
-	queue->end %= AUDIO_QUEUE_SIZE;
-}
-
-static void queue_drain(struct AudioQueue *queue, float* output, unsigned count) {
-	unsigned bytes_per_frame = sizeof(AudioFrame);
-	if (queue->start + count > AUDIO_QUEUE_SIZE) {
-		unsigned until_end = AUDIO_QUEUE_SIZE - queue->start;
-		memcpy(output, queue->frames + queue->start, until_end * bytes_per_frame);
-		memcpy(output + 2 * until_end, queue->frames, (count - until_end) * bytes_per_frame);
-	} else {
-		memcpy(output, queue->frames + queue->start, count * bytes_per_frame);
-	}
-	queue->size -= count;
-	queue->start += count;
-	queue->start %= AUDIO_QUEUE_SIZE;
-}
-
-unsigned apu_audio_available(struct HagemuAPU *apu) {
-	return apu->audio_queue.size;
-}
-
-unsigned apu_read_audio(struct HagemuAPU *apu, float *output, unsigned max_frames) {
-	if (max_frames > apu_audio_available(apu))
-		max_frames = apu_audio_available(apu);
-	queue_drain(&apu->audio_queue, output, max_frames);
-	return max_frames;
-}
-
 void apu_reset(struct HagemuAPU *apu) {
 	int target_sample_rate = apu->target_sample_rate;
 	memset(apu, 0, sizeof(struct HagemuAPU));
@@ -344,7 +308,12 @@ static void apu_tick_once(struct HagemuAPU *apu) {
 
 	apu->decimation_accumulator.left  /= 2.0f;
 	apu->decimation_accumulator.right /= 2.0f;
-	queue_push(&apu->audio_queue, apu->decimation_accumulator);
+
+	struct HagemuOutput *output = &CORE_FROM_APU(apu)->output;
+	if (output->audio_written + 1 < output->audio_capacity) {
+		output->audio_buffer[output->audio_written++] = apu->decimation_accumulator.left;
+		output->audio_buffer[output->audio_written++] = apu->decimation_accumulator.right;
+	}
 
 	apu->decimation_counter = leftover;
 	apu->decimation_accumulator.left  = current_frame.left  * leftover;

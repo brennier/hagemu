@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include "hagemu.h"
 
-#define AUDIO_QUEUE_SIZE 8192
 #define APU_REGISTER_LENGTH 0x0030
 
 typedef struct {
@@ -57,19 +56,11 @@ struct Channel {
 	bool     lfsr_last_out;
 };
 
-struct AudioQueue {
-	AudioFrame frames[AUDIO_QUEUE_SIZE];
-	unsigned start;
-	unsigned end;
-	unsigned size;
-};
-
 struct HagemuAPU {
 	struct Channel ch1;
 	struct Channel ch2;
 	struct Channel ch3;
 	struct Channel ch4;
-	struct AudioQueue audio_queue;
 	AudioFrame highpass_capacitor;
 	AudioFrame lowpass_prev_frame;
 	int target_sample_rate;

@@ -31,7 +31,7 @@ void hagemu_destroy(struct HagemuGB* gb) {
 	free(gb);
 }
 
-unsigned hagemu_next_instruction(struct HagemuGB* gb) {
+unsigned hagemu_run_next_instruction(struct HagemuGB* gb) {
 	return cpu_do_next_instruction(&gb->cpu);
 }
 
@@ -40,24 +40,39 @@ void hagemu_set_rom(struct HagemuGB *gb, enum GBModel model, const uint8_t *data
 	hagemu_reset(gb, model);
 }
 
-void hagemu_run_frame(struct HagemuGB *gb) {
+size_t hagemu_run_cycles(struct HagemuGB* gb, int cycle_count, float *audio_out, size_t audio_capacity) {
+	if (audio_out == NULL) audio_capacity = 0;
+	gb->output = (struct HagemuOutput){
+		.audio_buffer   = audio_out,
+		.audio_capacity = audio_capacity,
+		.audio_written  = 0,
+	};
+	while (cycle_count > 0) {
+		cycle_count -= cpu_do_next_instruction(&gb->cpu);
+	}
+	size_t written = gb->output.audio_written;
+	gb->output = (struct HagemuOutput){ 0 };
+	return written;
+}
+
+size_t hagemu_run_frame(struct HagemuGB *gb, float *audio_out, size_t audio_capacity) {
+	if (audio_out == NULL) audio_capacity = 0;
+	gb->output = (struct HagemuOutput){
+		.audio_buffer   = audio_out,
+		.audio_capacity = audio_capacity,
+		.audio_written  = 0,
+	};
 	unsigned current_frame = ppu_get_frame_count(&gb->ppu);
 	while (ppu_get_frame_count(&gb->ppu) == current_frame) {
 		cpu_do_next_instruction(&gb->cpu);
 	}
+	size_t written = gb->output.audio_written;
+	gb->output = (struct HagemuOutput){ 0 };
+	return written;
 }
 
 const uint32_t *hagemu_get_framebuffer(struct HagemuGB *gb) {
 	return ppu_get_frame(&gb->ppu);
-}
-
-unsigned hagemu_audio_read(struct HagemuGB* gb, float *buffer, unsigned max_frames) {
-	unsigned count = apu_read_audio(&gb->apu, buffer, max_frames);
- 	return count;
-}
-
-unsigned hagemu_audio_available(struct HagemuGB* gb) {
-	return apu_audio_available(&gb->apu);
 }
 
 bool hagemu_set_sram(struct HagemuGB *gb, const uint8_t *data, size_t size) {
@@ -125,14 +140,10 @@ size_t hagemu_snapshot_record(const struct HagemuGB *gb, uint8_t *out_buffer) {
 
 void hagemu_snapshot_restore(struct HagemuGB *gb, const uint8_t *buffer) {
 	struct HagemuJoypad joypad = gb->joypad;
-	struct AudioQueue audio_queue = gb->apu.audio_queue;
-
 	memcpy(gb, buffer, sizeof(*gb));
 	size_t sram_size = gb->cart.ram_size;
 	if (sram_size != 0) {
 		memcpy(gb->cart.ram, buffer + sizeof(*gb), sram_size);
 	}
-
 	gb->joypad = joypad;
-	gb->apu.audio_queue = audio_queue;
 }

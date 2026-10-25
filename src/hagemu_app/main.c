@@ -429,9 +429,7 @@ void main_loop(void* arg) {
 	}
 
 	int cycles = smooth_delta_time * GB_CLOCK_FREQUENCY;
-	while (cycles > 0)
-		cycles -= hagemu_next_instruction(app->gb);
-
+	int audio_written = hagemu_run_cycles(app->gb, cycles, app->audio_buffer, 2 * AUDIO_TARGET_FRAMES);
 	rewind_queue_push(&app->rewind_queue, app->gb);
 
 	// Even if there's not a new frame, updating the texture every loop
@@ -442,14 +440,10 @@ void main_loop(void* arg) {
 
 	int sample_rate = calculate_sample_rate(app);
 	hagemu_set_audio_sample_rate(app->gb, sample_rate);
-	int frames_available = hagemu_audio_available(app->gb);
-	if (frames_available > AUDIO_TARGET_FRAMES)
-		frames_available = AUDIO_TARGET_FRAMES;
-	int frames = hagemu_audio_read(app->gb, app->audio_buffer, frames_available);
 	// Lower the volume (later this will be adjustable)
-	for (int i = 0; i < 2 * frames; i++)
+	for (int i = 0; i < audio_written; i++)
 		app->audio_buffer[i] /= 4.0;
-	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, 2 * sizeof(float) * frames);
+	SDL_PutAudioStreamData(app->audio_stream, app->audio_buffer, audio_written * sizeof(float));
 }
 
 bool is_gbc_file(const char *filename) {

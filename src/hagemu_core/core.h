@@ -18,6 +18,13 @@
 #include "cart.h"
 #include "boot.h"
 
+struct HagemuOutput {
+	// Audio Output
+	float *audio_buffer;
+	size_t audio_capacity;
+	size_t audio_written;
+};
+
 struct HagemuGB {
 	enum GBModel model;
 	struct HagemuCPU   cpu;
@@ -30,6 +37,7 @@ struct HagemuGB {
 	struct HagemuTimer timer;
 	struct HagemuJoypad joypad;
 	struct HagemuInterrupts interrupts;
+	struct HagemuOutput output;
 };
 
 #endif

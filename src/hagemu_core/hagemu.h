@@ -20,20 +20,15 @@ void hagemu_reset(struct HagemuGB *gb, enum GBModel model);
 void hagemu_destroy(struct HagemuGB* gb);
 
 // Running the core
-unsigned hagemu_next_instruction(struct HagemuGB *gb);
-void hagemu_run_frame(struct HagemuGB *gb);
+unsigned hagemu_run_next_instruction(struct HagemuGB *gb);
+size_t hagemu_run_cycles(struct HagemuGB* gb, int cycle_count, float *audio_out, size_t audio_capacity);
+size_t hagemu_run_frame(struct HagemuGB *gb, float *audio_out, size_t audio_capacity);
 
 // Loading and saving files
 void hagemu_set_rom(struct HagemuGB *gb, enum GBModel model, const uint8_t *data, size_t size);
 bool hagemu_sram_available(struct HagemuGB *gb);
 bool hagemu_set_sram(struct HagemuGB *gb, const uint8_t *data, size_t size);
 const uint8_t *hagemu_get_sram(struct HagemuGB *gb, size_t *out_size);
-
-// Consumes buffered audio, returns number of frames actually written
-unsigned hagemu_audio_read(struct HagemuGB* gb, float *output, unsigned max_frames);
-
-// Returns the number of audio frames currently available for reading
-unsigned hagemu_audio_available(struct HagemuGB* gb);
 
 // Change the audio sample rate (default is 48000Hz)
 void hagemu_set_audio_sample_rate(struct HagemuGB* gb, unsigned new_sample_rate);
