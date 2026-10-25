@@ -52,4 +52,9 @@ void hagemu_set_button_right(struct HagemuGB *gb, bool is_down);
 void hagemu_set_button_start(struct HagemuGB *gb, bool is_down);
 void hagemu_set_button_select(struct HagemuGB *gb, bool is_down);
 
+// Take a snapshot of the emulator state
+size_t hagemu_snapshot_size(const struct HagemuGB *gb);
+size_t hagemu_snapshot_record(const struct HagemuGB *gb, uint8_t *out_buffer);
+void hagemu_snapshot_restore(struct HagemuGB *gb, const uint8_t *buffer);
+
 #endif

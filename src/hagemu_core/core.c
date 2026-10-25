@@ -109,3 +109,30 @@ void hagemu_set_button_start(struct HagemuGB *gb, bool is_down) {
 void hagemu_set_button_select(struct HagemuGB *gb, bool is_down) {
 	hagemu_set_button(gb, JOYPAD_BUTTON_SELECT, is_down);
 }
+
+size_t hagemu_snapshot_size(const struct HagemuGB *gb) {
+	return (sizeof(*gb) + gb->cart.ram_size);
+}
+
+size_t hagemu_snapshot_record(const struct HagemuGB *gb, uint8_t *out_buffer) {
+	memcpy(out_buffer, gb, sizeof(*gb));
+	size_t sram_size = gb->cart.ram_size;
+	if (sram_size != 0) {
+		memcpy(out_buffer + sizeof(*gb), gb->cart.ram, sram_size);
+	}
+	return sizeof(*gb) + sram_size;
+}
+
+void hagemu_snapshot_restore(struct HagemuGB *gb, const uint8_t *buffer) {
+	struct HagemuJoypad joypad = gb->joypad;
+	struct AudioQueue audio_queue = gb->apu.audio_queue;
+
+	memcpy(gb, buffer, sizeof(*gb));
+	size_t sram_size = gb->cart.ram_size;
+	if (sram_size != 0) {
+		memcpy(gb->cart.ram, buffer + sizeof(*gb), sram_size);
+	}
+
+	gb->joypad = joypad;
+	gb->apu.audio_queue = audio_queue;
+}
