@@ -11,7 +11,7 @@ struct RewindQueue {
 	size_t capacity;
 };
 
-bool rewind_queue_create(struct RewindQueue *queue, size_t item_size, size_t item_count);
+struct RewindQueue *rewind_queue_create(size_t item_size, size_t item_count);
 void rewind_queue_free(struct RewindQueue *queue);
 void rewind_queue_reset(struct RewindQueue *queue);
 void rewind_queue_pop(struct RewindQueue *queue, struct HagemuGB *gb);

@@ -87,22 +87,25 @@ static size_t run_length_decode(uint8_t * restrict output, size_t output_length,
 	return j;
 }
 
-bool rewind_queue_create(struct RewindQueue *queue, size_t item_size, size_t item_count) {
+struct RewindQueue *rewind_queue_create(size_t item_size, size_t item_count) {
+	struct RewindQueue *queue = malloc(sizeof(struct RewindQueue));
+	if (queue == NULL) return NULL;
 	memset(queue, 0, sizeof(struct RewindQueue));
-	fprintf(stderr, "Allocating %zu MiB for the rewind queue\n", item_size * item_count / (1024 * 1024));
 	queue->data = malloc(item_size * item_count);
 	if (queue->data == NULL) {
-		fprintf(stderr, "[ERROR] Failed to allocate memory for the rewind queue\n");
-		return false;
+		free(queue);
+		return NULL;
 	}
 	queue->item_size = item_size;
 	queue->capacity = item_count;
-	return true;
+	return queue;
 }
 
 void rewind_queue_free(struct RewindQueue *queue) {
+	if (queue == NULL)
+		return;
 	free(queue->data);
-	memset(queue, 0, sizeof(struct RewindQueue));
+	free(queue);
 }
 
 void rewind_queue_reset(struct RewindQueue *queue) {

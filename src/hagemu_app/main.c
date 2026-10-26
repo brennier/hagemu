@@ -116,7 +116,8 @@ void hagemu_app_cleanup(struct HagemuApp *app) {
 
 	hagemu_save_sram_file(app);
 
-	rewind_queue_free(&app->rewind_queue);
+	rewind_queue_free(app->rewind_queue);
+	app->rewind_queue = NULL;
 	text_cleanup();
 	free(app->rom_filename);
 	SDL_DestroyAudioStream(app->audio_stream);
@@ -169,7 +170,7 @@ char *hagemu_file_sram_name(const char *rom_name) {
 }
 
 bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
-	rewind_queue_reset(&app->rewind_queue);
+	rewind_queue_reset(app->rewind_queue);
 
 	printf("Loading SRAM data from '%s'\n", filename);
 	size_t sram_size;
@@ -189,7 +190,8 @@ bool hagemu_app_load_sram(struct HagemuApp *app, const char* filename) {
 }
 
 bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBModel model) {
-	rewind_queue_free(&app->rewind_queue);
+	rewind_queue_free(app->rewind_queue);
+	app->rewind_queue = NULL;
 
 	printf("Loading the rom file '%s'\n", filename);
 	size_t rom_size;
@@ -202,7 +204,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	SDL_free(rom_data);
 
 	size_t snapshot_size = hagemu_snapshot_size(app->gb);
-	rewind_queue_create(&app->rewind_queue, snapshot_size, SNAPSHOT_CAPACITY);
+	app->rewind_queue = rewind_queue_create(snapshot_size, SNAPSHOT_CAPACITY);
 
 	if (app->rom_filename)
 		free(app->rom_filename);
@@ -238,7 +240,8 @@ void hagemu_quit_rom(struct HagemuApp *app) {
 	free(app->rom_filename);
 	app->rom_filename = NULL;
 	hagemu_app_reset(app, app->gb_model);
-	rewind_queue_free(&app->rewind_queue);
+	rewind_queue_free(app->rewind_queue);
+	app->rewind_queue = NULL;
 }
 
 void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool is_pressed) {
@@ -262,7 +265,9 @@ void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool i
 	case SDL_SCANCODE_BACKSPACE:
 		if (app->state == HAGEMU_GAME_RUNNING && is_pressed) {
 			app->state = HAGEMU_GAME_REWINDING;
-			rewind_queue_pop(&app->rewind_queue, app->gb);
+			if (app->rewind_queue) {
+				rewind_queue_pop(app->rewind_queue, app->gb);
+			}
 		} else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed) {
 			app->state = HAGEMU_GAME_RUNNING;
 		}
@@ -287,7 +292,9 @@ void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button,
 	case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
 		if (app->state == HAGEMU_GAME_RUNNING && is_pressed) {
 			app->state = HAGEMU_GAME_REWINDING;
-			rewind_queue_pop(&app->rewind_queue, app->gb);
+			if (app->rewind_queue) {
+				rewind_queue_pop(app->rewind_queue, app->gb);
+			}
 		} else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed) {
 			app->state = HAGEMU_GAME_RUNNING;
 		}
@@ -430,15 +437,17 @@ void main_loop(void* arg) {
 		return;
 	}
 
-	if (app->state == HAGEMU_GAME_REWINDING) {
-		rewind_queue_pop(&app->rewind_queue, app->gb);
+	if (app->state == HAGEMU_GAME_REWINDING && app->rewind_queue) {
+		rewind_queue_pop(app->rewind_queue, app->gb);
 		hagemu_update_screen(app);
 		return;
 	}
 
 	int cycles = smooth_delta_time * GB_CLOCK_FREQUENCY;
 	int audio_written = hagemu_run_cycles(app->gb, cycles, app->audio_buffer, 2 * AUDIO_TARGET_FRAMES);
-	rewind_queue_push(&app->rewind_queue, app->gb);
+	if (app->rewind_queue) {
+		rewind_queue_push(app->rewind_queue, app->gb);
+	}
 
 	hagemu_update_screen(app);
 
