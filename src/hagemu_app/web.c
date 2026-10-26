@@ -90,30 +90,32 @@ void web_rom_reset(bool is_cgb_mode) {
 
 EMSCRIPTEN_KEEPALIVE
 void web_set_button(int button_id) {
-      switch (button_id) {
-      case 0: hagemu_set_button_right(hagemu_app->gb, true);  break;
-      case 1: hagemu_set_button_left(hagemu_app->gb, true);   break;
-      case 2: hagemu_set_button_up(hagemu_app->gb, true);     break;
-      case 3: hagemu_set_button_down(hagemu_app->gb, true);   break;
-      case 4: hagemu_set_button_a(hagemu_app->gb, true);      break;
-      case 5: hagemu_set_button_b(hagemu_app->gb, true);      break;
-      case 6: hagemu_set_button_start(hagemu_app->gb, true);  break;
-      case 7: hagemu_set_button_select(hagemu_app->gb, true); break;
-      }
+	switch (button_id) {
+	case 0: hagemu_set_button_right(hagemu_app->gb, true);  break;
+	case 1: hagemu_set_button_left(hagemu_app->gb, true);   break;
+	case 2: hagemu_set_button_up(hagemu_app->gb, true);     break;
+	case 3: hagemu_set_button_down(hagemu_app->gb, true);   break;
+	case 4: hagemu_set_button_a(hagemu_app->gb, true);      break;
+	case 5: hagemu_set_button_b(hagemu_app->gb, true);      break;
+	case 6: hagemu_set_button_start(hagemu_app->gb, true);  break;
+	case 7: hagemu_set_button_select(hagemu_app->gb, true); break;
+	case 8: hagemu_rewind_button(hagemu_app, true);         break;
+	}
 }
 
 EMSCRIPTEN_KEEPALIVE
 void web_unset_button(int button_id) {
-      switch (button_id) {
-      case 0: hagemu_set_button_right(hagemu_app->gb, false);  break;
-      case 1: hagemu_set_button_left(hagemu_app->gb, false);   break;
-      case 2: hagemu_set_button_up(hagemu_app->gb, false);     break;
-      case 3: hagemu_set_button_down(hagemu_app->gb, false);   break;
-      case 4: hagemu_set_button_a(hagemu_app->gb, false);      break;
-      case 5: hagemu_set_button_b(hagemu_app->gb, false);      break;
-      case 6: hagemu_set_button_start(hagemu_app->gb, false);  break;
-      case 7: hagemu_set_button_select(hagemu_app->gb, false); break;
-      }
+	switch (button_id) {
+	case 0: hagemu_set_button_right(hagemu_app->gb, false);  break;
+	case 1: hagemu_set_button_left(hagemu_app->gb, false);   break;
+	case 2: hagemu_set_button_up(hagemu_app->gb, false);     break;
+	case 3: hagemu_set_button_down(hagemu_app->gb, false);   break;
+	case 4: hagemu_set_button_a(hagemu_app->gb, false);      break;
+	case 5: hagemu_set_button_b(hagemu_app->gb, false);      break;
+	case 6: hagemu_set_button_start(hagemu_app->gb, false);  break;
+	case 7: hagemu_set_button_select(hagemu_app->gb, false); break;
+	case 8: hagemu_rewind_button(hagemu_app, false);         break;
+	}
 }
 
 #endif // __EMSCRIPTEN__

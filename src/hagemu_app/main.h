@@ -42,4 +42,6 @@ void hagemu_save_sram_file(struct HagemuApp *app);
 char *hagemu_file_sram_name(const char *rom_name);
 void hagemu_quit_rom(struct HagemuApp *app);
 
+void hagemu_rewind_button(struct HagemuApp *app, bool is_pressed);
+
 #endif // HAGEMU_MAIN_H

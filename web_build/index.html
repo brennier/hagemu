@@ -371,7 +371,7 @@
           </label>
           <button onclick="downloadSRAM()">Download Save</button>
           <!-- <button id="terminal-button">Show Terminal</button> -->
-          <button onclick="resetROM()">Reset ROM</button>
+          <button id="btn-rewind">Rewind</button>
         </div>
       </div>
 
@@ -403,6 +403,7 @@
           'btn-b':      5,
           'btn-start':  6,
           'btn-select': 7,
+          'btn-rewind': 8,
       };
 
       function bindButton(id, buttonIndex) {

@@ -244,6 +244,17 @@ void hagemu_quit_rom(struct HagemuApp *app) {
 	app->rewind_queue = NULL;
 }
 
+void hagemu_rewind_button(struct HagemuApp *app, bool is_pressed) {
+	if (app->state == HAGEMU_GAME_RUNNING && is_pressed) {
+		app->state = HAGEMU_GAME_REWINDING;
+		if (app->rewind_queue) {
+			rewind_queue_pop(app->rewind_queue, app->gb);
+		}
+	} else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed) {
+		app->state = HAGEMU_GAME_RUNNING;
+	}
+}
+
 void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool is_pressed) {
 	switch (scancode) {
 
@@ -262,16 +273,7 @@ void hagemu_handle_keypress(struct HagemuApp *app, SDL_Scancode scancode, bool i
 	case SDL_SCANCODE_DOWN:  hagemu_set_button_down(app->gb, is_pressed);  break;
 	case SDL_SCANCODE_RIGHT: hagemu_set_button_right(app->gb, is_pressed); break;
 
-	case SDL_SCANCODE_BACKSPACE:
-		if (app->state == HAGEMU_GAME_RUNNING && is_pressed) {
-			app->state = HAGEMU_GAME_REWINDING;
-			if (app->rewind_queue) {
-				rewind_queue_pop(app->rewind_queue, app->gb);
-			}
-		} else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed) {
-			app->state = HAGEMU_GAME_RUNNING;
-		}
-		break;
+	case SDL_SCANCODE_BACKSPACE: hagemu_rewind_button(app, is_pressed); break;
 
 	default: return;
 	}
@@ -289,16 +291,8 @@ void hagemu_handle_gamepad(struct HagemuApp *app, SDL_GamepadButton gpad_button,
 	case SDL_GAMEPAD_BUTTON_DPAD_LEFT:  hagemu_set_button_left(app->gb, is_pressed); break;
 	case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: hagemu_set_button_right(app->gb, is_pressed); break;
 	case SDL_GAMEPAD_BUTTON_DPAD_DOWN:  hagemu_set_button_down(app->gb, is_pressed); break;
-	case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
-		if (app->state == HAGEMU_GAME_RUNNING && is_pressed) {
-			app->state = HAGEMU_GAME_REWINDING;
-			if (app->rewind_queue) {
-				rewind_queue_pop(app->rewind_queue, app->gb);
-			}
-		} else if (app->state == HAGEMU_GAME_REWINDING && !is_pressed) {
-			app->state = HAGEMU_GAME_RUNNING;
-		}
-		break;
+
+	case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: hagemu_rewind_button(app, is_pressed); break;
 
 	default: return;
 	}
