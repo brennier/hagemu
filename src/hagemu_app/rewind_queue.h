@@ -20,6 +20,8 @@ struct RewindQueue {
 	size_t snapshot_size;
 	bool snapshot_latest_is_taken;
 	uint8_t *snapshot_latest;
+	uint8_t *snapshot_diff_buffer;
+	uint8_t *encode_decode_buffer;
 };
 
 struct RewindQueue *rewind_queue_create(size_t item_size);
