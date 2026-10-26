@@ -36,6 +36,7 @@ WEB_BUILD_DIR = $(BUILD_DIR)/web
 WEB_TARGET    = web_build/hagemu.js
 EMSDK         = src/emsdk/emsdk
 EMFLAGS       = -sUSE_SDL=3 -flto -lidbfs.js -sASYNCIFY \
+                -sINITIAL_MEMORY=32MB \
                 -sEXPORTED_RUNTIME_METHODS='["HEAPU8","UTF8ToString","ccall","cwrap"]'
 
 web:

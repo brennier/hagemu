@@ -154,7 +154,7 @@ void rewind_queue_push(struct RewindQueue *queue, const struct HagemuGB *gb) {
 		return;
 	}
 
-	printf("Rewind Queue Size: %zu bytes out of %zu bytes\n", queue->allocated_data, sizeof(queue->data));
+	/* printf("Rewind Queue Size: %zu bytes out of %zu bytes\n", queue->allocated_data, sizeof(queue->data)); */
 
 	memcpy(queue->snapshot_diff_buffer, queue->snapshot_latest, queue->snapshot_size);
 	hagemu_snapshot_record(gb, queue->snapshot_latest);
