@@ -110,6 +110,7 @@ void rewind_queue_free(struct RewindQueue *queue) {
 void rewind_queue_reset(struct RewindQueue *queue) {
 	queue->index_current = 0;
 	queue->index_length = 0;
+	queue->allocated_data = 0;
 	queue->snapshot_latest_is_taken = false;
 }
 
@@ -130,6 +131,7 @@ void rewind_queue_pop(struct RewindQueue *queue, struct HagemuGB *gb) {
 	memcpy(scratch, queue->data + latest.pos, latest.size);
 	queue->index_length--;
 	queue->index_current = index_prev;
+	queue->allocated_data -= latest.size;
 
 	uint8_t *snapshot_diff = malloc(queue->snapshot_size);
 	run_length_decode(snapshot_diff, queue->snapshot_size, scratch, latest.size);
@@ -149,6 +151,8 @@ void rewind_queue_push(struct RewindQueue *queue, const struct HagemuGB *gb) {
 		queue->snapshot_latest_is_taken = true;
 		return;
 	}
+
+	printf("Rewind Queue Size: %zu bytes out of %zu bytes\n", queue->allocated_data, sizeof(queue->data));
 
 	uint8_t *scratch = malloc(queue->snapshot_size);
 	memcpy(scratch, queue->snapshot_latest, queue->snapshot_size);
@@ -182,6 +186,7 @@ void rewind_queue_push(struct RewindQueue *queue, const struct HagemuGB *gb) {
 		if (new_index.pos + new_index.size > REWIND_QUEUE_DATA_CAPACITY) {
 			while (queue->index_length > 0) {
 				if (queue->index[oldest_index].pos >= new_index.pos) {
+					queue->allocated_data -= queue->index[oldest_index].size;
 					queue->index_length--;
 					oldest_index++;
 					oldest_index %= REWIND_QUEUE_INDEX_CAPACITY;
@@ -192,10 +197,12 @@ void rewind_queue_push(struct RewindQueue *queue, const struct HagemuGB *gb) {
 			new_index.pos = 0;
 		}
 		memcpy(queue->data + new_index.pos, compressed_data, new_index.size);
+		queue->allocated_data += new_index.size;
 
 		while (queue->index_length > 0) {
 			if (queue->index[oldest_index].pos < new_index.pos + new_index.size &&
 			    queue->index[oldest_index].pos + queue->index[oldest_index].size > new_index.pos) {
+				queue->allocated_data -= queue->index[oldest_index].size;
 				queue->index_length--;
 				oldest_index++;
 				oldest_index %= REWIND_QUEUE_INDEX_CAPACITY;

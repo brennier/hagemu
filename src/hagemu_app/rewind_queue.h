@@ -12,6 +12,7 @@ struct RewindQueueIndex {
 };
 
 struct RewindQueue {
+	size_t allocated_data;
 	uint8_t data[REWIND_QUEUE_DATA_CAPACITY];
 	struct RewindQueueIndex index[REWIND_QUEUE_INDEX_CAPACITY];
 	uint16_t index_current;
