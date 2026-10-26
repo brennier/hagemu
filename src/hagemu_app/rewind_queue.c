@@ -15,7 +15,7 @@ static int write_varint(uint8_t *location, int number) {
 	return i;
 }
 
-static int read_varint(uint8_t *location, int *out_number) {
+static int read_varint(const uint8_t *location, int *out_number) {
 	int i = 0;
 	int result = 0;
 	while (location[i] & 0x80) {
@@ -28,8 +28,12 @@ static int read_varint(uint8_t *location, int *out_number) {
 	return i;
 }
 
-static size_t rewind_queue_compress(uint8_t * restrict output, size_t output_length,
-				    const uint8_t * restrict input, size_t input_length) {
+static size_t run_length_upper_bound(size_t data_size) {
+	return data_size + (data_size / 128) + 16;
+}
+
+static size_t run_length_encode(uint8_t * restrict output, size_t output_length,
+				const uint8_t * restrict input, size_t input_length) {
 	uint32_t count = 0;
 	size_t i = 0;
 	size_t j = 0;
@@ -58,6 +62,27 @@ static size_t rewind_queue_compress(uint8_t * restrict output, size_t output_len
 		j += write_varint(output + j, count);
 		memcpy(output + j, input + i - count, count);
 		j += count;
+	}
+	return j;
+}
+
+static size_t run_length_decode(uint8_t * restrict output, size_t output_length,
+				const uint8_t * restrict input, size_t input_length) {
+	size_t i = 0;
+	size_t j = 0;
+	bool expanding_zeros = true;
+	memset(output, 0, output_length);
+	while (i < input_length) {
+		int count;
+		i += read_varint(input + i, &count);
+		if (expanding_zeros) {
+			j += count;
+		} else {
+			memcpy(output + j, input + i, count);
+			i += count;
+			j += count;
+		}
+		expanding_zeros = !expanding_zeros;
 	}
 	return j;
 }
