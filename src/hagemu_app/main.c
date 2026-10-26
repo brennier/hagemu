@@ -468,33 +468,34 @@ bool is_gbc_file(const char *filename) {
 }
 
 int main(int argc, char *argv[]) {
-	struct HagemuApp app = { 0 };
-	if (!hagemu_app_setup(&app)) {
+	struct HagemuApp *app = malloc(sizeof(struct HagemuApp));
+	memset(app, 0, sizeof(struct HagemuApp));
+	if (!hagemu_app_setup(app)) {
 		fprintf(stderr, "The Hagemu app failed to start\n");
 	}
 
 #ifdef __EMSCRIPTEN__
-	web_save_pointer_for_javascript(&app);
+	web_save_pointer_for_javascript(app);
 #endif
 
 	printf("Application started successfully\n");
 	printf("Waiting for a rom file\n");
 
 	if (argc == 2) {
-		hagemu_app_load_rom(&app, argv[1], is_gbc_file(argv[1]));
+		hagemu_app_load_rom(app, argv[1], is_gbc_file(argv[1]));
 	} else if (argc > 2) {
 		fprintf(stderr, "Error: Too many arguments\n");
 		exit(EXIT_FAILURE);
 	}
 
 #ifdef __EMSCRIPTEN__
-	emscripten_set_main_loop_arg(main_loop, &app, 0, true);
+	emscripten_set_main_loop_arg(main_loop, app, 0, true);
 #else
-	while (app.state != HAGEMU_QUIT) {
-		main_loop(&app);
+	while (app->state != HAGEMU_QUIT) {
+		main_loop(app);
 	}
 #endif
 
-	hagemu_app_cleanup(&app);
+	hagemu_app_cleanup(app);
 	return EXIT_SUCCESS;
 }
