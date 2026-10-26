@@ -204,7 +204,7 @@ bool hagemu_app_load_rom(struct HagemuApp *app, const char* filename, enum GBMod
 	SDL_free(rom_data);
 
 	size_t snapshot_size = hagemu_snapshot_size(app->gb);
-	app->rewind_queue = rewind_queue_create(snapshot_size, SNAPSHOT_CAPACITY);
+	app->rewind_queue = rewind_queue_create(snapshot_size);
 
 	if (app->rom_filename)
 		free(app->rom_filename);

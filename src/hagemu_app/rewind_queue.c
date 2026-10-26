@@ -87,70 +87,124 @@ static size_t run_length_decode(uint8_t * restrict output, size_t output_length,
 	return j;
 }
 
-struct RewindQueue *rewind_queue_create(size_t item_size, size_t item_count) {
+struct RewindQueue *rewind_queue_create(size_t item_size) {
 	struct RewindQueue *queue = malloc(sizeof(struct RewindQueue));
 	if (queue == NULL) return NULL;
 	memset(queue, 0, sizeof(struct RewindQueue));
-	queue->data = malloc(item_size * item_count);
-	if (queue->data == NULL) {
+	queue->snapshot_latest = malloc(item_size);
+	if (queue->snapshot_latest == NULL) {
 		free(queue);
 		return NULL;
 	}
-	queue->item_size = item_size;
-	queue->capacity = item_count;
+	queue->snapshot_size = item_size;
 	return queue;
 }
 
 void rewind_queue_free(struct RewindQueue *queue) {
 	if (queue == NULL)
 		return;
-	free(queue->data);
+	free(queue->snapshot_latest);
 	free(queue);
 }
 
 void rewind_queue_reset(struct RewindQueue *queue) {
-	queue->head = 0;
-	queue->length = 0;
+	queue->index_current = 0;
+	queue->index_length = 0;
+	queue->snapshot_latest_is_taken = false;
 }
 
 void rewind_queue_pop(struct RewindQueue *queue, struct HagemuGB *gb) {
-	if (queue->capacity == 0 || queue->length == 0)
-		return;
+	return;
+	/* if (queue == NULL) */
+		/* return; */
 
-	if (queue->head == 0)
-		queue->head = queue->capacity - 1;
-	else
-		queue->head--;
-	queue->length--;
-	hagemu_snapshot_restore(gb, queue->data + queue->item_size * queue->head);
+	/* if (queue->head == 0) */
+		/* queue->head = queue->capacity - 1; */
+	/* else */
+		/* queue->head--; */
+	/* queue->length--; */
+
+	/* size_t size = hagemu_snapshot_size(gb); */
+
+	/* hagemu_snapshot_restore(gb, queue->data + queue->item_size * queue->head); */
 	// If there's another snapshot before the one we just popped, XOR it with
 	// the one we just popped.
-	if (queue->length > 0) {
-		size_t previous_head = (queue->head == 0) ? queue->capacity - 1 : queue->head - 1;
-		uint8_t *previous_snapshot = queue->data + queue->item_size * previous_head;
-		uint8_t *current_snapshot  = queue->data + queue->item_size * queue->head;
-		for (size_t i = 0; i < queue->item_size; i++) {
-			previous_snapshot[i] ^= current_snapshot[i];
-		}
-	}
+	/* if (queue->length > 0) { */
+		/* size_t previous_head = (queue->head == 0) ? queue->capacity - 1 : queue->head - 1; */
+		/* uint8_t *previous_snapshot = queue->data + queue->item_size * previous_head; */
+		/* uint8_t *current_snapshot  = queue->data + queue->item_size * queue->head; */
+		/* for (size_t i = 0; i < queue->item_size; i++) { */
+			/* previous_snapshot[i] ^= current_snapshot[i]; */
+		/* } */
+	/* } */
 }
 
 void rewind_queue_push(struct RewindQueue *queue, const struct HagemuGB *gb) {
-	if (queue->capacity == 0)
+	if (!queue->snapshot_latest_is_taken) {
+		hagemu_snapshot_record(gb, queue->snapshot_latest);
+		queue->snapshot_latest_is_taken = true;
 		return;
-
-	hagemu_snapshot_record(gb, queue->data + queue->item_size * queue->head);
-	// If there's a previous snapshot, XOR it with the new snapshot
-	if (queue->length > 0) {
-		size_t previous_head = (queue->head == 0) ? queue->capacity - 1 : queue->head - 1;
-		uint8_t *previous_snapshot = queue->data + queue->item_size * previous_head;
-		uint8_t *current_snapshot  = queue->data + queue->item_size * queue->head;
-		for (size_t i = 0; i < queue->item_size; i++) {
-			previous_snapshot[i] ^= current_snapshot[i];
-		}
 	}
-	queue->head++;
-	queue->head %= queue->capacity;
-	if (queue->length < queue->capacity)
-		queue->length++;
+
+	uint8_t *scratch = malloc(queue->snapshot_size);
+	memcpy(scratch, queue->snapshot_latest, queue->snapshot_size);
+	hagemu_snapshot_record(gb, queue->snapshot_latest);
+	for (size_t i = 0; i < queue->snapshot_size; i++) {
+		scratch[i] ^= queue->snapshot_latest[i];
+	}
+
+	size_t upper_bound = run_length_upper_bound(queue->snapshot_size);
+	uint8_t *compressed_data = malloc(upper_bound);
+	size_t compressed_size = run_length_encode(compressed_data, upper_bound,
+						   scratch, queue->snapshot_size);
+	free(scratch);
+
+	if (queue->index_length == 0) {
+		memcpy(queue->data, compressed_data, compressed_size);
+		queue->index[0].pos = 0;
+		queue->index[0].size = compressed_size;
+		queue->index_current = 1;
+		queue->index_length = 1;
+	} else {
+		int index_prev = (queue->index_current == 0) ? REWIND_QUEUE_INDEX_CAPACITY - 1 : queue->index_current - 1;
+		struct RewindQueueIndex new_index = {
+			.pos = queue->index[index_prev].pos + queue->index[index_prev].size,
+			.size = compressed_size,
+		};
+
+		int oldest_index = queue->index_current - queue->index_length;
+		oldest_index = (oldest_index + REWIND_QUEUE_INDEX_CAPACITY) % REWIND_QUEUE_INDEX_CAPACITY;
+
+		if (new_index.pos + new_index.size > REWIND_QUEUE_DATA_CAPACITY) {
+			while (queue->index_length > 0) {
+				if (queue->index[oldest_index].pos >= new_index.pos) {
+					queue->index_length--;
+					oldest_index++;
+					oldest_index %= REWIND_QUEUE_INDEX_CAPACITY;
+				} else {
+					break;
+				}
+			}
+			new_index.pos = 0;
+		}
+		memcpy(queue->data + new_index.pos, compressed_data, new_index.size);
+
+		while (queue->index_length > 0) {
+			if (queue->index[oldest_index].pos < new_index.pos + new_index.size &&
+			    queue->index[oldest_index].pos + queue->index[oldest_index].size > new_index.pos) {
+				queue->index_length--;
+				oldest_index++;
+				oldest_index %= REWIND_QUEUE_INDEX_CAPACITY;
+			} else {
+				break;
+			}
+		}
+
+		queue->index[queue->index_current] = new_index;
+		if (queue->index_length < REWIND_QUEUE_INDEX_CAPACITY)
+			queue->index_length++;
+		queue->index_current++;
+		queue->index_current %= REWIND_QUEUE_INDEX_CAPACITY;
+	}
+	free(compressed_data);
 }
