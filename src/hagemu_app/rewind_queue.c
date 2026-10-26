@@ -37,13 +37,15 @@ static size_t rewind_queue_compress(uint8_t * restrict output, size_t output_len
 	while (i < input_length) {
 		if (counting_zeros && input[i] != 0) {
 			j += write_varint(output + j, count);
-			count = 0;
+			count = 1;
 			counting_zeros = false;
-		} else if (!counting_zeros && input[i] == 0 && input[i+1] == 0) {
+		} else if (!counting_zeros && input[i] == 0 &&
+			   i + 1 < input_length && input[i+1] == 0) {
 			j += write_varint(output + j, count);
 			memcpy(output + j, input + i - count, count);
 			j += count;
-			count = 0;
+			count = 2;
+			i += 1;
 			counting_zeros = true;
 		} else {
 			count++;
@@ -55,6 +57,7 @@ static size_t rewind_queue_compress(uint8_t * restrict output, size_t output_len
 	} else {
 		j += write_varint(output + j, count);
 		memcpy(output + j, input + i - count, count);
+		j += count;
 	}
 	return j;
 }
