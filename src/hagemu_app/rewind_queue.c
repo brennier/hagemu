@@ -34,6 +34,9 @@ static size_t run_length_upper_bound(size_t data_size) {
 
 static size_t run_length_encode(uint8_t * restrict output, size_t output_length,
 				const uint8_t * restrict input, size_t input_length) {
+	if (output_length < run_length_upper_bound(input_length)) {
+		return 0;
+	}
 	uint32_t count = 0;
 	size_t i = 0;
 	size_t j = 0;
@@ -165,6 +168,10 @@ void rewind_queue_push(struct RewindQueue *queue, const struct HagemuGB *gb) {
 	size_t upper_bound = run_length_upper_bound(queue->snapshot_size);
 	size_t compressed_size = run_length_encode(queue->encode_decode_buffer, upper_bound,
 						   queue->snapshot_diff_buffer, queue->snapshot_size);
+
+	/* printf("Rewind Queue Size: %zu bytes out of %zu bytes (%.3f%%)\n", */
+	/*        compressed_size, queue->snapshot_size, */
+	/*        100 * ((float)compressed_size / (float)queue->snapshot_size)); */
 
 	if (queue->index_length == 0) {
 		memcpy(queue->data, queue->encode_decode_buffer, compressed_size);

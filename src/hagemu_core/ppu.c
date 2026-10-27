@@ -323,7 +323,7 @@ static bool sprite_is_visible(struct HagemuPPU *ppu, struct Sprite *sprite) {
 // the items are sorted in a stable manner (since they're already in OAM
 // order). I chose insertion sort since there's only at most 10 items.
 static void sprite_sort_x_position(struct Sprite *sprites, unsigned sprite_count) {
-	for (int sorted_up_to = 1; sorted_up_to < sprite_count; sorted_up_to++) {
+	for (unsigned sorted_up_to = 1; sorted_up_to < sprite_count; sorted_up_to++) {
 		struct Sprite key = sprites[sorted_up_to];
 		int i = sorted_up_to - 1;
 

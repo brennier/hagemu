@@ -130,12 +130,14 @@ void text_cleanup(void) {
 }
 
 float text_draw_char(SDL_Renderer *renderer, char c, int x, int y, int font_size) {
-	unsigned value = (unsigned)c;
+	unsigned value = (unsigned char)c;
+	// If a non-printable character, return 0.0f
+	if (value < 32) return 0.0f;
 	value -= 32;
 
 	int x_offset = 1;
 	int y_offset = 1;
-	for (int i = 0; i < value; i++) {
+	for (unsigned i = 0; i < value; i++) {
 		x_offset += chars_width[i] + 1;
 		if (x_offset + chars_width[i+1] > 128) {
 			x_offset = 1;
@@ -165,7 +167,13 @@ void text_draw(SDL_Renderer *renderer, char* text, int x, int y, int font_size) 
 float text_pixel_length(char* text, int font_size) {
 	float length = 0.0f;
 	for (char *c = text; *c != '\0'; c++) {
-		int value = (*c) - 32;
+		unsigned char value = *c;
+		// If the value is a nonprintable ASCII character
+		if (value < 32) {
+			length += (font_size / 10.0);
+			continue;
+		}
+		value -= 32;
 		length += chars_width[value] * (font_size / 10.0);
 		length += (font_size / 10.0);
 	}

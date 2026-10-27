@@ -542,6 +542,7 @@ static inline void op_daa(struct HagemuCPU *cpu) {
 }
 
 static inline void op_nop(struct HagemuCPU *cpu) {
+	(void)cpu;
 }
 
 static inline void op_load8(struct HagemuCPU *cpu, enum Reg8 dest, enum Reg8 src) {
